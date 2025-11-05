@@ -94,8 +94,17 @@ export class CallSession {
   // Flags
   private isAnswering = false
   private isTerminating = false
+  private isHoldPending = false
+
+  // DTMF queue
+  private dtmfQueue: string[] = []
+  private isDtmfSending = false
 
   constructor(options: CallSessionOptions) {
+    // Validate URIs
+    this.validateUri(options.localUri, 'localUri')
+    this.validateUri(options.remoteUri, 'remoteUri')
+
     this._id = options.id
     this._direction = options.direction
     this._localUri = options.localUri
@@ -198,7 +207,7 @@ export class CallSession {
       hasLocalVideo: this._hasLocalVideo,
       timing: this.timing,
       terminationCause: this._terminationCause,
-      data: this._data,
+      data: { ...this._data },
     }
   }
 
@@ -266,6 +275,60 @@ export class CallSession {
   }
 
   /**
+   * Reject an incoming call
+   *
+   * @param statusCode - SIP status code (default: 603 Decline)
+   *   - 486: Busy Here
+   *   - 603: Decline
+   *   - 480: Temporarily Unavailable
+   */
+  async reject(statusCode: number = 603): Promise<void> {
+    if (this._direction !== ('incoming' as CallDirection)) {
+      throw new Error('Cannot reject outgoing call')
+    }
+
+    if (this._state !== ('ringing' as CallState)) {
+      throw new Error(`Cannot reject call in state: ${this._state}`)
+    }
+
+    // Validate status code
+    if (statusCode < 400 || statusCode > 699) {
+      throw new Error(`Invalid rejection status code: ${statusCode}. Must be 4xx-6xx`)
+    }
+
+    try {
+      logger.info(`Rejecting call: ${this._id} with status ${statusCode}`)
+      this.updateState('terminating' as CallState)
+
+      // Reject using JsSIP terminate with status code
+      this.rtcSession.terminate({
+        status_code: statusCode,
+        reason_phrase: this.getReasonPhrase(statusCode),
+      })
+
+      // The 'failed' event will handle final state transition
+    } catch (error) {
+      logger.error(`Failed to reject call: ${this._id}`, error)
+      this.updateState('failed' as CallState)
+      throw error
+    }
+  }
+
+  /**
+   * Get reason phrase for status code
+   */
+  private getReasonPhrase(statusCode: number): string {
+    const reasonPhrases: Record<number, string> = {
+      480: 'Temporarily Unavailable',
+      486: 'Busy Here',
+      603: 'Decline',
+      404: 'Not Found',
+      406: 'Not Acceptable',
+    }
+    return reasonPhrases[statusCode] || 'Rejected'
+  }
+
+  /**
    * Terminate the call
    *
    * Implements call termination flow:
@@ -319,15 +382,22 @@ export class CallSession {
       return
     }
 
+    if (this.isHoldPending) {
+      throw new Error('Hold/unhold operation already in progress')
+    }
+
+    this.isHoldPending = true
+
     try {
       logger.info(`Putting call on hold: ${this._id}`)
 
       // Hold using JsSIP
       this.rtcSession.hold()
 
-      // The 'hold' event will update state
+      // The 'hold' event will update state and reset flag
     } catch (error) {
       logger.error(`Failed to hold call: ${this._id}`, error)
+      this.isHoldPending = false
       throw error
     }
   }
@@ -341,15 +411,22 @@ export class CallSession {
       return
     }
 
+    if (this.isHoldPending) {
+      throw new Error('Hold/unhold operation already in progress')
+    }
+
+    this.isHoldPending = true
+
     try {
       logger.info(`Resuming call from hold: ${this._id}`)
 
       // Unhold using JsSIP
       this.rtcSession.unhold()
 
-      // The 'unhold' event will update state
+      // The 'unhold' event will update state and reset flag
     } catch (error) {
       logger.error(`Failed to unhold call: ${this._id}`, error)
+      this.isHoldPending = false
       throw error
     }
   }
@@ -401,40 +478,96 @@ export class CallSession {
   }
 
   /**
-   * Send DTMF tone
+   * Send DTMF tone or tone sequence
+   * Tones are queued and sent sequentially with proper timing
+   *
+   * @param tone - Single tone (0-9, *, #, A-D) or sequence of tones (e.g., "123#")
+   * @param options - DTMF options for duration, gap, and transport
    */
   sendDTMF(tone: string, options?: DTMFOptions): void {
     if (this._state !== ('active' as CallState)) {
       throw new Error(`Cannot send DTMF in state: ${this._state}`)
     }
 
+    // Validate tone
+    const validTones = /^[0-9A-D*#]+$/i
+    if (!validTones.test(tone)) {
+      throw new Error(`Invalid DTMF tone: ${tone}. Valid characters: 0-9, A-D, *, #`)
+    }
+
+    // Add tones to queue (split string into individual characters)
+    const tones = tone.split('')
+    this.dtmfQueue.push(...tones)
+
+    logger.debug(`Added ${tones.length} tone(s) to DTMF queue: ${tone}`)
+
+    // Start processing queue
+    this.processDTMFQueue(options)
+  }
+
+  /**
+   * Process DTMF queue sequentially
+   */
+  private async processDTMFQueue(options?: DTMFOptions): Promise<void> {
+    // If already sending, return (queue will be processed)
+    if (this.isDtmfSending) {
+      return
+    }
+
+    this.isDtmfSending = true
+
     try {
-      logger.debug(`Sending DTMF tone: ${tone}`)
+      while (this.dtmfQueue.length > 0) {
+        const tone = this.dtmfQueue.shift()!
 
-      // Prepare DTMF options
-      const dtmfOptions: any = {}
+        logger.debug(`Sending DTMF tone from queue: ${tone}`)
 
-      if (options?.duration) {
-        dtmfOptions.duration = options.duration
+        // Prepare DTMF options
+        const dtmfOptions: any = {}
+
+        const duration = options?.duration || 100 // Default 100ms
+        const interToneGap = options?.interToneGap || 70 // Default 70ms
+
+        dtmfOptions.duration = duration
+
+        // Send DTMF using JsSIP
+        if (options?.transportType === 'INFO') {
+          this.rtcSession.sendDTMF(tone, { ...dtmfOptions, transportType: 'INFO' })
+        } else {
+          // Default to RFC2833
+          this.rtcSession.sendDTMF(tone, dtmfOptions)
+        }
+
+        this.emitCallEvent('call:dtmf_sent', { tone })
+
+        // Wait for inter-tone gap before sending next tone
+        if (this.dtmfQueue.length > 0) {
+          await this.delay(interToneGap)
+        }
       }
-
-      if (options?.interToneGap) {
-        dtmfOptions.interToneGap = options.interToneGap
-      }
-
-      // Send DTMF using JsSIP
-      if (options?.transportType === 'INFO') {
-        this.rtcSession.sendDTMF(tone, { ...dtmfOptions, transportType: 'INFO' })
-      } else {
-        // Default to RFC2833
-        this.rtcSession.sendDTMF(tone, dtmfOptions)
-      }
-
-      this.emitCallEvent('call:dtmf_sent', { tone })
     } catch (error) {
       logger.error(`Failed to send DTMF: ${this._id}`, error)
+      // Clear queue on error
+      this.dtmfQueue = []
       throw error
+    } finally {
+      this.isDtmfSending = false
     }
+  }
+
+  /**
+   * Clear DTMF queue
+   */
+  clearDTMFQueue(): void {
+    logger.debug(`Clearing DTMF queue (${this.dtmfQueue.length} tones)`)
+    this.dtmfQueue = []
+  }
+
+  /**
+   * Utility delay function
+   */
+  private delay(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms))
   }
 
   /**
@@ -562,15 +695,19 @@ export class CallSession {
       // Record end time
       this._timing.endTime = new Date()
 
-      // Calculate duration
-      if (this._timing.answerTime) {
+      // Calculate duration (only if answered and endTime > answerTime)
+      if (this._timing.answerTime && this._timing.endTime > this._timing.answerTime) {
         this._timing.duration = Math.floor(
           (this._timing.endTime.getTime() - this._timing.answerTime.getTime()) / 1000
         )
       }
 
-      // Calculate ring duration
-      if (this._timing.startTime && this._timing.answerTime) {
+      // Calculate ring duration (only if answerTime > startTime)
+      if (
+        this._timing.startTime &&
+        this._timing.answerTime &&
+        this._timing.answerTime > this._timing.startTime
+      ) {
         this._timing.ringDuration = Math.floor(
           (this._timing.answerTime.getTime() - this._timing.startTime.getTime()) / 1000
         )
@@ -620,6 +757,7 @@ export class CallSession {
       if (e.originator === 'local') {
         this._isOnHold = true
         this.updateState('held' as CallState)
+        this.isHoldPending = false // Reset operation lock
       } else {
         this.updateState('remote_held' as CallState)
       }
@@ -635,6 +773,7 @@ export class CallSession {
 
       if (e.originator === 'local') {
         this._isOnHold = false
+        this.isHoldPending = false // Reset operation lock
       }
 
       this.updateState('active' as CallState)
@@ -671,7 +810,14 @@ export class CallSession {
           this._remoteStream = new MediaStream()
         }
 
-        this._remoteStream.addTrack(event.track)
+        // Check if track already exists to avoid duplication
+        const existingTrack = this._remoteStream.getTracks().find((t) => t.id === event.track.id)
+        if (!existingTrack) {
+          this._remoteStream.addTrack(event.track)
+          logger.debug(`Added remote track: ${event.track.id}`)
+        } else {
+          logger.debug(`Track ${event.track.id} already exists, skipping`)
+        }
 
         // Check for video tracks
         if (event.track.kind === 'video') {
@@ -691,7 +837,14 @@ export class CallSession {
             this._localStream = new MediaStream()
           }
 
-          this._localStream.addTrack(sender.track)
+          // Check if track already exists to avoid duplication
+          const existingTrack = this._localStream.getTracks().find((t) => t.id === sender.track!.id)
+          if (!existingTrack) {
+            this._localStream.addTrack(sender.track)
+            logger.debug(`Added local track: ${sender.track.id}`)
+          } else {
+            logger.debug(`Track ${sender.track.id} already exists, skipping`)
+          }
 
           // Check for video tracks
           if (sender.track.kind === 'video') {
@@ -745,6 +898,23 @@ export class CallSession {
       timestamp: new Date(),
       ...data,
     })
+  }
+
+  /**
+   * Validate SIP URI format
+   */
+  private validateUri(uri: string, fieldName: string): void {
+    if (!uri) {
+      throw new Error(`${fieldName} is required`)
+    }
+
+    // Basic SIP URI validation: sip: or sips: followed by user@host
+    const sipUriPattern = /^sips?:[\w\-.!~*'()&=+$,;?/]+@[\w\-.]+/
+    if (!sipUriPattern.test(uri)) {
+      throw new Error(
+        `Invalid SIP URI format for ${fieldName}: ${uri}. Expected format: sip:user@host or sips:user@host`
+      )
+    }
   }
 
   /**
@@ -822,7 +992,7 @@ export function createCallSession(
 ): CallSession {
   // Extract session information
   const id = rtcSession.id || `call-${Date.now()}`
-  const remoteUri = rtcSession.remote_identity?.uri?.toString() || 'unknown'
+  const remoteUri = rtcSession.remote_identity?.uri?.toString() || 'sip:unknown@unknown'
   const remoteDisplayName = rtcSession.remote_identity?.display_name
 
   // Set initial state based on direction

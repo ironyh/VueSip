@@ -618,7 +618,10 @@ describe('CallSession', () => {
 
         session.sendDTMF('1')
 
-        expect(mockRtcSession.sendDTMF).toHaveBeenCalledWith('1', {})
+        // New implementation adds default duration
+        expect(mockRtcSession.sendDTMF).toHaveBeenCalledWith('1', {
+          duration: 100,
+        })
         expect(eventSpy).toHaveBeenCalledWith(
           expect.objectContaining({
             tone: '1',
@@ -632,9 +635,9 @@ describe('CallSession', () => {
           interToneGap: 100,
         })
 
+        // interToneGap is not passed to JsSIP, only used for queue timing
         expect(mockRtcSession.sendDTMF).toHaveBeenCalledWith('2', {
           duration: 200,
-          interToneGap: 100,
         })
       })
 
@@ -643,7 +646,9 @@ describe('CallSession', () => {
           transportType: 'INFO',
         })
 
+        // New implementation adds default duration
         expect(mockRtcSession.sendDTMF).toHaveBeenCalledWith('3', {
+          duration: 100,
           transportType: 'INFO',
         })
       })
@@ -949,7 +954,7 @@ describe('CallSession', () => {
         eventBus
       )
 
-      expect(session.remoteUri).toBe('unknown')
+      expect(session.remoteUri).toBe('sip:unknown@unknown')
       expect(session.remoteDisplayName).toBeUndefined()
     })
 

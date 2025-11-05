@@ -360,6 +360,38 @@ All implementations include:
 
 Phase 4.4 has been completed with the following implementations:
 
+### Phase 4.4 Review and Fixes (2025-11-05)
+
+After comprehensive code review, the following critical issues were identified and fixed:
+
+**Bugs Fixed:**
+
+1. ✅ **Data Exposure Bug** - Fixed `toInterface()` returning direct reference to internal `_data` object instead of copy
+2. ✅ **Duration Calculation** - Added validation to prevent negative durations from clock skew (endTime > answerTime check)
+3. ✅ **Media Track Duplication** - Added duplicate track detection before adding to streams to prevent memory leaks
+
+**Missing Features Added:** 4. ✅ **reject() Method** - Added proper call rejection with SIP status codes (486 Busy, 603 Decline, 480 Unavailable) 5. ✅ **Input Validation** - Added SIP URI format validation in constructor 6. ✅ **Operation Locking** - Added `isHoldPending` flag to prevent race conditions during hold/unhold operations 7. ✅ **DTMF Queue** - Implemented proper DTMF tone queuing system with:
+
+- Sequential tone sending with proper inter-tone gaps
+- Support for tone sequences (e.g., "123#")
+- Tone validation (0-9, A-D, \*, #)
+- Queue clearing capability
+- Default timing (100ms duration, 70ms gap per RFC 2833)
+
+**Test Coverage:**
+
+- All 53 existing tests updated and passing
+- Tests updated for new DTMF queue behavior
+- Tests updated for new URI validation
+
+**Production Readiness Improvements:**
+
+- Critical security issue fixed (data exposure)
+- Race conditions prevented (hold/unhold locking)
+- Input validation added (URI format)
+- Memory leaks prevented (track duplication)
+- Missing functionality implemented (reject, DTMF queue)
+
 **Call Session Management:**
 
 - ✅ `src/core/CallSession.ts` - Comprehensive call session management wrapper around JsSIP RTCSession with lifecycle management, state transitions, timing tracking, media stream handling, and call controls
