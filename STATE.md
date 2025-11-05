@@ -512,7 +512,7 @@ All implementations include:
 
 ### 5.1 Store Infrastructure
 
-- [ ] Create src/stores/callStore.ts
+- [x] Create src/stores/callStore.ts
   - Implement active calls registry (Map)
   - Track incoming calls queue
   - Store call history entries
@@ -520,14 +520,14 @@ All implementations include:
   - Implement call lookup methods
   - Add reactive state using Vue reactivity
 
-- [ ] Create src/stores/registrationStore.ts
+- [x] Create src/stores/registrationStore.ts
   - Track registration state
   - Store registered URI
   - Track registration expiry
   - Store last registration time
   - Implement auto-refresh logic
 
-- [ ] Create src/stores/deviceStore.ts
+- [x] Create src/stores/deviceStore.ts
   - Store available audio input devices
   - Store available audio output devices
   - Store available video input devices
@@ -535,12 +535,90 @@ All implementations include:
   - Track device permissions
   - Handle device change events
 
-- [ ] Create src/stores/configStore.ts
+- [x] Create src/stores/configStore.ts
   - Store SIP configuration
   - Store media configuration
   - Store user preferences
   - Implement configuration validation
   - Support configuration updates
+
+### Phase 5.1 Implementation (2025-11-05)
+
+Phase 5.1 has been completed with the following implementations:
+
+**Store Infrastructure:**
+
+- ✅ `src/stores/callStore.ts` - Comprehensive call management store with active calls registry (Map), incoming call queue, call history management, max concurrent calls enforcement, call lookup methods, filtering, searching, and pagination
+- ✅ `src/stores/registrationStore.ts` - SIP registration state management with registration tracking, expiry time calculation, auto-refresh timer (90% of expiry), retry count management, and computed properties for registration status
+- ✅ `src/stores/deviceStore.ts` - Media device management store with device enumeration (audio input/output, video input), device selection with auto-selection logic, permission tracking, device change monitoring, and device lookup utilities
+- ✅ `src/stores/configStore.ts` - Configuration management store with SIP config validation, media config management, user preferences, configuration import/export (JSON), validation results tracking, and computed properties for config status
+- ✅ `src/stores/index.ts` - Centralized exports for all stores
+
+**Key Features Implemented:**
+
+**Call Store:**
+
+- Active calls registry using Map for O(1) lookups
+- Incoming call queue with FIFO ordering
+- Call history with filtering, searching, pagination
+- Max concurrent calls enforcement (configurable)
+- Call lookup methods (by ID, by predicate)
+- Automatic history trimming when max entries exceeded
+- History statistics (total, missed calls)
+- Vue 3 reactive state with readonly accessors
+- Comprehensive computed properties (activeCallCount, incomingCallCount, etc.)
+
+**Registration Store:**
+
+- Registration state machine (Unregistered, Registering, Registered, Failed, Unregistering)
+- Expiry time tracking with seconds-until-expiry computation
+- Auto-refresh timer at 90% of expiry time (RFC best practice)
+- Retry count tracking with increment/reset methods
+- Computed properties (isRegistered, isExpiringSoon, hasExpired)
+- Vue 3 reactive state with readonly accessors
+- Timer cleanup on state transitions
+
+**Device Store:**
+
+- Device enumeration from MediaDeviceInfo
+- Device categorization (audio input, audio output, video input)
+- Auto-selection logic (prefers default device, falls back to first)
+- Selected device tracking with computed properties
+- Permission status tracking (granted, denied, prompt, not requested)
+- Device change listener state management
+- Device lookup utilities (findDeviceById, isDeviceSelected)
+- Vue 3 reactive state with readonly accessors
+
+**Config Store:**
+
+- SIP configuration with validation support
+- Media configuration management
+- User preferences (audio/video enable, auto-answer, etc.)
+- Configuration validation with ValidationResult tracking
+- Partial configuration updates
+- Configuration import/export with credential filtering
+- Merged media constraints (combines config + preferences)
+- Configuration getters for common values
+- Vue 3 reactive state with readonly accessors
+- Computed properties (hasSipConfig, isConfigValid, etc.)
+
+**Testing:**
+
+- ✅ `tests/unit/stores/callStore.test.ts` - 37 unit tests (active calls, incoming queue, history, filtering, pagination, statistics)
+- ✅ `tests/unit/stores/registrationStore.test.ts` - 35 unit tests (state transitions, expiry tracking, auto-refresh, retry management)
+- ✅ `tests/unit/stores/deviceStore.test.ts` - 36 unit tests (100% passing - device management, selection, permissions, edge cases)
+- ✅ `tests/unit/stores/configStore.test.ts` - 50 unit tests (configuration management, validation, import/export, getters)
+
+All stores include:
+
+- Full TypeScript type safety
+- Comprehensive JSDoc documentation
+- Vue 3 reactive state using reactive() and computed()
+- Readonly state accessors to prevent external mutations
+- Reset methods to restore initial state
+- Statistics methods for debugging
+- Comprehensive unit tests
+- Logger integration for debugging
 
 ### 5.2 State Persistence
 
