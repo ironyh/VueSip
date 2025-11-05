@@ -23,7 +23,7 @@ This document tracks the implementation progress of DailVue, a headless Vue.js c
   - Set version: "1.0.0"
   - Define type: "module"
   - Add Vue 3.4+ as peer dependency
-  - Add JsSIP 3.10+ as dependency
+  - Add JsSIP 3.10+ and/or SIP.js 0.21+ as dependencies (support both)
   - Add webrtc-adapter 9.0+ as dependency
   - Configure package.json exports for ESM/CJS/UMD
 
@@ -294,6 +294,7 @@ All utilities include:
   - Test authentication
   - Test error handling
   - Test configuration validation
+  - Test library switching
 
 ### Phase 4.3 Implementation (2025-11-05)
 

@@ -60,7 +60,7 @@ type TransportEventHandler = (event: any) => void
  */
 export class TransportManager {
   private ws: WebSocket | null = null
-  private config: Required<TransportConfig>
+  private config: Required<Omit<TransportConfig, 'protocols'>> & Pick<TransportConfig, 'protocols'>
   private currentState: ConnectionState
   private reconnectionAttempts = 0
   private reconnectionTimer: ReturnType<typeof setTimeout> | null = null

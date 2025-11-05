@@ -1,3 +1,7 @@
+// TODO: Add support for both jssip and sip.js libraries
+// Current implementation uses sip.js API (Session)
+// Future: Create adapter pattern to support both jssip.RTCSession and sip.js.Session
+// @ts-expect-error - sip.js not installed yet, will support both libraries
 import { Session } from 'sip.js'
 import type { Ref } from 'vue'
 
@@ -24,7 +28,7 @@ export function useSipDtmf(currentSession: Ref<Session | null>): UseSipDtmfRetur
       if (pc) {
         const senders = pc.getSenders()
         const audioSender = senders.find((sender: RTCRtpSender) => sender.track?.kind === 'audio')
-        
+
         if (audioSender && 'dtmf' in audioSender) {
           const dtmfSender = (audioSender as any).dtmf
           if (dtmfSender) {
@@ -40,12 +44,12 @@ export function useSipDtmf(currentSession: Ref<Session | null>): UseSipDtmfRetur
   const sendDtmfSequence = async (digits: string, interval = 160) => {
     for (const digit of digits) {
       await sendDtmf(digit)
-      await new Promise(resolve => setTimeout(resolve, interval))
+      await new Promise((resolve) => setTimeout(resolve, interval))
     }
   }
 
   return {
     sendDtmf,
-    sendDtmfSequence
+    sendDtmfSequence,
   }
 }

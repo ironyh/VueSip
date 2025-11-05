@@ -1,4 +1,8 @@
 import { ref, computed, type Ref } from 'vue'
+// TODO: Add support for both jssip and sip.js libraries
+// Current implementation uses sip.js API (UserAgent, Registerer, etc.)
+// Future: Create adapter pattern to support both jssip.UA and sip.js.UserAgent
+// @ts-expect-error - sip.js not installed yet, will support both libraries
 import { UserAgent, Registerer, RegistererState } from 'sip.js'
 import type { SipConfig, SipError } from '../types'
 
@@ -18,7 +22,7 @@ export function useSipConnection(config: SipConfig): UseSipConnectionReturn {
   const isRegistered = ref(false)
   const isConnecting = ref(false)
   const error = ref<SipError | null>(null)
-  
+
   let userAgent: UserAgent | null = null
   let registerer: Registerer | null = null
 
@@ -31,11 +35,11 @@ export function useSipConnection(config: SipConfig): UseSipConnectionReturn {
       if (!uri) {
         throw new Error('Invalid SIP URI')
       }
-      
+
       userAgent = new UserAgent({
         uri,
         transportOptions: {
-          server: `wss://${config.server}`
+          server: `wss://${config.server}`,
         },
         authorizationUsername: config.username,
         authorizationPassword: config.password,
@@ -43,9 +47,9 @@ export function useSipConnection(config: SipConfig): UseSipConnectionReturn {
         sessionDescriptionHandlerFactoryOptions: config.sessionDescriptionHandlerFactoryOptions || {
           constraints: {
             audio: true,
-            video: false
-          }
-        }
+            video: false,
+          },
+        },
       })
 
       userAgent.delegate = {
@@ -58,7 +62,7 @@ export function useSipConnection(config: SipConfig): UseSipConnectionReturn {
         onDisconnect: () => {
           isConnected.value = false
           isRegistered.value = false
-        }
+        },
       }
 
       await userAgent.start()
@@ -70,7 +74,7 @@ export function useSipConnection(config: SipConfig): UseSipConnectionReturn {
       error.value = {
         code: -1,
         message: 'Failed to connect to SIP server',
-        cause: err as Error
+        cause: err as Error,
       }
       throw err
     } finally {
@@ -83,19 +87,19 @@ export function useSipConnection(config: SipConfig): UseSipConnectionReturn {
       if (registerer && isRegistered.value) {
         await unregister()
       }
-      
+
       if (userAgent) {
         await userAgent.stop()
         userAgent = null
       }
-      
+
       isConnected.value = false
       isRegistered.value = false
     } catch (err) {
       error.value = {
         code: -1,
         message: 'Failed to disconnect from SIP server',
-        cause: err as Error
+        cause: err as Error,
       }
       throw err
     }
@@ -116,7 +120,7 @@ export function useSipConnection(config: SipConfig): UseSipConnectionReturn {
       error.value = {
         code: -1,
         message: 'Failed to register with SIP server',
-        cause: err as Error
+        cause: err as Error,
       }
       throw err
     }
@@ -134,7 +138,7 @@ export function useSipConnection(config: SipConfig): UseSipConnectionReturn {
       error.value = {
         code: -1,
         message: 'Failed to unregister from SIP server',
-        cause: err as Error
+        cause: err as Error,
       }
       throw err
     }
@@ -148,6 +152,6 @@ export function useSipConnection(config: SipConfig): UseSipConnectionReturn {
     connect,
     disconnect,
     register,
-    unregister
+    unregister,
   }
 }

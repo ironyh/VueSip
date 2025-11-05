@@ -21,32 +21,32 @@ export function useAudioDevices(): UseAudioDevicesReturn {
     try {
       // Request permissions first
       await navigator.mediaDevices.getUserMedia({ audio: true })
-      
+
       const devices = await navigator.mediaDevices.enumerateDevices()
-      
+
       audioInputDevices.value = devices
-        .filter(device => device.kind === 'audioinput')
-        .map(device => ({
+        .filter((device) => device.kind === 'audioinput')
+        .map((device) => ({
           deviceId: device.deviceId,
           label: device.label || `Microphone ${device.deviceId.slice(0, 5)}`,
-          kind: device.kind
+          kind: device.kind,
         }))
 
       audioOutputDevices.value = devices
-        .filter(device => device.kind === 'audiooutput')
-        .map(device => ({
+        .filter((device) => device.kind === 'audiooutput')
+        .map((device) => ({
           deviceId: device.deviceId,
           label: device.label || `Speaker ${device.deviceId.slice(0, 5)}`,
-          kind: device.kind
+          kind: device.kind,
         }))
 
       // Set default devices if not already set
       if (!selectedInputDevice.value && audioInputDevices.value.length > 0) {
-        selectedInputDevice.value = audioInputDevices.value[0].deviceId
+        selectedInputDevice.value = audioInputDevices.value[0]?.deviceId ?? null
       }
 
       if (!selectedOutputDevice.value && audioOutputDevices.value.length > 0) {
-        selectedOutputDevice.value = audioOutputDevices.value[0].deviceId
+        selectedOutputDevice.value = audioOutputDevices.value[0]?.deviceId ?? null
       }
     } catch (err) {
       console.error('Failed to enumerate audio devices:', err)
@@ -64,7 +64,7 @@ export function useAudioDevices(): UseAudioDevicesReturn {
 
   onMounted(() => {
     refreshDevices()
-    
+
     // Listen for device changes
     navigator.mediaDevices.addEventListener('devicechange', refreshDevices)
   })
@@ -76,6 +76,6 @@ export function useAudioDevices(): UseAudioDevicesReturn {
     selectedOutputDevice,
     refreshDevices,
     setInputDevice,
-    setOutputDevice
+    setOutputDevice,
   }
 }

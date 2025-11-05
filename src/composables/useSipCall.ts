@@ -1,4 +1,8 @@
 import { ref, computed, type Ref } from 'vue'
+// TODO: Add support for both jssip and sip.js libraries
+// Current implementation uses sip.js API (UserAgent, Inviter, Session, etc.)
+// Future: Create adapter pattern to support both jssip.UA and sip.js.UserAgent
+// @ts-expect-error - sip.js not installed yet, will support both libraries
 import { UserAgent, Inviter, Invitation, Session, SessionState } from 'sip.js'
 import type { CallSession, CallState } from '../types'
 
@@ -43,7 +47,7 @@ export function useSipCall(userAgent: Ref<UserAgent | null>): UseSipCallReturn {
 
     session.stateChange.addListener((state: SessionState) => {
       callData.state = mapSessionState(state)
-      
+
       if (state === SessionState.Established) {
         isInCall.value = true
         isCalling.value = false
@@ -82,12 +86,12 @@ export function useSipCall(userAgent: Ref<UserAgent | null>): UseSipCallReturn {
 
     try {
       isCalling.value = true
-      
+
       const targetUri = UserAgent.makeURI(`sip:${target}@${userAgent.value.configuration.uri.host}`)
       if (!targetUri) {
         throw new Error('Invalid target URI')
       }
-      
+
       const inviter = new Inviter(userAgent.value, targetUri)
 
       const callData: CallSession = {
@@ -95,7 +99,7 @@ export function useSipCall(userAgent: Ref<UserAgent | null>): UseSipCallReturn {
         remoteIdentity: target,
         direction: 'outgoing',
         state: 'Initial',
-        startTime: new Date()
+        startTime: new Date(),
       }
 
       setupSessionHandlers(inviter, callData)
@@ -156,12 +160,12 @@ export function useSipCall(userAgent: Ref<UserAgent | null>): UseSipCallReturn {
           remoteIdentity: invitation.remoteIdentity.uri.user || 'Unknown',
           direction: 'incoming',
           state: 'Initial',
-          startTime: new Date()
+          startTime: new Date(),
         }
 
         setupSessionHandlers(invitation, callData)
         incomingCall.value = callData
-      }
+      },
     }
   }
 
@@ -173,6 +177,6 @@ export function useSipCall(userAgent: Ref<UserAgent | null>): UseSipCallReturn {
     makeCall,
     answerCall,
     endCall,
-    rejectCall
+    rejectCall,
   }
 }
