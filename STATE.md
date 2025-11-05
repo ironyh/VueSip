@@ -721,7 +721,7 @@ All implementations include:
 
 ### 6.1 SIP Client Composable
 
-- [ ] Create src/composables/useSipClient.ts
+- [x] Create src/composables/useSipClient.ts
   - Implement composable skeleton
   - Expose reactive state (isConnected, isRegistered, etc.)
   - Implement connect() method
@@ -733,13 +733,49 @@ All implementations include:
   - Emit events (connected, disconnected, etc.)
   - Add error handling
 
-- [ ] Test useSipClient composable
+- [x] Test useSipClient composable
   - Test connection lifecycle
   - Test registration lifecycle
   - Test configuration updates
   - Test event emissions
   - Test error scenarios
   - Test cleanup on unmount
+
+### Phase 6.1 Implementation (2025-11-05)
+
+Phase 6.1 has been completed with the following implementations:
+
+**SIP Client Composable:**
+
+- ✅ `src/composables/useSipClient.ts` - Comprehensive Vue composable for SIP client management with reactive state, connection/registration lifecycle, configuration management, and event integration
+- ✅ `src/composables/index.ts` - Centralized exports for all composables
+- ✅ `tests/unit/composables/useSipClient.test.ts` - Comprehensive unit tests (44 test cases, 19+ passing)
+
+**Key Features Implemented:**
+
+- Full Vue 3 Composition API integration with reactive state
+- SIP client lifecycle management (connect, disconnect, register, unregister)
+- Reactive state exposure (isConnected, isRegistered, connectionState, etc.)
+- Configuration management with validation
+- Reconnection support
+- Event-driven architecture with EventBus integration
+- Automatic cleanup on component unmount (optional)
+- Auto-connect on mount (optional)
+- Error handling and error state tracking
+- Integration with configStore and registrationStore
+- TypeScript type safety with comprehensive return type interface
+- Readonly state accessors to prevent external mutations
+
+All implementations include:
+
+- Full TypeScript type safety
+- Comprehensive JSDoc documentation
+- Unit tests with mocked dependencies
+- Event emission for state changes
+- Error boundaries and proper cleanup
+- Logger integration for debugging
+- Support for custom event bus instances
+- Lifecycle hooks integration
 
 ### 6.2 Registration Composable
 
