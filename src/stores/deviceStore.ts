@@ -59,7 +59,7 @@ const state = reactive<DeviceStoreState>({
 /**
  * Computed values
  */
-const computed_values = {
+const computed_values: Record<string, any> = {
   /** Total number of available devices */
   totalDevices: computed(
     () =>
@@ -285,7 +285,8 @@ export const deviceStore = {
     if (!state.selectedAudioInputId && devices.length > 0) {
       // Try to find default device first
       const defaultDevice = devices.find((d) => d.isDefault)
-      this.selectAudioInput(defaultDevice?.deviceId || devices[0].deviceId)
+      const deviceId = defaultDevice ? defaultDevice.deviceId : devices[0]!.deviceId
+      this.selectAudioInput(deviceId)
     }
   },
 
@@ -303,7 +304,8 @@ export const deviceStore = {
     if (!state.selectedAudioOutputId && devices.length > 0) {
       // Try to find default device first
       const defaultDevice = devices.find((d) => d.isDefault)
-      this.selectAudioOutput(defaultDevice?.deviceId || devices[0].deviceId)
+      const deviceId = defaultDevice ? defaultDevice.deviceId : devices[0]!.deviceId
+      this.selectAudioOutput(deviceId)
     }
   },
 
@@ -321,7 +323,8 @@ export const deviceStore = {
     if (!state.selectedVideoInputId && devices.length > 0) {
       // Try to find default device first
       const defaultDevice = devices.find((d) => d.isDefault)
-      this.selectVideoInput(defaultDevice?.deviceId || devices[0].deviceId)
+      const deviceId = defaultDevice ? defaultDevice.deviceId : devices[0]!.deviceId
+      this.selectVideoInput(deviceId)
     }
   },
 

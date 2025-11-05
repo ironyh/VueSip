@@ -8,7 +8,7 @@
  */
 
 import { reactive, computed, readonly } from 'vue'
-import type { CallSession, CallState, CallDirection, TerminationCause } from '../types/call.types'
+import { CallState, CallDirection, TerminationCause, type CallSession } from '../types/call.types'
 import type { CallHistoryEntry, HistoryFilter, HistorySearchResult } from '../types/history.types'
 import { createLogger } from '../utils/logger'
 
@@ -76,10 +76,8 @@ const computed_values = {
 
   /** Get all active non-incoming calls */
   establishedCalls: computed(() =>
-    Array.from(state.activeCalls.values()).filter((call) =>
-      call.state !== CallState.Ringing && call.direction === CallDirection.Incoming
-        ? call.state !== CallState.Ringing
-        : true
+    Array.from(state.activeCalls.values()).filter(
+      (call) => !(call.direction === CallDirection.Incoming && call.state === CallState.Ringing)
     )
   ),
 
