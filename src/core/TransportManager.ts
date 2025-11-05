@@ -4,7 +4,10 @@
  * @packageDocumentation
  */
 
-import type { ConnectionState } from '../types/sip.types'
+import { ConnectionState } from '../types/sip.types'
+import { createLogger } from '../utils/logger'
+
+const logger = createLogger('TransportManager')
 
 /**
  * Transport event types
@@ -82,7 +85,7 @@ export class TransportManager {
       keepAliveType: config.keepAliveType ?? 'crlf',
       autoReconnect: config.autoReconnect ?? true,
     }
-    this.currentState = 'disconnected' as ConnectionState
+    this.currentState = ConnectionState.Disconnected
   }
 
   /**
@@ -97,7 +100,7 @@ export class TransportManager {
    */
   get isConnected(): boolean {
     return (
-      this.currentState === ('connected' as ConnectionState) &&
+      this.currentState === ConnectionState.Connected &&
       this.ws?.readyState === WebSocket.OPEN
     )
   }
@@ -143,7 +146,7 @@ export class TransportManager {
         try {
           handler(data)
         } catch (error) {
-          console.error(`Error in ${event} handler:`, error)
+          logger.error(`Error in ${event} handler:`, error)
         }
       })
     }
@@ -158,23 +161,23 @@ export class TransportManager {
 
       // Emit appropriate event based on state
       switch (newState) {
-        case 'connected' as ConnectionState:
+        case ConnectionState.Connected:
           this.emit(TransportEvent.Connected, { state: newState })
           break
-        case 'disconnected' as ConnectionState:
+        case ConnectionState.Disconnected:
           this.emit(TransportEvent.Disconnected, { state: newState })
           break
-        case 'connecting' as ConnectionState:
+        case ConnectionState.Connecting:
           this.emit(TransportEvent.Connecting, { state: newState })
           break
-        case 'reconnecting' as ConnectionState:
+        case ConnectionState.Reconnecting:
           this.emit(TransportEvent.Reconnecting, {
             state: newState,
             attempt: this.reconnectionAttempts,
           })
           break
-        case 'error' as ConnectionState:
-        case 'connection_failed' as ConnectionState:
+        case ConnectionState.Error:
+        case ConnectionState.ConnectionFailed:
           this.emit(TransportEvent.Error, { state: newState })
           break
       }
@@ -190,7 +193,7 @@ export class TransportManager {
     }
 
     this.isManualDisconnect = false
-    this.setState('connecting' as ConnectionState)
+    this.setState(ConnectionState.Connecting)
     this.clearTimers()
 
     return new Promise((resolve, reject) => {
@@ -202,7 +205,7 @@ export class TransportManager {
         this.connectionTimeoutTimer = setTimeout(() => {
           if (this.ws?.readyState !== WebSocket.OPEN) {
             this.ws?.close()
-            this.setState('connection_failed' as ConnectionState)
+            this.setState(ConnectionState.ConnectionFailed)
             reject(new Error('Connection timeout'))
             this.handleReconnection()
           }
@@ -211,7 +214,7 @@ export class TransportManager {
         // WebSocket event handlers
         this.ws.onopen = () => {
           this.clearConnectionTimeout()
-          this.setState('connected' as ConnectionState)
+          this.setState(ConnectionState.Connected)
           this.reconnectionAttempts = 0
           this.startKeepAlive()
           resolve()
@@ -220,7 +223,7 @@ export class TransportManager {
         this.ws.onclose = (_event) => {
           this.clearConnectionTimeout()
           this.clearKeepAlive()
-          this.setState('disconnected' as ConnectionState)
+          this.setState(ConnectionState.Disconnected)
 
           if (!this.isManualDisconnect) {
             this.handleReconnection()
@@ -229,15 +232,15 @@ export class TransportManager {
 
         this.ws.onerror = (error) => {
           this.clearConnectionTimeout()
-          this.setState('error' as ConnectionState)
-          console.error('WebSocket error:', error)
+          this.setState(ConnectionState.Error)
+          logger.error('WebSocket error:', error)
         }
 
         this.ws.onmessage = (event) => {
           this.emit(TransportEvent.Message, event.data)
         }
       } catch (error) {
-        this.setState('error' as ConnectionState)
+        this.setState(ConnectionState.Error)
         reject(error)
       }
     })
@@ -257,7 +260,7 @@ export class TransportManager {
       this.ws = null
     }
 
-    this.setState('disconnected' as ConnectionState)
+    this.setState(ConnectionState.Disconnected)
     this.reconnectionAttempts = 0
   }
 
@@ -272,7 +275,7 @@ export class TransportManager {
     try {
       this.ws.send(data)
     } catch (error) {
-      console.error('Failed to send data:', error)
+      logger.error('Failed to send data:', error)
       throw error
     }
   }
@@ -286,12 +289,12 @@ export class TransportManager {
     }
 
     if (this.reconnectionAttempts >= this.config.maxReconnectionAttempts) {
-      console.error('Max reconnection attempts reached')
-      this.setState('connection_failed' as ConnectionState)
+      logger.error('Max reconnection attempts reached')
+      this.setState(ConnectionState.ConnectionFailed)
       return
     }
 
-    this.setState('reconnecting' as ConnectionState)
+    this.setState(ConnectionState.Reconnecting)
 
     // Calculate delay with exponential backoff
     const delay =
@@ -301,13 +304,13 @@ export class TransportManager {
 
     this.reconnectionAttempts++
 
-    console.log(
+    logger.info(
       `Reconnecting in ${delay}ms (attempt ${this.reconnectionAttempts}/${this.config.maxReconnectionAttempts})`
     )
 
     this.reconnectionTimer = setTimeout(() => {
       this.connect().catch((error) => {
-        console.error('Reconnection failed:', error)
+        logger.error('Reconnection failed:', error)
       })
     }, delay)
   }
@@ -331,7 +334,7 @@ export class TransportManager {
             this.emit(TransportEvent.Message, '__keep_alive_options__')
           }
         } catch (error) {
-          console.error('Keep-alive failed:', error)
+          logger.error('Keep-alive failed:', error)
           this.clearKeepAlive()
         }
       }
