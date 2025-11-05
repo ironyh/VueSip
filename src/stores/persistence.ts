@@ -389,6 +389,66 @@ class StorePersistenceManager {
       hasIndexedDB: this.indexedDB !== null,
     }
   }
+
+  /**
+   * Get storage quota information
+   *
+   * @returns Promise resolving to storage quota info
+   */
+  async getStorageQuota() {
+    const { getStorageQuota } = await import('../utils/storageQuota')
+    return getStorageQuota()
+  }
+
+  /**
+   * Get storage usage summary
+   *
+   * @returns Promise resolving to comprehensive storage usage info
+   */
+  async getStorageUsageSummary() {
+    const { getStorageUsageSummary } = await import('../utils/storageQuota')
+    return getStorageUsageSummary()
+  }
+
+  /**
+   * Check if storage quota is running low
+   *
+   * @param threshold - Warning threshold percentage (default: 80)
+   * @returns Promise resolving to true if usage is above threshold
+   */
+  async checkStorageWarning(threshold = 80): Promise<boolean> {
+    const { checkStorageUsageWarning } = await import('../utils/storageQuota')
+    return checkStorageUsageWarning(threshold)
+  }
+
+  /**
+   * Clear old call history entries to free up space
+   *
+   * Uses LRU (Least Recently Used) strategy to remove oldest entries.
+   *
+   * @param targetReduction - Target reduction percentage (default: 20)
+   * @returns Promise resolving to number of entries removed
+   */
+  async clearOldCallHistory(targetReduction = 20): Promise<number> {
+    const { clearOldDataLRU } = await import('../utils/storageQuota')
+
+    return clearOldDataLRU(
+      () =>
+        callStore.history.map((entry) => ({
+          id: entry.id,
+          timestamp: entry.startTime,
+        })),
+      (ids) => {
+        ids.forEach((id) => {
+          const entry = callStore.history.find((e) => e.id === id)
+          if (entry) {
+            callStore.removeFromHistory(entry)
+          }
+        })
+      },
+      targetReduction
+    )
+  }
 }
 
 // Export singleton instance
@@ -442,4 +502,36 @@ export async function clearAllStores(): Promise<void> {
  */
 export function destroyStorePersistence(): void {
   storePersistence.destroy()
+}
+
+/**
+ * Get storage quota information
+ */
+export async function getStorageQuota() {
+  return storePersistence.getStorageQuota()
+}
+
+/**
+ * Get comprehensive storage usage summary
+ */
+export async function getStorageUsageSummary() {
+  return storePersistence.getStorageUsageSummary()
+}
+
+/**
+ * Check if storage usage is above warning threshold
+ *
+ * @param threshold - Warning threshold percentage (default: 80)
+ */
+export async function checkStorageWarning(threshold = 80): Promise<boolean> {
+  return storePersistence.checkStorageWarning(threshold)
+}
+
+/**
+ * Clear old call history to free up storage space
+ *
+ * @param targetReduction - Percentage of entries to remove (default: 20)
+ */
+export async function clearOldCallHistory(targetReduction = 20): Promise<number> {
+  return storePersistence.clearOldCallHistory(targetReduction)
 }

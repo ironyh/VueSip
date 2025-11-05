@@ -20,3 +20,6 @@ export * from './logger'
 
 // Re-export encryption utilities
 export * from './encryption'
+
+// Re-export storage quota utilities
+export * from './storageQuota'

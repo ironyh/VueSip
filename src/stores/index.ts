@@ -19,5 +19,9 @@ export {
   loadAllStores,
   clearAllStores,
   destroyStorePersistence,
+  getStorageQuota,
+  getStorageUsageSummary,
+  checkStorageWarning,
+  clearOldCallHistory,
 } from './persistence'
 export type { PersistenceConfig } from './persistence'
