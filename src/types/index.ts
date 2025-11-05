@@ -20,12 +20,7 @@ export interface CallSession {
   endTime?: Date
 }
 
-export type CallState = 
-  | 'Initial'
-  | 'Establishing'
-  | 'Established'
-  | 'Terminating'
-  | 'Terminated'
+export type CallState = 'Initial' | 'Establishing' | 'Established' | 'Terminating' | 'Terminated'
 
 export interface AudioDevice {
   deviceId: string
@@ -73,3 +68,6 @@ export * from './conference.types'
 
 // History types
 export * from './history.types'
+
+// Storage types
+export * from './storage.types'
