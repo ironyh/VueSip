@@ -1,17 +1,19 @@
 /**
- * Utility functions index
- * Export all utility functions from a single entry point
- * @packageDocumentation
+ * DailVue Utilities
+ *
+ * Centralized export of all utility functions, constants, and helpers.
+ *
+ * @module utils
  */
 
-// Logger
-export * from './logger'
+// Re-export all constants
+export * from './constants'
 
-// Validators
+// Re-export all validators
 export * from './validators'
 
-// Formatters
+// Re-export all formatters
 export * from './formatters'
 
-// Constants
-export * from './constants'
+// Re-export logger
+export * from './logger'

@@ -1,131 +1,56 @@
 /**
- * Formatting utilities for DailVue
- * @packageDocumentation
+ * DailVue Formatters
+ *
+ * Formatting functions for SIP URIs, durations, phone numbers, and dates.
+ * These utilities help display data in user-friendly formats.
+ *
+ * @module utils/formatters
  */
 
-/**
- * Format options for SIP URI
- */
-export interface SipUriFormatOptions {
-  /** Include display name */
-  includeDisplayName?: boolean
-  /** Include URI parameters */
-  includeParameters?: boolean
-  /** Use full format (with angle brackets) */
-  fullFormat?: boolean
-}
+import type { SipUri } from '../types/sip.types'
+import { SIP_URI_REGEX } from './constants'
 
 /**
- * Format a SIP URI
- * @param uri - The SIP URI string
- * @param displayName - Optional display name
- * @param options - Formatting options
- * @returns Formatted SIP URI
- */
-export function formatSipUri(
-  uri: string,
-  displayName?: string,
-  options: SipUriFormatOptions = {}
-): string {
-  const { includeDisplayName = true, fullFormat = true } = options
-
-  // Clean the URI
-  let cleanUri = uri.trim()
-
-  // Extract components if URI has display name already
-  const match = cleanUri.match(/^"?([^"<]*)"?\s*<(.+)>$/)
-  if (match) {
-    displayName = displayName || match[1]?.trim()
-    cleanUri = match[2]
-  }
-
-  // Format with display name if provided
-  if (includeDisplayName && displayName && displayName.trim() !== '') {
-    if (fullFormat) {
-      // Check if display name needs quotes
-      const needsQuotes = /[^\w\s]/.test(displayName) || displayName.includes(',')
-      if (needsQuotes) {
-        return `"${displayName}" <${cleanUri}>`
-      }
-      return `${displayName} <${cleanUri}>`
-    }
-    return `${displayName} <${cleanUri}>`
-  }
-
-  return cleanUri
-}
-
-/**
- * Extract username from SIP URI
- * @param uri - The SIP URI
- * @returns Username portion of the URI
- */
-export function extractSipUsername(uri: string): string {
-  const match = uri.match(/sips?:([^@]+)@/)
-  return match ? match[1] : uri
-}
-
-/**
- * Extract domain from SIP URI
- * @param uri - The SIP URI
- * @returns Domain portion of the URI
- */
-export function extractSipDomain(uri: string): string {
-  const match = uri.match(/@([^;>]+)/)
-  return match ? match[1] : ''
-}
-
-/**
- * Format duration in seconds to HH:MM:SS
+ * Formats a duration in seconds to HH:MM:SS format
+ *
  * @param seconds - Duration in seconds
- * @param options - Formatting options
  * @returns Formatted duration string
+ *
+ * @example
+ * ```typescript
+ * formatDuration(65) // "00:01:05"
+ * formatDuration(3665) // "01:01:05"
+ * ```
  */
-export function formatDuration(
-  seconds: number,
-  options: {
-    /** Always show hours even if 0 */
-    alwaysShowHours?: boolean
-    /** Show milliseconds */
-    showMilliseconds?: boolean
-  } = {}
-): string {
-  const { alwaysShowHours = false, showMilliseconds = false } = options
-
-  if (seconds < 0) {
-    return '00:00'
+export function formatDuration(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) {
+    return '00:00:00'
   }
 
   const hours = Math.floor(seconds / 3600)
   const minutes = Math.floor((seconds % 3600) / 60)
   const secs = Math.floor(seconds % 60)
-  const ms = Math.floor((seconds % 1) * 1000)
 
-  const parts: string[] = []
+  const pad = (num: number): string => num.toString().padStart(2, '0')
 
-  if (hours > 0 || alwaysShowHours) {
-    parts.push(String(hours).padStart(2, '0'))
-  }
-
-  parts.push(String(minutes).padStart(2, '0'))
-  parts.push(String(secs).padStart(2, '0'))
-
-  let result = parts.join(':')
-
-  if (showMilliseconds) {
-    result += `.${String(ms).padStart(3, '0')}`
-  }
-
-  return result
+  return `${pad(hours)}:${pad(minutes)}:${pad(secs)}`
 }
 
 /**
- * Format duration in a human-readable way
+ * Formats a duration in seconds to a short human-readable format
+ *
  * @param seconds - Duration in seconds
- * @returns Human-readable duration (e.g., "2h 15m", "45s")
+ * @returns Short formatted duration (e.g., "5m 30s", "1h 5m")
+ *
+ * @example
+ * ```typescript
+ * formatDurationShort(65) // "1m 5s"
+ * formatDurationShort(3665) // "1h 1m"
+ * formatDurationShort(30) // "30s"
+ * ```
  */
-export function formatHumanDuration(seconds: number): string {
-  if (seconds < 0) {
+export function formatDurationShort(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) {
     return '0s'
   }
 
@@ -145,228 +70,404 @@ export function formatHumanDuration(seconds: number): string {
     parts.push(`${secs}s`)
   }
 
-  return parts.join(' ')
+  return parts.slice(0, 2).join(' ') // Show max 2 units
 }
 
 /**
- * Format phone number for display
- * @param phoneNumber - Raw phone number
- * @param format - Format style
+ * Formats a SIP URI for display
+ *
+ * Extracts and formats the display name and user@domain from a SIP URI
+ *
+ * @param uri - SIP URI to format
+ * @param includeScheme - Whether to include sip: or sips: prefix
+ * @returns Formatted SIP URI
+ *
+ * @example
+ * ```typescript
+ * formatSipUri('sip:alice@example.com') // "alice@example.com"
+ * formatSipUri('sip:alice@example.com', true) // "sip:alice@example.com"
+ * formatSipUri('sips:bob@example.com:5061') // "bob@example.com"
+ * ```
+ */
+export function formatSipUri(uri: string, includeScheme = false): string {
+  if (!uri || typeof uri !== 'string') {
+    return ''
+  }
+
+  const match = SIP_URI_REGEX.exec(uri)
+  if (!match) {
+    return uri // Return as-is if not a valid SIP URI
+  }
+
+  const [, user, domain, port] = match
+  const scheme = uri.startsWith('sips:') ? 'sips' : 'sip'
+
+  if (includeScheme) {
+    return `${scheme}:${user}@${domain}${port ? `:${port}` : ''}`
+  }
+
+  return `${user}@${domain}`
+}
+
+/**
+ * Parses a SIP URI into its components
+ *
+ * @param uri - SIP URI to parse
+ * @returns Parsed SIP URI object or null if invalid
+ *
+ * @example
+ * ```typescript
+ * const parsed = parseSipUri('sips:alice@example.com:5061')
+ * // {
+ * //   scheme: 'sips',
+ * //   user: 'alice',
+ * //   host: 'example.com',
+ * //   port: 5061
+ * // }
+ * ```
+ */
+export function parseSipUri(uri: string): Partial<SipUri> | null {
+  if (!uri || typeof uri !== 'string') {
+    return null
+  }
+
+  const match = SIP_URI_REGEX.exec(uri)
+  if (!match) {
+    return null
+  }
+
+  const [, user, host, port] = match
+  const scheme = uri.startsWith('sips:') ? 'sips' : 'sip'
+
+  return {
+    scheme: scheme as 'sip' | 'sips',
+    user,
+    host,
+    port: port ? parseInt(port, 10) : null,
+  }
+}
+
+/**
+ * Extracts the display name from a SIP URI
+ *
+ * SIP URIs can have a display name before the URI:
+ * "Alice Smith" <sip:alice@example.com>
+ *
+ * @param uri - SIP URI with optional display name
+ * @returns Display name or null if not present
+ *
+ * @example
+ * ```typescript
+ * extractDisplayName('"Alice Smith" <sip:alice@example.com>') // "Alice Smith"
+ * extractDisplayName('sip:alice@example.com') // null
+ * ```
+ */
+export function extractDisplayName(uri: string): string | null {
+  if (!uri || typeof uri !== 'string') {
+    return null
+  }
+
+  // Match quoted display name: "Name" <sip:...>
+  const quotedMatch = /^"([^"]+)"\s*</.exec(uri)
+  if (quotedMatch) {
+    return quotedMatch[1]
+  }
+
+  // Match unquoted display name: Name <sip:...>
+  const unquotedMatch = /^([^<]+)\s*</.exec(uri)
+  if (unquotedMatch) {
+    return unquotedMatch[1].trim()
+  }
+
+  return null
+}
+
+/**
+ * Formats a phone number for display
+ *
+ * Takes an E.164 phone number and formats it for display
+ *
+ * @param number - E.164 phone number (+country code + number)
  * @returns Formatted phone number
+ *
+ * @example
+ * ```typescript
+ * formatPhoneNumber('+14155551234') // "+1 (415) 555-1234"
+ * formatPhoneNumber('+442071234567') // "+44 20 7123 4567"
+ * ```
  */
-export function formatPhoneNumber(
-  phoneNumber: string,
-  format: 'international' | 'national' | 'e164' = 'international'
-): string {
-  // Remove all non-digit characters except +
-  const cleaned = phoneNumber.replace(/[^\d+]/g, '')
-
-  if (format === 'e164') {
-    // E.164 format: +[country code][number]
-    return cleaned.startsWith('+') ? cleaned : `+${cleaned}`
+export function formatPhoneNumber(number: string): string {
+  if (!number || typeof number !== 'string') {
+    return ''
   }
 
-  // Extract country code if present
-  const hasCountryCode = cleaned.startsWith('+')
-  let number = hasCountryCode ? cleaned.substring(1) : cleaned
+  // Remove all non-digit characters except leading +
+  const cleaned = number.replace(/[^\d+]/g, '')
 
-  // For international format
-  if (format === 'international' && number.length >= 10) {
-    // Assume country code is 1-3 digits
-    let countryCode = ''
-    if (hasCountryCode) {
-      if (number.startsWith('1') && number.length === 11) {
-        // North America
-        countryCode = '1'
-        number = number.substring(1)
-      } else if (number.length > 10) {
-        // Other countries - take first 1-3 digits as country code
-        countryCode = number.substring(0, number.length - 10)
-        number = number.substring(number.length - 10)
-      }
-    }
-
-    // Format the number
-    if (number.length === 10) {
-      const formatted = `(${number.substring(0, 3)}) ${number.substring(3, 6)}-${number.substring(6)}`
-      return countryCode ? `+${countryCode} ${formatted}` : formatted
-    }
+  if (!cleaned.startsWith('+')) {
+    return number // Return as-is if not E.164 format
   }
 
-  // For national format or fallback
-  if (number.length === 10) {
-    return `(${number.substring(0, 3)}) ${number.substring(3, 6)}-${number.substring(6)}`
-  } else if (number.length === 7) {
-    return `${number.substring(0, 3)}-${number.substring(3)}`
+  // Format based on country code
+  // US/Canada: +1 (XXX) XXX-XXXX
+  if (cleaned.startsWith('+1') && cleaned.length === 12) {
+    return `+1 (${cleaned.slice(2, 5)}) ${cleaned.slice(5, 8)}-${cleaned.slice(8)}`
   }
 
-  // Return as-is if we can't format it
-  return phoneNumber
+  // UK: +44 XX XXXX XXXX
+  if (cleaned.startsWith('+44') && cleaned.length >= 12) {
+    return `+44 ${cleaned.slice(3, 5)} ${cleaned.slice(5, 9)} ${cleaned.slice(9)}`
+  }
+
+  // Generic format: +XX XXX XXX XXXX
+  if (cleaned.length > 4) {
+    const countryCode = cleaned.slice(0, cleaned.length - 10)
+    const rest = cleaned.slice(cleaned.length - 10)
+    return `${countryCode} ${rest.slice(0, 3)} ${rest.slice(3, 6)} ${rest.slice(6)}`
+  }
+
+  return cleaned
 }
 
 /**
- * Format date for call history
- * @param date - The date to format
- * @param options - Formatting options
+ * Formats a date for call history display
+ *
+ * Shows relative time for recent calls, absolute date for older calls
+ *
+ * @param date - Date to format
+ * @param now - Current date (for testing)
  * @returns Formatted date string
+ *
+ * @example
+ * ```typescript
+ * formatCallTime(new Date()) // "Just now"
+ * formatCallTime(new Date(Date.now() - 60000)) // "1 minute ago"
+ * formatCallTime(new Date(Date.now() - 3600000)) // "1 hour ago"
+ * formatCallTime(new Date('2024-01-01')) // "Jan 1, 2024"
+ * ```
  */
-export function formatCallDate(
-  date: Date,
-  options: {
-    /** Include time */
-    includeTime?: boolean
-    /** Use relative format (e.g., "Today", "Yesterday") */
-    relative?: boolean
-    /** Use 24-hour time format */
-    use24Hour?: boolean
-  } = {}
-): string {
-  const { includeTime = true, relative = true, use24Hour = false } = options
-
-  const now = new Date()
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const yesterday = new Date(today)
-  yesterday.setDate(yesterday.getDate() - 1)
-  const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate())
-
-  let dateStr = ''
-
-  if (relative) {
-    if (dateOnly.getTime() === today.getTime()) {
-      dateStr = 'Today'
-    } else if (dateOnly.getTime() === yesterday.getTime()) {
-      dateStr = 'Yesterday'
-    } else if (now.getTime() - dateOnly.getTime() < 7 * 24 * 60 * 60 * 1000) {
-      // Within last week - show day name
-      const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-      dateStr = dayNames[date.getDay()]
-    } else {
-      // Show full date
-      dateStr = formatDate(date, 'short')
-    }
-  } else {
-    dateStr = formatDate(date, 'short')
+export function formatCallTime(date: Date, now: Date = new Date()): string {
+  if (!(date instanceof Date) || isNaN(date.getTime())) {
+    return 'Invalid date'
   }
 
-  if (includeTime) {
-    const timeStr = formatTime(date, use24Hour)
-    return `${dateStr} ${timeStr}`
+  const seconds = Math.floor((now.getTime() - date.getTime()) / 1000)
+
+  // Just now (< 60 seconds)
+  if (seconds < 60) {
+    return 'Just now'
   }
 
-  return dateStr
+  // Minutes ago (< 60 minutes)
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) {
+    return `${minutes} minute${minutes === 1 ? '' : 's'} ago`
+  }
+
+  // Hours ago (< 24 hours)
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) {
+    return `${hours} hour${hours === 1 ? '' : 's'} ago`
+  }
+
+  // Days ago (< 7 days)
+  const days = Math.floor(hours / 24)
+  if (days < 7) {
+    return `${days} day${days === 1 ? '' : 's'} ago`
+  }
+
+  // Absolute date for older calls
+  const options: Intl.DateTimeFormatOptions = {
+    month: 'short',
+    day: 'numeric',
+    year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
+  }
+
+  return date.toLocaleDateString('en-US', options)
 }
 
 /**
- * Format time
- * @param date - The date to extract time from
- * @param use24Hour - Use 24-hour format
- * @returns Formatted time string
+ * Formats a date and time for detailed call history
+ *
+ * @param date - Date to format
+ * @returns Formatted date and time string
+ *
+ * @example
+ * ```typescript
+ * formatDateTime(new Date('2024-01-15T14:30:00'))
+ * // "Jan 15, 2024 at 2:30 PM"
+ * ```
  */
-export function formatTime(date: Date, use24Hour = false): string {
-  let hours = date.getHours()
-  const minutes = date.getMinutes()
-
-  if (use24Hour) {
-    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
+export function formatDateTime(date: Date): string {
+  if (!(date instanceof Date) || isNaN(date.getTime())) {
+    return 'Invalid date'
   }
 
-  const period = hours >= 12 ? 'PM' : 'AM'
-  hours = hours % 12 || 12
-  return `${hours}:${String(minutes).padStart(2, '0')} ${period}`
+  const dateOptions: Intl.DateTimeFormatOptions = {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }
+
+  const timeOptions: Intl.DateTimeFormatOptions = {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  }
+
+  const datePart = date.toLocaleDateString('en-US', dateOptions)
+  const timePart = date.toLocaleTimeString('en-US', timeOptions)
+
+  return `${datePart} at ${timePart}`
 }
 
 /**
- * Format date
- * @param date - The date to format
- * @param format - Format style
- * @returns Formatted date string
+ * Formats a timestamp to ISO 8601 format
+ *
+ * @param date - Date to format
+ * @returns ISO 8601 formatted string
+ *
+ * @example
+ * ```typescript
+ * formatIsoTimestamp(new Date('2024-01-15T14:30:00'))
+ * // "2024-01-15T14:30:00.000Z"
+ * ```
  */
-export function formatDate(date: Date, format: 'short' | 'medium' | 'long' = 'medium'): string {
-  const month = date.getMonth() + 1
-  const day = date.getDate()
-  const year = date.getFullYear()
-
-  switch (format) {
-    case 'short':
-      return `${month}/${day}/${year}`
-    case 'medium':
-      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-      return `${monthNames[date.getMonth()]} ${day}, ${year}`
-    case 'long':
-      const monthNamesLong = [
-        'January',
-        'February',
-        'March',
-        'April',
-        'May',
-        'June',
-        'July',
-        'August',
-        'September',
-        'October',
-        'November',
-        'December',
-      ]
-      return `${monthNamesLong[date.getMonth()]} ${day}, ${year}`
-    default:
-      return date.toLocaleDateString()
+export function formatIsoTimestamp(date: Date): string {
+  if (!(date instanceof Date) || isNaN(date.getTime())) {
+    return ''
   }
+
+  return date.toISOString()
 }
 
 /**
- * Format bytes to human-readable size
+ * Formats bytes to human-readable size
+ *
  * @param bytes - Number of bytes
  * @param decimals - Number of decimal places
  * @returns Formatted size string
+ *
+ * @example
+ * ```typescript
+ * formatBytes(1024) // "1 KB"
+ * formatBytes(1536) // "1.5 KB"
+ * formatBytes(1048576) // "1 MB"
+ * ```
  */
-export function formatBytes(bytes: number, decimals = 2): string {
-  if (bytes === 0) return '0 Bytes'
+export function formatBytes(bytes: number, decimals = 1): string {
+  if (!Number.isFinite(bytes) || bytes < 0) {
+    return '0 B'
+  }
+
+  if (bytes === 0) {
+    return '0 B'
+  }
 
   const k = 1024
-  const dm = decimals < 0 ? 0 : decimals
-  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB']
-
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
   const i = Math.floor(Math.log(bytes) / Math.log(k))
 
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(decimals))} ${sizes[i]}`
 }
 
 /**
- * Format bitrate
+ * Formats a bitrate to human-readable format
+ *
  * @param bitsPerSecond - Bitrate in bits per second
+ * @param decimals - Number of decimal places
  * @returns Formatted bitrate string
+ *
+ * @example
+ * ```typescript
+ * formatBitrate(128000) // "128 kbps"
+ * formatBitrate(1536000) // "1.5 Mbps"
+ * ```
  */
-export function formatBitrate(bitsPerSecond: number): string {
-  if (bitsPerSecond === 0) return '0 bps'
+export function formatBitrate(bitsPerSecond: number, decimals = 1): string {
+  if (!Number.isFinite(bitsPerSecond) || bitsPerSecond < 0) {
+    return '0 bps'
+  }
+
+  if (bitsPerSecond === 0) {
+    return '0 bps'
+  }
 
   const k = 1000
   const sizes = ['bps', 'kbps', 'Mbps', 'Gbps']
-
   const i = Math.floor(Math.log(bitsPerSecond) / Math.log(k))
 
-  return `${parseFloat((bitsPerSecond / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`
+  return `${parseFloat((bitsPerSecond / Math.pow(k, i)).toFixed(decimals))} ${sizes[i]}`
 }
 
 /**
- * Truncate string with ellipsis
+ * Truncates a string to a maximum length with ellipsis
+ *
  * @param str - String to truncate
  * @param maxLength - Maximum length
- * @param position - Where to place ellipsis
+ * @param ellipsis - Ellipsis string to append
  * @returns Truncated string
+ *
+ * @example
+ * ```typescript
+ * truncate('This is a long string', 10) // "This is a..."
+ * truncate('Short', 10) // "Short"
+ * ```
  */
-export function truncate(
-  str: string,
-  maxLength: number,
-  position: 'end' | 'middle' = 'end'
-): string {
+export function truncate(str: string, maxLength: number, ellipsis = '...'): string {
+  if (!str || typeof str !== 'string') {
+    return ''
+  }
+
   if (str.length <= maxLength) {
     return str
   }
 
-  if (position === 'middle') {
-    const halfLength = Math.floor((maxLength - 3) / 2)
-    return `${str.substring(0, halfLength)}...${str.substring(str.length - halfLength)}`
+  return str.slice(0, maxLength - ellipsis.length) + ellipsis
+}
+
+/**
+ * Formats a call status for display
+ *
+ * @param status - Call status
+ * @returns Human-readable status
+ *
+ * @example
+ * ```typescript
+ * formatCallStatus('completed') // "Completed"
+ * formatCallStatus('missed') // "Missed"
+ * ```
+ */
+export function formatCallStatus(status: string): string {
+  const statusMap: Record<string, string> = {
+    completed: 'Completed',
+    missed: 'Missed',
+    cancelled: 'Cancelled',
+    failed: 'Failed',
+    busy: 'Busy',
+    rejected: 'Rejected',
   }
 
-  return `${str.substring(0, maxLength - 3)}...`
+  return statusMap[status.toLowerCase()] || status
+}
+
+/**
+ * Formats a call direction for display
+ *
+ * @param direction - Call direction
+ * @returns Human-readable direction
+ *
+ * @example
+ * ```typescript
+ * formatCallDirection('incoming') // "Incoming"
+ * formatCallDirection('outgoing') // "Outgoing"
+ * ```
+ */
+export function formatCallDirection(direction: string): string {
+  const directionMap: Record<string, string> = {
+    incoming: 'Incoming',
+    outgoing: 'Outgoing',
+  }
+
+  return directionMap[direction.toLowerCase()] || direction
 }

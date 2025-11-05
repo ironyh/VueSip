@@ -1,357 +1,648 @@
 /**
- * Validation utilities for DailVue
- * @packageDocumentation
+ * DailVue Validators
+ *
+ * Validation functions for SIP URIs, phone numbers, configurations, and other inputs.
+ * All validators return a consistent ValidationResult structure.
+ *
+ * @module utils/validators
  */
 
-import type { SipClientConfig, MediaConfiguration, ValidationResult } from '@/types'
+import type { SipClientConfig, MediaConfiguration } from '../types/config.types'
+import { SIP_URI_REGEX, E164_PHONE_REGEX, WEBSOCKET_URL_REGEX } from './constants'
 
 /**
- * Regular expression for validating SIP URIs
- * Supports sip: and sips: schemes
+ * Result of a validation operation
  */
-const SIP_URI_REGEX = /^sips?:([a-zA-Z0-9_.+-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,}|(?:[0-9]{1,3}\.){3}[0-9]{1,3})(:[0-9]{1,5})?$/
+export interface ValidationResult {
+  /** Whether the input is valid */
+  valid: boolean
+  /** Error message if validation failed */
+  error: string | null
+  /** Normalized/cleaned version of the input if valid */
+  normalized: string | null
+}
 
 /**
- * Regular expression for validating phone numbers
- * Supports international format with optional + prefix and country code
- */
-const PHONE_NUMBER_REGEX = /^\+?[1-9]\d{0,3}[-.\s]?(\d{1,4}[-.\s]?){1,5}\d{1,4}$/
-
-/**
- * Regular expression for validating WebSocket URIs
- */
-const WS_URI_REGEX = /^wss?:\/\/([a-zA-Z0-9.-]+)(:[0-9]{1,5})?(\/.*)?$/
-
-/**
- * Validate a SIP URI
+ * Validates a SIP URI
+ *
+ * Checks if the URI follows the format: sip:user@domain or sips:user@domain
+ * Optionally includes port, parameters, and headers.
+ *
  * @param uri - The SIP URI to validate
- * @returns Validation result
+ * @returns Validation result with normalized URI
+ *
+ * @example
+ * ```typescript
+ * const result = validateSipUri('sip:alice@example.com')
+ * if (result.valid) {
+ *   console.log('Normalized URI:', result.normalized)
+ * }
+ * ```
  */
 export function validateSipUri(uri: string): ValidationResult {
-  const errors: string[] = []
-  const warnings: string[] = []
-
-  // Check if URI is provided
-  if (!uri || uri.trim() === '') {
-    errors.push('SIP URI is required')
-    return { valid: false, errors }
+  if (!uri || typeof uri !== 'string') {
+    return {
+      valid: false,
+      error: 'SIP URI must be a non-empty string',
+      normalized: null,
+    }
   }
 
-  // Trim whitespace
-  const trimmedUri = uri.trim()
+  const trimmed = uri.trim()
 
-  // Check format
-  if (!SIP_URI_REGEX.test(trimmedUri)) {
-    errors.push('Invalid SIP URI format. Expected format: sip:user@domain or sips:user@domain')
-    return { valid: false, errors }
+  if (!trimmed) {
+    return {
+      valid: false,
+      error: 'SIP URI cannot be empty',
+      normalized: null,
+    }
   }
 
-  // Check for sips (secure) usage
-  if (trimmedUri.startsWith('sip:') && !trimmedUri.startsWith('sips:')) {
-    warnings.push('Using unsecure SIP URI. Consider using sips: for encrypted connections')
+  // Check basic format
+  const match = SIP_URI_REGEX.exec(trimmed)
+  if (!match) {
+    return {
+      valid: false,
+      error: 'Invalid SIP URI format. Expected: sip:user@domain or sips:user@domain',
+      normalized: null,
+    }
   }
+
+  const [, user, domain, port] = match
+
+  // Validate user part
+  if (!user || user.length === 0) {
+    return {
+      valid: false,
+      error: 'SIP URI must include a user part',
+      normalized: null,
+    }
+  }
+
+  // Validate domain part
+  if (!domain || domain.length === 0) {
+    return {
+      valid: false,
+      error: 'SIP URI must include a domain',
+      normalized: null,
+    }
+  }
+
+  // Validate port if present
+  if (port) {
+    const portNum = parseInt(port, 10)
+    if (isNaN(portNum) || portNum < 1 || portNum > 65535) {
+      return {
+        valid: false,
+        error: 'Invalid port number. Must be between 1 and 65535',
+        normalized: null,
+      }
+    }
+  }
+
+  // Normalize: lowercase scheme and domain
+  const scheme = trimmed.startsWith('sips:') ? 'sips' : 'sip'
+  const normalized = `${scheme}:${user}@${domain.toLowerCase()}${port ? `:${port}` : ''}`
 
   return {
     valid: true,
-    errors: errors.length > 0 ? errors : undefined,
-    warnings: warnings.length > 0 ? warnings : undefined,
+    error: null,
+    normalized,
   }
 }
 
 /**
- * Validate a phone number
- * @param phoneNumber - The phone number to validate
- * @param allowShort - Allow short phone numbers (< 7 digits)
- * @returns Validation result
+ * Validates a phone number
+ *
+ * Checks if the number is in E.164 format: +[country code][number]
+ * E.164 format: + followed by country code and subscriber number (max 15 digits)
+ *
+ * @param number - The phone number to validate
+ * @returns Validation result with normalized number
+ *
+ * @example
+ * ```typescript
+ * const result = validatePhoneNumber('+14155551234')
+ * if (result.valid) {
+ *   console.log('Valid E.164 number:', result.normalized)
+ * }
+ * ```
  */
-export function validatePhoneNumber(
-  phoneNumber: string,
-  allowShort = false
-): ValidationResult {
-  const errors: string[] = []
-  const warnings: string[] = []
-
-  // Check if phone number is provided
-  if (!phoneNumber || phoneNumber.trim() === '') {
-    errors.push('Phone number is required')
-    return { valid: false, errors }
+export function validatePhoneNumber(number: string): ValidationResult {
+  if (!number || typeof number !== 'string') {
+    return {
+      valid: false,
+      error: 'Phone number must be a non-empty string',
+      normalized: null,
+    }
   }
 
-  // Remove common formatting characters
-  const digits = phoneNumber.replace(/[-.\s()]/g, '')
+  const trimmed = number.trim()
 
-  // Check if it contains only valid characters
-  if (!/^[+0-9]+$/.test(digits)) {
-    errors.push('Phone number contains invalid characters')
-    return { valid: false, errors }
+  if (!trimmed) {
+    return {
+      valid: false,
+      error: 'Phone number cannot be empty',
+      normalized: null,
+    }
   }
 
-  // Check minimum length
-  const digitCount = digits.replace(/\+/g, '').length
-  if (!allowShort && digitCount < 7) {
-    errors.push('Phone number must be at least 7 digits')
-    return { valid: false, errors }
-  }
-
-  // Check format
-  if (!PHONE_NUMBER_REGEX.test(phoneNumber)) {
-    errors.push('Invalid phone number format')
-    return { valid: false, errors }
-  }
-
-  // Warning for numbers without country code
-  if (!digits.startsWith('+')) {
-    warnings.push('Phone number does not include country code. International calls may fail')
+  // Check E.164 format
+  if (!E164_PHONE_REGEX.test(trimmed)) {
+    return {
+      valid: false,
+      error:
+        'Invalid phone number format. Expected E.164 format: +[country code][number] (max 15 digits)',
+      normalized: null,
+    }
   }
 
   return {
     valid: true,
-    errors: errors.length > 0 ? errors : undefined,
-    warnings: warnings.length > 0 ? warnings : undefined,
+    error: null,
+    normalized: trimmed,
   }
 }
 
 /**
- * Validate SIP client configuration
+ * Validates a SIP client configuration
+ *
+ * Checks all required fields and validates their formats.
+ *
  * @param config - The SIP client configuration to validate
  * @returns Validation result
+ *
+ * @example
+ * ```typescript
+ * const config: SipClientConfig = {
+ *   uri: 'sip:alice@example.com',
+ *   password: 'secret',
+ *   websocketServer: 'wss://sip.example.com:7443'
+ * }
+ * const result = validateSipConfig(config)
+ * ```
  */
 export function validateSipConfig(config: Partial<SipClientConfig>): ValidationResult {
-  const errors: string[] = []
-  const warnings: string[] = []
-
-  // Required fields
-  if (!config.uri || config.uri.trim() === '') {
-    errors.push('WebSocket server URI is required')
-  } else if (!WS_URI_REGEX.test(config.uri)) {
-    errors.push('Invalid WebSocket URI format. Expected format: ws://host:port or wss://host:port')
-  } else if (config.uri.startsWith('ws:') && !config.uri.startsWith('wss:')) {
-    warnings.push('Using unsecure WebSocket connection. Use wss:// for production')
-  }
-
-  if (!config.sipUri || config.sipUri.trim() === '') {
-    errors.push('SIP URI is required')
-  } else {
-    const sipUriResult = validateSipUri(config.sipUri)
-    if (!sipUriResult.valid) {
-      errors.push(...(sipUriResult.errors || []))
-    }
-    if (sipUriResult.warnings) {
-      warnings.push(...sipUriResult.warnings)
+  if (!config || typeof config !== 'object') {
+    return {
+      valid: false,
+      error: 'Configuration must be an object',
+      normalized: null,
     }
   }
 
-  if (!config.password || config.password.trim() === '') {
-    if (!config.ha1 || config.ha1.trim() === '') {
-      errors.push('Either password or HA1 hash is required')
+  // Check required fields
+  if (!config.uri) {
+    return {
+      valid: false,
+      error: 'SIP URI is required',
+      normalized: null,
     }
   }
 
-  // Validate password strength
-  if (config.password && config.password.length < 8) {
-    warnings.push('Password is weak. Consider using at least 8 characters')
-  }
-
-  // Validate optional fields
-  if (config.wsOptions) {
-    if (config.wsOptions.connectionTimeout !== undefined) {
-      if (config.wsOptions.connectionTimeout < 1000) {
-        warnings.push('Connection timeout is very short. May cause connection issues')
-      } else if (config.wsOptions.connectionTimeout > 60000) {
-        warnings.push('Connection timeout is very long. Users may experience delays')
-      }
-    }
-
-    if (config.wsOptions.maxReconnectionAttempts !== undefined) {
-      if (config.wsOptions.maxReconnectionAttempts < 1) {
-        errors.push('maxReconnectionAttempts must be at least 1')
-      } else if (config.wsOptions.maxReconnectionAttempts > 10) {
-        warnings.push('Many reconnection attempts may delay failure detection')
-      }
-    }
-
-    if (config.wsOptions.reconnectionDelay !== undefined) {
-      if (config.wsOptions.reconnectionDelay < 100) {
-        warnings.push('Reconnection delay is very short. May overwhelm server')
-      }
+  if (!config.password) {
+    return {
+      valid: false,
+      error: 'Password is required',
+      normalized: null,
     }
   }
 
-  if (config.registrationOptions) {
-    if (config.registrationOptions.expires !== undefined) {
-      if (config.registrationOptions.expires < 60) {
-        warnings.push('Registration expires time is very short. May cause frequent re-registrations')
-      } else if (config.registrationOptions.expires > 3600) {
-        warnings.push('Registration expires time is very long. May delay failure detection')
-      }
+  if (!config.websocketServer) {
+    return {
+      valid: false,
+      error: 'WebSocket server URL is required',
+      normalized: null,
     }
   }
 
-  if (config.sessionOptions) {
-    if (config.sessionOptions.maxConcurrentCalls !== undefined) {
-      if (config.sessionOptions.maxConcurrentCalls < 1) {
-        errors.push('maxConcurrentCalls must be at least 1')
-      } else if (config.sessionOptions.maxConcurrentCalls > 10) {
-        warnings.push('High number of concurrent calls may impact performance')
+  // Validate URI format
+  const uriResult = validateSipUri(config.uri)
+  if (!uriResult.valid) {
+    return {
+      valid: false,
+      error: `Invalid SIP URI: ${uriResult.error}`,
+      normalized: null,
+    }
+  }
+
+  // Validate WebSocket URL
+  const wsUrlResult = validateWebSocketUrl(config.websocketServer)
+  if (!wsUrlResult.valid) {
+    return {
+      valid: false,
+      error: `Invalid WebSocket URL: ${wsUrlResult.error}`,
+      normalized: null,
+    }
+  }
+
+  // Warn about insecure WebSocket in production (but don't fail validation)
+  if (config.websocketServer.startsWith('ws://') && process.env.NODE_ENV === 'production') {
+    console.warn(
+      'Warning: Using insecure WebSocket (ws://) in production. Use wss:// for secure connections.'
+    )
+  }
+
+  // Validate optional registerExpires
+  if (config.registerExpires !== undefined) {
+    if (typeof config.registerExpires !== 'number' || config.registerExpires < 60) {
+      return {
+        valid: false,
+        error: 'registerExpires must be a number >= 60 seconds',
+        normalized: null,
       }
     }
   }
 
-  return {
-    valid: errors.length === 0,
-    errors: errors.length > 0 ? errors : undefined,
-    warnings: warnings.length > 0 ? warnings : undefined,
-  }
-}
-
-/**
- * Validate media configuration
- * @param config - The media configuration to validate
- * @returns Validation result
- */
-export function validateMediaConfig(config: Partial<MediaConfiguration>): ValidationResult {
-  const errors: string[] = []
-  const warnings: string[] = []
-
-  // Both audio and video cannot be false
-  if (config.audio === false && config.video === false) {
-    errors.push('At least one of audio or video must be enabled')
-  }
-
-  // Validate audio codec
-  if (config.audioCodec) {
-    const validAudioCodecs = ['opus', 'pcmu', 'pcma', 'g722']
-    if (!validAudioCodecs.includes(config.audioCodec)) {
-      errors.push(`Invalid audio codec. Supported codecs: ${validAudioCodecs.join(', ')}`)
-    }
-  }
-
-  // Validate video codec
-  if (config.videoCodec) {
-    const validVideoCodecs = ['vp8', 'vp9', 'h264']
-    if (!validVideoCodecs.includes(config.videoCodec)) {
-      errors.push(`Invalid video codec. Supported codecs: ${validVideoCodecs.join(', ')}`)
-    }
-  }
-
-  // Validate constraints
-  if (typeof config.audio === 'object' && config.audio) {
-    if ('sampleRate' in config.audio) {
-      const sampleRate = (config.audio as any).sampleRate
-      if (typeof sampleRate === 'number' && sampleRate < 8000) {
-        warnings.push('Audio sample rate is very low. May result in poor audio quality')
-      }
-    }
-
-    if ('channelCount' in config.audio) {
-      const channelCount = (config.audio as any).channelCount
-      if (typeof channelCount === 'number' && channelCount > 2) {
-        warnings.push('Audio channel count > 2 is uncommon for VoIP')
+  // Validate optional sessionTimers
+  if (config.sessionTimers !== undefined) {
+    if (typeof config.sessionTimers !== 'boolean') {
+      return {
+        valid: false,
+        error: 'sessionTimers must be a boolean',
+        normalized: null,
       }
     }
   }
 
-  if (typeof config.video === 'object' && config.video) {
-    if ('width' in config.video || 'height' in config.video) {
-      const width = (config.video as any).width
-      const height = (config.video as any).height
-
-      if (typeof width === 'number' && width > 1920) {
-        warnings.push('Video width > 1920px may impact performance')
-      }
-      if (typeof height === 'number' && height > 1080) {
-        warnings.push('Video height > 1080px may impact performance')
-      }
-    }
-
-    if ('frameRate' in config.video) {
-      const frameRate = (config.video as any).frameRate
-      if (typeof frameRate === 'number' && frameRate > 30) {
-        warnings.push('High frame rate may impact performance and bandwidth')
+  // Validate optional noAnswerTimeout
+  if (config.noAnswerTimeout !== undefined) {
+    if (typeof config.noAnswerTimeout !== 'number' || config.noAnswerTimeout < 10) {
+      return {
+        valid: false,
+        error: 'noAnswerTimeout must be a number >= 10 seconds',
+        normalized: null,
       }
     }
   }
 
-  // Audio processing features
-  if (config.echoCancellation === false) {
-    warnings.push('Echo cancellation is disabled. May cause echo issues')
-  }
-
-  if (config.noiseSuppression === false) {
-    warnings.push('Noise suppression is disabled. Background noise may be audible')
-  }
-
-  return {
-    valid: errors.length === 0,
-    errors: errors.length > 0 ? errors : undefined,
-    warnings: warnings.length > 0 ? warnings : undefined,
-  }
-}
-
-/**
- * Validate a hostname or IP address
- * @param host - The hostname or IP to validate
- * @returns Validation result
- */
-export function validateHost(host: string): ValidationResult {
-  const errors: string[] = []
-
-  if (!host || host.trim() === '') {
-    errors.push('Host is required')
-    return { valid: false, errors }
-  }
-
-  const trimmedHost = host.trim()
-
-  // Check for valid hostname or IP
-  const hostnameRegex = /^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)*[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$/
-  const ipv4Regex = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/
-  const ipv6Regex = /^(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$/
-
-  if (!hostnameRegex.test(trimmedHost) && !ipv4Regex.test(trimmedHost) && !ipv6Regex.test(trimmedHost)) {
-    errors.push('Invalid hostname or IP address')
-    return { valid: false, errors }
-  }
-
-  // Validate IPv4 octets if it's an IP
-  if (ipv4Regex.test(trimmedHost)) {
-    const octets = trimmedHost.split('.').map(Number)
-    if (octets.some(octet => octet < 0 || octet > 255)) {
-      errors.push('Invalid IPv4 address. Octets must be between 0 and 255')
-      return { valid: false, errors }
+  // Validate optional iceTransportPolicy
+  if (config.iceTransportPolicy !== undefined) {
+    if (config.iceTransportPolicy !== 'all' && config.iceTransportPolicy !== 'relay') {
+      return {
+        valid: false,
+        error: 'iceTransportPolicy must be "all" or "relay"',
+        normalized: null,
+      }
     }
-  }
-
-  return { valid: true }
-}
-
-/**
- * Validate a port number
- * @param port - The port number to validate
- * @returns Validation result
- */
-export function validatePort(port: number): ValidationResult {
-  const errors: string[] = []
-  const warnings: string[] = []
-
-  if (!Number.isInteger(port)) {
-    errors.push('Port must be an integer')
-    return { valid: false, errors }
-  }
-
-  if (port < 1 || port > 65535) {
-    errors.push('Port must be between 1 and 65535')
-    return { valid: false, errors }
-  }
-
-  // Common well-known ports
-  if (port < 1024) {
-    warnings.push('Using well-known port (< 1024). May require elevated privileges')
   }
 
   return {
     valid: true,
-    errors: errors.length > 0 ? errors : undefined,
-    warnings: warnings.length > 0 ? warnings : undefined,
+    error: null,
+    normalized: null,
+  }
+}
+
+/**
+ * Validates a media configuration
+ *
+ * Checks media constraints and device settings.
+ *
+ * @param config - The media configuration to validate
+ * @returns Validation result
+ *
+ * @example
+ * ```typescript
+ * const config: MediaConfiguration = {
+ *   audio: { enabled: true, echoCancellation: true },
+ *   video: { enabled: false }
+ * }
+ * const result = validateMediaConfig(config)
+ * ```
+ */
+export function validateMediaConfig(config: Partial<MediaConfiguration>): ValidationResult {
+  if (!config || typeof config !== 'object') {
+    return {
+      valid: false,
+      error: 'Media configuration must be an object',
+      normalized: null,
+    }
+  }
+
+  // Validate audio configuration if present
+  if (config.audio) {
+    if (typeof config.audio !== 'object') {
+      return {
+        valid: false,
+        error: 'Audio configuration must be an object',
+        normalized: null,
+      }
+    }
+
+    if (config.audio.enabled !== undefined && typeof config.audio.enabled !== 'boolean') {
+      return {
+        valid: false,
+        error: 'audio.enabled must be a boolean',
+        normalized: null,
+      }
+    }
+
+    if (
+      config.audio.echoCancellation !== undefined &&
+      typeof config.audio.echoCancellation !== 'boolean'
+    ) {
+      return {
+        valid: false,
+        error: 'audio.echoCancellation must be a boolean',
+        normalized: null,
+      }
+    }
+
+    if (
+      config.audio.noiseSuppression !== undefined &&
+      typeof config.audio.noiseSuppression !== 'boolean'
+    ) {
+      return {
+        valid: false,
+        error: 'audio.noiseSuppression must be a boolean',
+        normalized: null,
+      }
+    }
+
+    if (
+      config.audio.autoGainControl !== undefined &&
+      typeof config.audio.autoGainControl !== 'boolean'
+    ) {
+      return {
+        valid: false,
+        error: 'audio.autoGainControl must be a boolean',
+        normalized: null,
+      }
+    }
+
+    if (config.audio.deviceId !== undefined && config.audio.deviceId !== null) {
+      if (typeof config.audio.deviceId !== 'string') {
+        return {
+          valid: false,
+          error: 'audio.deviceId must be a string',
+          normalized: null,
+        }
+      }
+    }
+  }
+
+  // Validate video configuration if present
+  if (config.video) {
+    if (typeof config.video !== 'object') {
+      return {
+        valid: false,
+        error: 'Video configuration must be an object',
+        normalized: null,
+      }
+    }
+
+    if (config.video.enabled !== undefined && typeof config.video.enabled !== 'boolean') {
+      return {
+        valid: false,
+        error: 'video.enabled must be a boolean',
+        normalized: null,
+      }
+    }
+
+    if (config.video.width !== undefined && typeof config.video.width !== 'number') {
+      return {
+        valid: false,
+        error: 'video.width must be a number',
+        normalized: null,
+      }
+    }
+
+    if (config.video.height !== undefined && typeof config.video.height !== 'number') {
+      return {
+        valid: false,
+        error: 'video.height must be a number',
+        normalized: null,
+      }
+    }
+
+    if (config.video.frameRate !== undefined && typeof config.video.frameRate !== 'number') {
+      return {
+        valid: false,
+        error: 'video.frameRate must be a number',
+        normalized: null,
+      }
+    }
+
+    if (config.video.facingMode !== undefined) {
+      if (config.video.facingMode !== 'user' && config.video.facingMode !== 'environment') {
+        return {
+          valid: false,
+          error: 'video.facingMode must be "user" or "environment"',
+          normalized: null,
+        }
+      }
+    }
+
+    if (config.video.deviceId !== undefined && config.video.deviceId !== null) {
+      if (typeof config.video.deviceId !== 'string') {
+        return {
+          valid: false,
+          error: 'video.deviceId must be a string',
+          normalized: null,
+        }
+      }
+    }
+  }
+
+  return {
+    valid: true,
+    error: null,
+    normalized: null,
+  }
+}
+
+/**
+ * Validates a WebSocket URL
+ *
+ * Checks if the URL is a valid WebSocket URL (ws:// or wss://)
+ *
+ * @param url - The WebSocket URL to validate
+ * @returns Validation result
+ *
+ * @example
+ * ```typescript
+ * const result = validateWebSocketUrl('wss://sip.example.com:7443')
+ * ```
+ */
+export function validateWebSocketUrl(url: string): ValidationResult {
+  if (!url || typeof url !== 'string') {
+    return {
+      valid: false,
+      error: 'WebSocket URL must be a non-empty string',
+      normalized: null,
+    }
+  }
+
+  const trimmed = url.trim()
+
+  if (!trimmed) {
+    return {
+      valid: false,
+      error: 'WebSocket URL cannot be empty',
+      normalized: null,
+    }
+  }
+
+  if (!WEBSOCKET_URL_REGEX.test(trimmed)) {
+    return {
+      valid: false,
+      error: 'Invalid WebSocket URL format. Expected: ws:// or wss://',
+      normalized: null,
+    }
+  }
+
+  // Try to parse as URL to validate structure
+  try {
+    const parsedUrl = new URL(trimmed)
+
+    if (parsedUrl.protocol !== 'ws:' && parsedUrl.protocol !== 'wss:') {
+      return {
+        valid: false,
+        error: 'WebSocket URL must use ws:// or wss:// protocol',
+        normalized: null,
+      }
+    }
+
+    if (!parsedUrl.hostname) {
+      return {
+        valid: false,
+        error: 'WebSocket URL must include a hostname',
+        normalized: null,
+      }
+    }
+
+    return {
+      valid: true,
+      error: null,
+      normalized: trimmed,
+    }
+  } catch (error) {
+    return {
+      valid: false,
+      error: `Invalid URL structure: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      normalized: null,
+    }
+  }
+}
+
+/**
+ * Validates a DTMF tone
+ *
+ * Checks if the tone is a valid DTMF character (0-9, *, #, A-D)
+ *
+ * @param tone - The DTMF tone to validate
+ * @returns Validation result
+ *
+ * @example
+ * ```typescript
+ * const result = validateDtmfTone('1')
+ * ```
+ */
+export function validateDtmfTone(tone: string): ValidationResult {
+  if (!tone || typeof tone !== 'string') {
+    return {
+      valid: false,
+      error: 'DTMF tone must be a non-empty string',
+      normalized: null,
+    }
+  }
+
+  if (tone.length !== 1) {
+    return {
+      valid: false,
+      error: 'DTMF tone must be a single character',
+      normalized: null,
+    }
+  }
+
+  const validTones = [
+    '0',
+    '1',
+    '2',
+    '3',
+    '4',
+    '5',
+    '6',
+    '7',
+    '8',
+    '9',
+    '*',
+    '#',
+    'A',
+    'B',
+    'C',
+    'D',
+  ]
+  const upperTone = tone.toUpperCase()
+
+  if (!validTones.includes(upperTone)) {
+    return {
+      valid: false,
+      error: 'Invalid DTMF tone. Valid tones: 0-9, *, #, A-D',
+      normalized: null,
+    }
+  }
+
+  return {
+    valid: true,
+    error: null,
+    normalized: upperTone,
+  }
+}
+
+/**
+ * Validates a DTMF tone sequence
+ *
+ * Checks if all tones in the sequence are valid
+ *
+ * @param sequence - The DTMF sequence to validate
+ * @returns Validation result
+ *
+ * @example
+ * ```typescript
+ * const result = validateDtmfSequence('1234*#')
+ * ```
+ */
+export function validateDtmfSequence(sequence: string): ValidationResult {
+  if (!sequence || typeof sequence !== 'string') {
+    return {
+      valid: false,
+      error: 'DTMF sequence must be a non-empty string',
+      normalized: null,
+    }
+  }
+
+  if (sequence.length === 0) {
+    return {
+      valid: false,
+      error: 'DTMF sequence cannot be empty',
+      normalized: null,
+    }
+  }
+
+  const normalized: string[] = []
+
+  for (let i = 0; i < sequence.length; i++) {
+    const tone = sequence[i]
+    const result = validateDtmfTone(tone)
+
+    if (!result.valid) {
+      return {
+        valid: false,
+        error: `Invalid tone at position ${i + 1}: ${result.error}`,
+        normalized: null,
+      }
+    }
+
+    if (result.normalized) {
+      normalized.push(result.normalized)
+    }
+  }
+
+  return {
+    valid: true,
+    error: null,
+    normalized: normalized.join(''),
   }
 }
