@@ -1075,13 +1075,13 @@ Phase 6 (Core Composables) has been substantially completed with the following i
 - useSipRegistration - 49 tests (all passing)
 - useCallControls - 57 tests (all passing)
 - useCallHistory - 57 tests (all passing)
-- usePresence - 54 tests (all passing) ⭐ _Just completed!_
+- usePresence - 54 tests (all passing)
+- useMessaging - 62 tests (all passing) ⭐ _Just completed!_
 
-**Total: 446 tests across 8 composables**
+**Total: 508 tests across 9 composables**
 
 ❌ **No Tests (Need Test Files):**
 
-- useMessaging - No test file exists
 - useConference - No test file exists
 
 **Priority Recommendations:**
@@ -1092,7 +1092,8 @@ Phase 6 (Core Composables) has been substantially completed with the following i
 4. ~~Create test file for useCallControls~~ ✅ **DONE!**
 5. ~~Create test file for useCallHistory~~ ✅ **DONE!**
 6. ~~Create test file for usePresence~~ ✅ **DONE!**
-7. Create test files for remaining composables (useMessaging, useConference)
+7. ~~Create test file for useMessaging~~ ✅ **DONE!**
+8. Create test file for useConference
 
 **Next Steps:**
 
