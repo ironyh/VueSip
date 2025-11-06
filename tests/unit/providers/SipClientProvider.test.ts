@@ -616,4 +616,116 @@ describe('SipClientProvider - Phase 7.1 Implementation', () => {
       expect(wrapper.find('.sip-client-provider').exists()).toBe(true)
     })
   })
+
+  describe('Provider Improvements - Error and Method Exposure', () => {
+    it('should expose error state in provider context', async () => {
+      const { validateSipConfig } = await import('@/utils/validators')
+      vi.mocked(validateSipConfig).mockReturnValueOnce({
+        valid: false,
+        errors: ['Test error'],
+        warnings: [],
+      })
+
+      const ChildComponent = defineComponent({
+        setup() {
+          const context = useSipClientProvider()
+          expect(context.error).toBeDefined()
+          return () => h('div', 'child')
+        },
+      })
+
+      mount(SipClientProvider, {
+        props: {
+          config: mockConfig,
+          autoConnect: false,
+        },
+        slots: {
+          default: () => h(ChildComponent),
+        },
+      })
+
+      await flushPromises()
+    })
+
+    it('should expose connect method in provider context', async () => {
+      const ChildComponent = defineComponent({
+        setup() {
+          const context = useSipClientProvider()
+          expect(context.connect).toBeDefined()
+          expect(typeof context.connect).toBe('function')
+          return () => h('div', 'child')
+        },
+      })
+
+      mount(SipClientProvider, {
+        props: {
+          config: mockConfig,
+          autoConnect: false,
+        },
+        slots: {
+          default: () => h(ChildComponent),
+        },
+      })
+
+      await flushPromises()
+    })
+
+    it('should expose disconnect method in provider context', async () => {
+      const ChildComponent = defineComponent({
+        setup() {
+          const context = useSipClientProvider()
+          expect(context.disconnect).toBeDefined()
+          expect(typeof context.disconnect).toBe('function')
+          return () => h('div', 'child')
+        },
+      })
+
+      mount(SipClientProvider, {
+        props: {
+          config: mockConfig,
+          autoConnect: false,
+        },
+        slots: {
+          default: () => h(ChildComponent),
+        },
+      })
+
+      await flushPromises()
+    })
+  })
+
+  describe('Event Listener Cleanup', () => {
+    it('should track and remove event listeners on unmount', async () => {
+      const { EventBus } = await import('@/core/EventBus')
+      let mockEventBus: any
+
+      vi.mocked(EventBus).mockImplementationOnce(() => {
+        mockEventBus = {
+          on: vi.fn().mockReturnValue('listener-id-1'),
+          off: vi.fn(),
+        }
+        return mockEventBus
+      })
+
+      const wrapper = mount(SipClientProvider, {
+        props: {
+          config: mockConfig,
+          autoConnect: false,
+          autoCleanup: true,
+        },
+      })
+
+      await flushPromises()
+
+      // Should have registered event listeners
+      expect(mockEventBus.on).toHaveBeenCalled()
+
+      // Unmount
+      wrapper.unmount()
+      await flushPromises()
+
+      // Should have removed all event listeners
+      expect(mockEventBus.off).toHaveBeenCalled()
+    })
+  })
 })

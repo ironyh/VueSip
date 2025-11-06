@@ -33,6 +33,7 @@ import {
   inject,
   onMounted,
   onBeforeUnmount,
+  watch,
   readonly,
   ref,
   h,
@@ -48,6 +49,22 @@ import { createLogger } from '@/utils/logger'
 import { validateSipConfig } from '@/utils/validators'
 
 const logger = createLogger('SipClientProvider')
+
+/**
+ * Type-safe event payloads for SIP events
+ */
+interface SipEventDisconnectedData {
+  error?: string
+}
+
+interface SipEventRegisteredData {
+  uri: string
+  expires?: number
+}
+
+interface SipEventRegistrationFailedData {
+  cause: string
+}
 
 /**
  * Injection key for SIP client instance
@@ -84,6 +101,12 @@ export interface SipClientProviderContext {
   registrationState: Ref<RegistrationState>
   /** Whether client is ready to use */
   isReady: Ref<boolean>
+  /** Current error (null if no error) */
+  error: Ref<Error | null>
+  /** Programmatically connect to SIP server */
+  connect: () => Promise<void>
+  /** Programmatically disconnect from SIP server */
+  disconnect: () => Promise<void>
 }
 
 /**
@@ -150,6 +173,16 @@ export const SipClientProvider = defineComponent({
       type: Boolean,
       default: true,
     },
+
+    /**
+     * Whether to watch config changes and reinitialize client
+     * WARNING: This will disconnect and reconnect when config changes
+     * @default false
+     */
+    watchConfig: {
+      type: Boolean,
+      default: false,
+    },
   },
 
   emits: {
@@ -197,6 +230,9 @@ export const SipClientProvider = defineComponent({
     const isReady = ref(false)
     const error = ref<Error | null>(null)
 
+    // Track event listener IDs for cleanup
+    const eventListenerIds = ref<string[]>([])
+
     /**
      * Initialize SIP client with configuration
      */
@@ -234,12 +270,13 @@ export const SipClientProvider = defineComponent({
 
     /**
      * Setup event listeners for SIP client events
+     * Tracks listener IDs for proper cleanup
      */
     const setupEventListeners = (): void => {
       if (!client.value) return
 
       // Connection events
-      eventBus.value.on('sip:connected', () => {
+      const connectedId = eventBus.value.on('sip:connected', () => {
         logger.info('SIP client connected')
         connectionState.value = 'connected'
         emit('connected')
@@ -258,49 +295,75 @@ export const SipClientProvider = defineComponent({
           emit('ready')
         }
       })
+      eventListenerIds.value.push(connectedId)
 
-      eventBus.value.on('sip:disconnected', (data) => {
-        logger.info('SIP client disconnected', data)
-        connectionState.value = 'disconnected'
-        registrationState.value = 'unregistered'
-        isReady.value = false
+      const disconnectedId = eventBus.value.on(
+        'sip:disconnected',
+        (data?: SipEventDisconnectedData) => {
+          logger.info('SIP client disconnected', data)
+          connectionState.value = 'disconnected'
+          registrationState.value = 'unregistered'
+          isReady.value = false
 
-        const errorObj = data?.error ? new Error(data.error) : undefined
-        emit('disconnected', errorObj)
-      })
+          const errorObj = data?.error ? new Error(data.error) : undefined
+          emit('disconnected', errorObj)
+        }
+      )
+      eventListenerIds.value.push(disconnectedId)
 
-      eventBus.value.on('sip:connecting', () => {
+      const connectingId = eventBus.value.on('sip:connecting', () => {
         logger.debug('SIP client connecting')
         connectionState.value = 'connecting'
       })
+      eventListenerIds.value.push(connectingId)
 
       // Registration events
-      eventBus.value.on('sip:registered', (data) => {
+      const registeredId = eventBus.value.on('sip:registered', (data: SipEventRegisteredData) => {
         logger.info('SIP client registered', data)
         registrationState.value = 'registered'
         isReady.value = true
         emit('registered', data.uri)
         emit('ready')
       })
+      eventListenerIds.value.push(registeredId)
 
-      eventBus.value.on('sip:unregistered', () => {
+      const unregisteredId = eventBus.value.on('sip:unregistered', () => {
         logger.info('SIP client unregistered')
         registrationState.value = 'unregistered'
         emit('unregistered')
       })
+      eventListenerIds.value.push(unregisteredId)
 
-      eventBus.value.on('sip:registering', () => {
+      const registeringId = eventBus.value.on('sip:registering', () => {
         logger.debug('SIP client registering')
         registrationState.value = 'registering'
       })
+      eventListenerIds.value.push(registeringId)
 
-      eventBus.value.on('sip:registration_failed', (data) => {
-        logger.error('SIP registration failed', data)
-        registrationState.value = 'unregistered'
-        const errorObj = new Error(`Registration failed: ${data.cause}`)
-        error.value = errorObj
-        emit('error', errorObj)
+      const registrationFailedId = eventBus.value.on(
+        'sip:registration_failed',
+        (data: SipEventRegistrationFailedData) => {
+          logger.error('SIP registration failed', data)
+          registrationState.value = 'unregistered'
+          const errorObj = new Error(`Registration failed: ${data.cause}`)
+          error.value = errorObj
+          emit('error', errorObj)
+        }
+      )
+      eventListenerIds.value.push(registrationFailedId)
+
+      logger.debug(`Registered ${eventListenerIds.value.length} event listeners`)
+    }
+
+    /**
+     * Remove all event listeners to prevent memory leaks
+     */
+    const removeEventListeners = (): void => {
+      logger.debug(`Removing ${eventListenerIds.value.length} event listeners`)
+      eventListenerIds.value.forEach((id) => {
+        eventBus.value.off(id)
       })
+      eventListenerIds.value = []
     }
 
     /**
@@ -351,20 +414,77 @@ export const SipClientProvider = defineComponent({
 
     /**
      * Cleanup resources
+     * Note: This is intentionally synchronous to work properly with Vue lifecycle
      */
-    const cleanup = async (): Promise<void> => {
+    const cleanup = (): void => {
       logger.debug('Cleaning up SIP client provider')
 
-      try {
-        await disconnect()
-      } catch (err) {
-        logger.warn('Error during cleanup', err)
+      // Remove event listeners first to prevent further updates
+      removeEventListeners()
+
+      // Stop client if connected (synchronously - fire and forget)
+      if (client.value) {
+        client.value.stop().catch((err) => {
+          logger.warn('Error stopping client during cleanup', err)
+        })
       }
 
       // Clear references
       client.value = null
       isReady.value = false
       error.value = null
+      connectionState.value = 'disconnected'
+      registrationState.value = 'unregistered'
+    }
+
+    /**
+     * Reinitialize client with new config
+     * Used when config changes (if watchConfig is enabled)
+     */
+    const reinitializeClient = async (): Promise<void> => {
+      logger.info('Config changed, reinitializing client')
+
+      // Cleanup existing client
+      removeEventListeners()
+      if (client.value) {
+        try {
+          await client.value.stop()
+        } catch (err) {
+          logger.warn('Error stopping client during reinitialization', err)
+        }
+      }
+
+      // Reset state
+      connectionState.value = 'disconnected'
+      registrationState.value = 'unregistered'
+      isReady.value = false
+      error.value = null
+
+      // Reinitialize
+      initializeClient()
+
+      // Auto-connect if enabled
+      if (props.autoConnect && client.value) {
+        try {
+          await connect()
+        } catch (err) {
+          logger.error('Auto-connect failed during reinitialization', err)
+        }
+      }
+    }
+
+    // Watch config changes (if enabled)
+    if (props.watchConfig) {
+      watch(
+        () => props.config,
+        async (newConfig, oldConfig) => {
+          // Only reinitialize if config actually changed
+          if (JSON.stringify(newConfig) !== JSON.stringify(oldConfig)) {
+            await reinitializeClient()
+          }
+        },
+        { deep: true }
+      )
     }
 
     // Lifecycle hooks
@@ -385,11 +505,11 @@ export const SipClientProvider = defineComponent({
       }
     })
 
-    onBeforeUnmount(async () => {
+    onBeforeUnmount(() => {
       logger.debug('SipClientProvider unmounting')
 
       if (props.autoCleanup) {
-        await cleanup()
+        cleanup()
       }
     })
 
@@ -400,6 +520,9 @@ export const SipClientProvider = defineComponent({
       connectionState: readonly(connectionState) as Ref<ConnectionState>,
       registrationState: readonly(registrationState) as Ref<RegistrationState>,
       isReady: readonly(isReady) as Ref<boolean>,
+      error: readonly(error) as Ref<Error | null>,
+      connect,
+      disconnect,
     }
 
     // Provide context to children
