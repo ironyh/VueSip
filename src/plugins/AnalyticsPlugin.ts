@@ -30,6 +30,8 @@ const DEFAULT_CONFIG: Required<AnalyticsPluginConfig> = {
   ignoreEvents: [],
   maxQueueSize: 1000, // Maximum events in queue before dropping old ones
   requestTimeout: 30000, // 30 seconds timeout for requests
+  maxPayloadSize: 100000, // 100KB maximum payload size
+  validateEventData: true, // Validate event data by default
 }
 
 /**
@@ -75,18 +77,39 @@ export class AnalyticsPlugin implements Plugin<AnalyticsPluginConfig> {
   /** Abort controller for fetch timeout */
   private abortController: AbortController | null = null
 
+  /** Flag to prevent multiple install calls */
+  private isInstalled: boolean = false
+
   constructor() {
     // Generate session ID using crypto for better uniqueness
     this.sessionId = this.generateSessionId()
   }
 
   /**
-   * Generate a unique session ID
+   * Generate a unique session ID using cryptographically secure random values
+   * @returns A unique session ID
    */
   private generateSessionId(): string {
+    // Use crypto.randomUUID if available (modern browsers)
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      return `session-${crypto.randomUUID()}`
+    }
+
+    // Fallback: Use Web Crypto API with getRandomValues
+    if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+      const array = new Uint32Array(4)
+      crypto.getRandomValues(array)
+      const hex = Array.from(array)
+        .map((num) => num.toString(16).padStart(8, '0'))
+        .join('')
+      return `session-${Date.now()}-${hex}`
+    }
+
+    // Final fallback for non-browser environments (testing)
     const timestamp = Date.now()
     const random = Math.random().toString(36).substring(2, 15)
     const random2 = Math.random().toString(36).substring(2, 15)
+    logger.warn('Using non-cryptographic session ID generation - crypto API not available')
     return `session-${timestamp}-${random}${random2}`
   }
 
@@ -97,30 +120,53 @@ export class AnalyticsPlugin implements Plugin<AnalyticsPluginConfig> {
    * @param config - Plugin configuration
    */
   async install(context: PluginContext, config?: AnalyticsPluginConfig): Promise<void> {
-    this.config = { ...DEFAULT_CONFIG, ...config }
-
-    // Validate configuration
-    if (!this.config.endpoint && this.config.enabled) {
-      logger.warn('Analytics plugin enabled but no endpoint configured')
+    // Prevent multiple install calls
+    if (this.isInstalled) {
+      logger.warn('Analytics plugin is already installed, ignoring')
+      return
     }
 
-    logger.info('Installing analytics plugin')
+    try {
+      this.config = { ...DEFAULT_CONFIG, ...config }
 
-    // Register event listeners
-    this.registerEventListeners(context)
+      // Validate configuration
+      if (!this.config.endpoint && this.config.enabled) {
+        logger.warn('Analytics plugin enabled but no endpoint configured')
+      }
 
-    // Start batch timer if batching is enabled
-    if (this.config.batchEvents) {
-      this.startBatchTimer()
+      logger.info('Installing analytics plugin')
+
+      // Register event listeners
+      this.registerEventListeners(context)
+
+      // Start batch timer if batching is enabled
+      if (this.config.batchEvents) {
+        this.startBatchTimer()
+      }
+
+      // Mark as installed
+      this.isInstalled = true
+
+      // Track plugin installation
+      this.trackEvent('plugin:installed', {
+        plugin: this.metadata.name,
+        version: this.metadata.version,
+      })
+
+      logger.info('Analytics plugin installed')
+    } catch (error) {
+      // Cleanup timer if installation fails
+      this.stopBatchTimer()
+
+      // Remove any registered event listeners
+      for (const cleanup of this.cleanupFunctions) {
+        cleanup()
+      }
+      this.cleanupFunctions = []
+
+      logger.error('Failed to install analytics plugin', error)
+      throw error
     }
-
-    // Track plugin installation
-    this.trackEvent('plugin:installed', {
-      plugin: this.metadata.name,
-      version: this.metadata.version,
-    })
-
-    logger.info('Analytics plugin installed')
   }
 
   /**
@@ -145,6 +191,9 @@ export class AnalyticsPlugin implements Plugin<AnalyticsPluginConfig> {
       cleanup()
     }
     this.cleanupFunctions = []
+
+    // Reset installed flag to allow reinstallation
+    this.isInstalled = false
 
     logger.info('Analytics plugin uninstalled')
   }
@@ -292,6 +341,12 @@ export class AnalyticsPlugin implements Plugin<AnalyticsPluginConfig> {
       return
     }
 
+    // Validate event data if enabled
+    if (this.config.validateEventData && !this.isValidEventData(data)) {
+      logger.warn(`Invalid event data for type "${type}", skipping`)
+      return
+    }
+
     // Create event
     let event: AnalyticsEvent = {
       type,
@@ -311,6 +366,12 @@ export class AnalyticsPlugin implements Plugin<AnalyticsPluginConfig> {
     } catch (error) {
       logger.error('Event transformation failed, using original event', error)
       // Continue with untransformed event
+    }
+
+    // Check payload size
+    if (!this.isPayloadSizeValid(event)) {
+      logger.warn(`Event payload too large for type "${type}", skipping`)
+      return
     }
 
     // Add to queue or send immediately
@@ -338,6 +399,65 @@ export class AnalyticsPlugin implements Plugin<AnalyticsPluginConfig> {
     }
 
     logger.debug(`Event tracked: ${type}`)
+  }
+
+  /**
+   * Validate event data
+   * Checks for null, undefined, and empty objects
+   *
+   * @param data - Event data
+   * @returns True if data is valid
+   */
+  private isValidEventData(data?: Record<string, any>): boolean {
+    // Undefined is okay (no data)
+    if (data === undefined) {
+      return true
+    }
+
+    // Null is not okay
+    if (data === null) {
+      logger.debug('Event data is null')
+      return false
+    }
+
+    // Must be an object
+    if (typeof data !== 'object') {
+      logger.debug('Event data is not an object')
+      return false
+    }
+
+    // Arrays are not okay
+    if (Array.isArray(data)) {
+      logger.debug('Event data is an array, not an object')
+      return false
+    }
+
+    // Empty objects are okay (some events may not have additional data)
+    return true
+  }
+
+  /**
+   * Check if payload size is within limits
+   *
+   * @param event - Analytics event
+   * @returns True if payload size is valid
+   */
+  private isPayloadSizeValid(event: AnalyticsEvent): boolean {
+    try {
+      const serialized = JSON.stringify(event)
+      const sizeInBytes = new Blob([serialized]).size
+
+      if (sizeInBytes > this.config.maxPayloadSize!) {
+        logger.warn(`Payload size ${sizeInBytes} exceeds limit ${this.config.maxPayloadSize}`)
+        return false
+      }
+
+      return true
+    } catch (error) {
+      // If serialization fails, reject the event
+      logger.error('Failed to serialize event for size check', error)
+      return false
+    }
   }
 
   /**

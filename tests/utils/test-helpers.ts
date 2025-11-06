@@ -196,16 +196,33 @@ export function waitForEvent(
   timeout: number = 5000
 ): Promise<any> {
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      eventBus.off(eventName, handler)
-      reject(new Error(`Timeout waiting for event: ${eventName}`))
-    }, timeout)
+    let timerId: ReturnType<typeof setTimeout> | null = null
+    let handler: ((data: any) => void) | null = null
 
-    const handler = (data: any) => {
-      clearTimeout(timer)
+    // Define handler first
+    handler = (data: any) => {
+      if (timerId !== null) {
+        clearTimeout(timerId)
+        timerId = null
+      }
+      if (handler !== null) {
+        eventBus.off(eventName, handler)
+        handler = null
+      }
       resolve(data)
     }
 
+    // Set up timeout
+    timerId = setTimeout(() => {
+      timerId = null
+      if (handler !== null) {
+        eventBus.off(eventName, handler)
+        handler = null
+      }
+      reject(new Error(`Timeout waiting for event: ${eventName}`))
+    }, timeout)
+
+    // Register event listener
     eventBus.once(eventName, handler)
   })
 }
@@ -497,3 +514,86 @@ export function setupIndexedDBMock() {
 
   return mockIndexedDB
 }
+
+/**
+ * Memory leak detection helper
+ * Detects potential memory leaks by monitoring heap size
+ *
+ * @param fn - Function to test for memory leaks
+ * @param options - Detection options
+ * @returns Promise with memory usage information
+ */
+export async function detectMemoryLeaks(
+  fn: () => Promise<void> | void,
+  options: {
+    iterations?: number
+    threshold?: number // MB
+    gcBetweenIterations?: boolean
+  } = {}
+): Promise<{
+  leaked: boolean
+  heapBefore: number
+  heapAfter: number
+  heapDelta: number
+  iterations: number
+}> {
+  const {
+    iterations = 100,
+    threshold = 10, // 10MB
+    gcBetweenIterations = true,
+  } = options
+
+  // Force garbage collection if available
+  const gc = () => {
+    if (global.gc) {
+      global.gc()
+    }
+  }
+
+  // Initial GC
+  gc()
+
+  const heapBefore = performance.memory?.usedJSHeapSize || 0
+
+  // Run function multiple times
+  for (let i = 0; i < iterations; i++) {
+    await fn()
+    if (gcBetweenIterations) {
+      gc()
+    }
+  }
+
+  // Final GC
+  gc()
+
+  const heapAfter = performance.memory?.usedJSHeapSize || 0
+  const heapDelta = heapAfter - heapBefore
+  const heapDeltaMB = heapDelta / (1024 * 1024)
+
+  return {
+    leaked: heapDeltaMB > threshold,
+    heapBefore,
+    heapAfter,
+    heapDelta,
+    iterations,
+  }
+}
+
+/**
+ * Check event bus for listener leaks
+ *
+ * @param eventBus - Event bus to check
+ * @param eventName - Event name to check (optional)
+ * @returns Listener count
+ */
+export function checkEventBusListeners(eventBus: EventBus, eventName?: string): number {
+  if (eventName) {
+    return eventBus.listenerCount(eventName)
+  }
+  // Return total listener count across all events
+  const allEvents = (eventBus as any)._events || {}
+  return Object.keys(allEvents).reduce((total, event) => {
+    return total + eventBus.listenerCount(event)
+  }, 0)
+}
+

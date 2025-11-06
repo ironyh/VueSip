@@ -71,6 +71,9 @@ export class RecordingPlugin implements Plugin<RecordingPluginConfig> {
   /** IndexedDB database */
   private db: IDBDatabase | null = null
 
+  /** Flag to prevent concurrent deletion operations */
+  private isDeleting: boolean = false
+
   /**
    * Install the plugin
    *
@@ -258,7 +261,7 @@ export class RecordingPlugin implements Plugin<RecordingPluginConfig> {
       videoBitsPerSecond: recordingOptions.videoBitsPerSecond,
     })
 
-    const recordingId = `recording-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
+    const recordingId = this.generateRecordingId()
 
     // Create recording data
     const recordingData: RecordingData = {
@@ -369,9 +372,14 @@ export class RecordingPlugin implements Plugin<RecordingPluginConfig> {
       throw new Error(`No active recording for call ${callId}`)
     }
 
+    // Only pause if currently recording
     if (recorder.state === 'recording') {
       recorder.pause()
       logger.debug(`Recording paused: ${callId}`)
+    } else if (recorder.state === 'paused') {
+      logger.debug(`Recording already paused for call ${callId}, ignoring`)
+    } else {
+      logger.warn(`Cannot pause recording in state: ${recorder.state} for call ${callId}`)
     }
   }
 
@@ -386,9 +394,14 @@ export class RecordingPlugin implements Plugin<RecordingPluginConfig> {
       throw new Error(`No active recording for call ${callId}`)
     }
 
+    // Only resume if currently paused
     if (recorder.state === 'paused') {
       recorder.resume()
       logger.debug(`Recording resumed: ${callId}`)
+    } else if (recorder.state === 'recording') {
+      logger.debug(`Recording already active for call ${callId}, ignoring`)
+    } else {
+      logger.warn(`Cannot resume recording in state: ${recorder.state} for call ${callId}`)
     }
   }
 
@@ -484,6 +497,20 @@ export class RecordingPlugin implements Plugin<RecordingPluginConfig> {
       const transaction = this.db!.transaction(['recordings'], 'readwrite')
       const store = transaction.objectStore('recordings')
 
+      // Handle transaction abort
+      transaction.onabort = () => {
+        const error = transaction.error
+        logger.error('Transaction aborted', error)
+        reject(new Error(`Transaction aborted: ${error?.message || 'Unknown reason'}`))
+      }
+
+      // Handle transaction error
+      transaction.onerror = () => {
+        const error = transaction.error
+        logger.error('Transaction error', error)
+        reject(new Error(`Transaction failed: ${error?.message || 'Unknown error'}`))
+      }
+
       const request = store.add(recording)
 
       request.onsuccess = () => {
@@ -535,6 +562,14 @@ export class RecordingPlugin implements Plugin<RecordingPluginConfig> {
       return
     }
 
+    // Prevent concurrent deletion operations
+    if (this.isDeleting) {
+      logger.debug('Deletion already in progress, skipping')
+      return
+    }
+
+    this.isDeleting = true
+
     return new Promise((resolve, reject) => {
       const transaction = this.db!.transaction(['recordings'], 'readwrite')
       const store = transaction.objectStore('recordings')
@@ -546,6 +581,7 @@ export class RecordingPlugin implements Plugin<RecordingPluginConfig> {
         const count = countRequest.result
 
         if (count <= this.config.maxRecordings) {
+          this.isDeleting = false
           resolve()
           return
         }
@@ -564,16 +600,19 @@ export class RecordingPlugin implements Plugin<RecordingPluginConfig> {
             cursor.continue()
           } else {
             logger.debug(`Deleted ${deleted} old recordings`)
+            this.isDeleting = false
             resolve()
           }
         }
 
         request.onerror = () => {
+          this.isDeleting = false
           reject(new Error('Failed to delete old recordings'))
         }
       }
 
       countRequest.onerror = () => {
+        this.isDeleting = false
         reject(new Error('Failed to count recordings'))
       }
     })
@@ -608,6 +647,33 @@ export class RecordingPlugin implements Plugin<RecordingPluginConfig> {
   }
 
   /**
+   * Generate a unique recording ID using cryptographically secure random values
+   * @returns A unique recording ID
+   */
+  private generateRecordingId(): string {
+    // Use crypto.randomUUID if available (modern browsers)
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      return `recording-${crypto.randomUUID()}`
+    }
+
+    // Fallback: Use Web Crypto API with getRandomValues
+    if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+      const array = new Uint32Array(4)
+      crypto.getRandomValues(array)
+      const hex = Array.from(array)
+        .map((num) => num.toString(16).padStart(8, '0'))
+        .join('')
+      return `recording-${Date.now()}-${hex}`
+    }
+
+    // Final fallback for non-browser environments (testing)
+    const timestamp = Date.now()
+    const random = Math.random().toString(36).substring(2, 9)
+    logger.warn('Using non-cryptographic recording ID generation - crypto API not available')
+    return `recording-${timestamp}-${random}`
+  }
+
+  /**
    * Download a recording
    *
    * @param recordingId - Recording ID
@@ -617,6 +683,11 @@ export class RecordingPlugin implements Plugin<RecordingPluginConfig> {
     const recording = this.recordings.get(recordingId)
     if (!recording || !recording.blob) {
       throw new Error(`Recording not found or has no blob: ${recordingId}`)
+    }
+
+    // Check if running in browser environment
+    if (typeof document === 'undefined' || !document.body) {
+      throw new Error('Download is only supported in browser environments with DOM access')
     }
 
     const url = URL.createObjectURL(recording.blob)

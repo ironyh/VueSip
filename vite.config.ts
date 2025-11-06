@@ -68,6 +68,10 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./tests/setup.ts'],
+    // Retry failed tests to detect flakiness
+    retry: 2,
+    // Test timeout (10 seconds)
+    testTimeout: 10000,
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
@@ -80,11 +84,11 @@ export default defineConfig({
         '**/setup.ts',
         '**/test-helpers.ts',
       ],
-      // Enforce minimum coverage (can be adjusted based on project needs)
-      lines: 70,
-      functions: 70,
-      branches: 70,
-      statements: 70,
+      // Enforce minimum coverage - increased from 70% to 80%
+      lines: 80,
+      functions: 80,
+      branches: 75, // Slightly lower for branches due to edge cases
+      statements: 80,
     },
   },
 })
