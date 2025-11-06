@@ -340,7 +340,16 @@ export function useDTMF(session: Ref<CallSession | null>): UseDTMFReturn {
     // Validate all tones
     validateToneSequence(tones)
 
-    const newTones = tones.split('')
+    let newTones = tones.split('')
+
+    // If new sequence itself is longer than max, only keep the last MAX_QUEUE_SIZE tones
+    if (newTones.length > DTMF_CONSTANTS.MAX_QUEUE_SIZE) {
+      log.warn(
+        `DTMF sequence length (${newTones.length}) exceeds limit (${DTMF_CONSTANTS.MAX_QUEUE_SIZE}), ` +
+          `keeping only last ${DTMF_CONSTANTS.MAX_QUEUE_SIZE} tones`
+      )
+      newTones = newTones.slice(-DTMF_CONSTANTS.MAX_QUEUE_SIZE)
+    }
 
     // Enforce queue size limit - drop oldest tones if needed
     const totalAfterAdd = queuedTones.value.length + newTones.length

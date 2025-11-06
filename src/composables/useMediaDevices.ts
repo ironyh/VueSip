@@ -418,6 +418,7 @@ export function useMediaDevices(
    * Select audio input device
    *
    * @param deviceId - Device ID
+   * @remarks Logs a warning if device is not found, but still sets the value
    */
   const selectAudioInput = (deviceId: string): void => {
     // Validate device exists in available devices
@@ -438,6 +439,7 @@ export function useMediaDevices(
    * Select audio output device
    *
    * @param deviceId - Device ID
+   * @remarks Logs a warning if device is not found, but still sets the value
    */
   const selectAudioOutput = (deviceId: string): void => {
     // Validate device exists in available devices
@@ -458,6 +460,7 @@ export function useMediaDevices(
    * Select video input device
    *
    * @param deviceId - Device ID
+   * @remarks Logs a warning if device is not found, but still sets the value
    */
   const selectVideoInput = (deviceId: string): void => {
     // Validate device exists in available devices
@@ -483,7 +486,9 @@ export function useMediaDevices(
    *
    * @param deviceId - Device ID (uses selected device if not provided)
    * @param options - Test options
-   * @returns true if test passed, false otherwise
+   * @returns Promise resolving to true if test passed, false otherwise
+   * @throws {Error} If no audio input device is selected and deviceId not provided
+   * @remarks Returns false on errors instead of throwing, cleanup is always performed
    */
   const testAudioInput = async (
     deviceId?: string,
@@ -575,7 +580,9 @@ export function useMediaDevices(
    * Test audio output device
    *
    * @param deviceId - Device ID (uses selected device if not provided)
-   * @returns true if test passed, false otherwise
+   * @returns Promise resolving to true if test passed, false otherwise
+   * @throws {Error} If no audio output device is selected and deviceId not provided
+   * @remarks Returns false on errors instead of throwing, cleanup is always performed
    */
   const testAudioOutput = async (deviceId?: string): Promise<boolean> => {
     let audioContext: AudioContext | null = null
