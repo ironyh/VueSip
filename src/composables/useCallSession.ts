@@ -22,6 +22,7 @@ import type {
   TerminationCause,
 } from '../types/call.types'
 import { createLogger } from '../utils/logger'
+import { validateSipUri } from '../utils/validators'
 
 const log = createLogger('useCallSession')
 
@@ -167,6 +168,9 @@ export function useCallSession(
   const durationSeconds = ref(0)
   let durationInterval: number | null = null
 
+  // Concurrent operation guard to prevent race conditions
+  const isOperationInProgress = ref(false)
+
   // ============================================================================
   // Computed Values
   // ============================================================================
@@ -238,13 +242,26 @@ export function useCallSession(
   }
 
   // Watch state to start/stop duration tracking
-  watch(state, (newState, oldState) => {
-    if (newState === 'active' && oldState !== 'active') {
-      startDurationTracking()
-    } else if (newState === 'ended' && oldState !== 'ended') {
-      stopDurationTracking()
-    }
-  })
+  watch(
+    state,
+    (newState, oldState) => {
+      try {
+        if (newState === 'active' && oldState !== 'active') {
+          startDurationTracking()
+        } else if (newState === 'ended' || newState === 'failed') {
+          // Stop timer on ended OR failed state to prevent leaks
+          if (oldState !== newState) {
+            stopDurationTracking()
+          }
+        }
+      } catch (error) {
+        log.error('Error in state watcher:', error)
+        // Always stop timer on any error to prevent leaks
+        stopDurationTracking()
+      }
+    },
+    { flush: 'sync' }
+  )
 
   // ============================================================================
   // Call Methods
@@ -258,12 +275,35 @@ export function useCallSession(
    * @throws Error if SIP client is not initialized or call initiation fails
    */
   const makeCall = async (target: string, options: CallSessionOptions = {}): Promise<void> => {
+    // Guard against concurrent operations
+    if (isOperationInProgress.value) {
+      const error = 'Call operation already in progress'
+      log.warn(error)
+      throw new Error(error)
+    }
+
+    // Validate SIP client
     if (!sipClient.value) {
       const error = 'SIP client not initialized'
       log.error(error)
       throw new Error(error)
     }
 
+    // Validate target URI
+    if (!target || target.trim() === '') {
+      const error = 'Target URI cannot be empty'
+      log.error(error)
+      throw new Error(error)
+    }
+
+    const validation = validateSipUri(target)
+    if (!validation.isValid) {
+      const error = `Invalid target URI: ${validation.errors.join(', ')}`
+      log.error(error, { target, validation })
+      throw new Error(error)
+    }
+
+    isOperationInProgress.value = true
     let mediaAcquired = false
     let localStreamBeforeCall: MediaStream | null = null
 
@@ -318,6 +358,9 @@ export function useCallSession(
 
       log.error('Failed to make call:', error)
       throw error
+    } finally {
+      // Always reset operation guard
+      isOperationInProgress.value = false
     }
   }
 
@@ -328,12 +371,20 @@ export function useCallSession(
    * @throws Error if no session or answer fails
    */
   const answer = async (options: AnswerOptions = {}): Promise<void> => {
+    // Guard against concurrent operations
+    if (isOperationInProgress.value) {
+      const error = 'Call operation already in progress'
+      log.warn(error)
+      throw new Error(error)
+    }
+
     if (!session.value) {
       const error = 'No active session to answer'
       log.error(error)
       throw new Error(error)
     }
 
+    isOperationInProgress.value = true
     let mediaAcquired = false
     let localStreamBeforeAnswer: MediaStream | null = null
 
@@ -369,6 +420,9 @@ export function useCallSession(
 
       log.error('Failed to answer call:', error)
       throw error
+    } finally {
+      // Always reset operation guard
+      isOperationInProgress.value = false
     }
   }
 
@@ -404,10 +458,19 @@ export function useCallSession(
    * @throws Error if no session or hangup fails
    */
   const hangup = async (): Promise<void> => {
+    // Guard against concurrent operations
+    if (isOperationInProgress.value) {
+      const error = 'Call operation already in progress'
+      log.warn(error)
+      throw new Error(error)
+    }
+
     if (!session.value) {
       log.debug('No active session to hang up')
       return
     }
+
+    isOperationInProgress.value = true
 
     try {
       log.info(`Hanging up call: ${session.value.id}`)
@@ -420,7 +483,8 @@ export function useCallSession(
       log.error('Failed to hang up call:', error)
       throw error
     } finally {
-      // Stop duration tracking
+      // Always reset operation guard and stop duration tracking
+      isOperationInProgress.value = false
       stopDurationTracking()
     }
   }

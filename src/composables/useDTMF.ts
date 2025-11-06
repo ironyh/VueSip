@@ -321,6 +321,12 @@ export function useDTMF(session: Ref<CallSession | null>): UseDTMFReturn {
     // Validate tone
     validateTone(tone)
 
+    // Enforce queue size limit to prevent unbounded memory growth
+    if (queuedTones.value.length >= DTMF_CONSTANTS.MAX_QUEUE_SIZE) {
+      log.warn(`DTMF queue full (${DTMF_CONSTANTS.MAX_QUEUE_SIZE} tones), dropping oldest tone`)
+      queuedTones.value.shift() // Remove oldest tone
+    }
+
     queuedTones.value.push(tone)
     log.debug(`Queued DTMF tone: ${tone} (queue size: ${queuedTones.value.length})`)
   }
@@ -334,7 +340,20 @@ export function useDTMF(session: Ref<CallSession | null>): UseDTMFReturn {
     // Validate all tones
     validateToneSequence(tones)
 
-    queuedTones.value.push(...tones.split(''))
+    const newTones = tones.split('')
+
+    // Enforce queue size limit - drop oldest tones if needed
+    const totalAfterAdd = queuedTones.value.length + newTones.length
+    if (totalAfterAdd > DTMF_CONSTANTS.MAX_QUEUE_SIZE) {
+      const toDrop = totalAfterAdd - DTMF_CONSTANTS.MAX_QUEUE_SIZE
+      log.warn(
+        `DTMF queue would exceed limit (${DTMF_CONSTANTS.MAX_QUEUE_SIZE}), ` +
+          `dropping ${toDrop} oldest tone(s)`
+      )
+      queuedTones.value.splice(0, toDrop)
+    }
+
+    queuedTones.value.push(...newTones)
     log.debug(`Queued DTMF sequence: ${tones} (queue size: ${queuedTones.value.length})`)
   }
 
