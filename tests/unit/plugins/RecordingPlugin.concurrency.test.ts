@@ -19,20 +19,43 @@ describe('RecordingPlugin - Concurrency', () => {
     })
 
     it('should prevent concurrent deletion operations', async () => {
+      let resolveCount: ((value: any) => void) | null = null
+      const countPromise = new Promise((resolve) => {
+        resolveCount = resolve
+      })
+
       // Mock IndexedDB
       const mockDb = {
         transaction: vi.fn(() => ({
           objectStore: vi.fn(() => ({
-            count: vi.fn(() => ({
-              onsuccess: null,
-              onerror: null,
-              result: 10,
-            })),
-            index: vi.fn(() => ({
-              openCursor: vi.fn(() => ({
+            count: vi.fn(() => {
+              const countRequest: any = {
                 onsuccess: null,
                 onerror: null,
-              })),
+                result: 10,
+              }
+              // Simulate async behavior
+              Promise.resolve().then(() => {
+                if (countRequest.onsuccess) {
+                  countRequest.onsuccess({ target: countRequest })
+                  if (resolveCount) resolveCount(true)
+                }
+              })
+              return countRequest
+            }),
+            index: vi.fn(() => ({
+              openCursor: vi.fn(() => {
+                const cursorRequest: any = {
+                  onsuccess: null,
+                  onerror: null,
+                }
+                Promise.resolve().then(() => {
+                  if (cursorRequest.onsuccess) {
+                    cursorRequest.onsuccess({ target: { result: null } })
+                  }
+                })
+                return cursorRequest
+              }),
             })),
           })),
         })),
@@ -53,16 +76,12 @@ describe('RecordingPlugin - Concurrency', () => {
       // Verify that isDeleting flag prevented concurrent execution
       expect((plugin as any).isDeleting).toBe(true)
 
-      // Wait for first deletion to complete (by simulating success)
-      const transaction = mockDb.transaction()
-      const store = transaction.objectStore()
-      const countRequest = store.count()
-
-      if (countRequest.onsuccess) {
-        countRequest.onsuccess({ target: countRequest } as any)
-      }
-
+      // Wait for the first deletion to complete
+      await countPromise
       await deletion1Promise
+
+      // After completion, flag should be reset
+      expect((plugin as any).isDeleting).toBe(false)
     })
 
     it('should reset isDeleting flag on success', async () => {
@@ -72,16 +91,16 @@ describe('RecordingPlugin - Concurrency', () => {
             objectStore: vi.fn(() => {
               const store = {
                 count: vi.fn(() => {
-                  const countRequest = {
-                    onsuccess: null as any,
-                    onerror: null as any,
+                  const countRequest: any = {
+                    onsuccess: null,
+                    onerror: null,
                     result: 3, // Under max, no deletion needed
                   }
-                  setTimeout(() => {
+                  Promise.resolve().then(() => {
                     if (countRequest.onsuccess) {
-                      countRequest.onsuccess({ target: countRequest } as any)
+                      countRequest.onsuccess({ target: countRequest })
                     }
-                  }, 10)
+                  })
                   return countRequest
                 }),
                 index: vi.fn(),
@@ -107,17 +126,24 @@ describe('RecordingPlugin - Concurrency', () => {
         transaction: vi.fn(() => ({
           objectStore: vi.fn(() => ({
             count: vi.fn(() => {
-              const countRequest = {
-                onsuccess: null as any,
-                onerror: null as any,
+              const countRequest: any = {
+                onsuccess: null,
+                onerror: null,
               }
-              setTimeout(() => {
+              // Trigger error asynchronously but deterministically
+              queueMicrotask(() => {
                 if (countRequest.onerror) {
-                  countRequest.onerror({} as any)
+                  countRequest.onerror({})
                 }
-              }, 10)
+              })
               return countRequest
             }),
+            index: vi.fn(() => ({
+              openCursor: vi.fn(() => ({
+                onsuccess: null,
+                onerror: null,
+              })),
+            })),
           })),
         })),
       }
@@ -125,11 +151,10 @@ describe('RecordingPlugin - Concurrency', () => {
       ;(plugin as any).db = mockDb
       ;(plugin as any).config = { maxRecordings: 5 }
 
-      try {
-        await (plugin as any).deleteOldRecordings()
-      } catch {
-        // Expected to fail
-      }
+      // Wait for the error to be triggered and handled
+      await expect((plugin as any).deleteOldRecordings()).rejects.toThrow(
+        'Failed to count recordings'
+      )
 
       // Flag should be reset even on error
       expect((plugin as any).isDeleting).toBe(false)

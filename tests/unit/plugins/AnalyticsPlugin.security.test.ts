@@ -6,52 +6,53 @@
  * - Collision resistance
  */
 
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import { AnalyticsPlugin } from '../../../src/plugins/AnalyticsPlugin'
 
 describe('AnalyticsPlugin - Security', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
   describe('Session ID Generation', () => {
     it('should use crypto.randomUUID when available', () => {
-      const originalCrypto = global.crypto
-      global.crypto = {
-        ...global.crypto,
-        randomUUID: vi.fn(() => '123e4567-e89b-12d3-a456-426614174000'),
-      } as any
+      const mockRandomUUID = vi.fn(() => '123e4567-e89b-12d3-a456-426614174000')
+
+      vi.stubGlobal('crypto', {
+        randomUUID: mockRandomUUID,
+        getRandomValues: global.crypto.getRandomValues,
+      })
 
       const plugin = new AnalyticsPlugin()
       const sessionId = (plugin as any).sessionId
 
       expect(sessionId).toContain('session-')
       expect(sessionId).toContain('123e4567')
-      expect(global.crypto.randomUUID).toHaveBeenCalled()
-
-      global.crypto = originalCrypto
+      expect(mockRandomUUID).toHaveBeenCalled()
     })
 
     it('should use crypto.getRandomValues when randomUUID not available', () => {
-      const originalCrypto = global.crypto
-      global.crypto = {
-        getRandomValues: vi.fn((array: Uint32Array) => {
-          for (let i = 0; i < array.length; i++) {
-            array[i] = 0x12345678
-          }
-          return array
-        }),
-      } as any
+      const mockGetRandomValues = vi.fn((array: Uint32Array) => {
+        for (let i = 0; i < array.length; i++) {
+          array[i] = 0x12345678
+        }
+        return array
+      })
+
+      vi.stubGlobal('crypto', {
+        getRandomValues: mockGetRandomValues,
+      })
 
       const plugin = new AnalyticsPlugin()
       const sessionId = (plugin as any).sessionId
 
       expect(sessionId).toContain('session-')
       expect(sessionId).toContain('12345678')
-      expect(global.crypto.getRandomValues).toHaveBeenCalled()
-
-      global.crypto = originalCrypto
+      expect(mockGetRandomValues).toHaveBeenCalled()
     })
 
     it('should fallback to Math.random when crypto not available', () => {
-      const originalCrypto = global.crypto
-      ;(global as any).crypto = undefined
+      vi.stubGlobal('crypto', undefined)
 
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
@@ -62,7 +63,6 @@ describe('AnalyticsPlugin - Security', () => {
       expect(consoleSpy).toHaveBeenCalled()
 
       consoleSpy.mockRestore()
-      global.crypto = originalCrypto
     })
 
     it('should generate unique session IDs', () => {

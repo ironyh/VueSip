@@ -7,7 +7,7 @@
  * - Error handling for non-browser environments
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { RecordingPlugin } from '../../../src/plugins/RecordingPlugin'
 
 describe('RecordingPlugin - Download', () => {
@@ -28,26 +28,28 @@ describe('RecordingPlugin - Download', () => {
       })
     })
 
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+
     it('should throw error when document is undefined', () => {
-      const originalDocument = global.document
-      ;(global as any).document = undefined
+      vi.stubGlobal('document', undefined)
 
       expect(() => plugin.downloadRecording('test-recording')).toThrow(
         'Download is only supported in browser environments with DOM access'
       )
-
-      global.document = originalDocument
     })
 
     it('should throw error when document.body is null', () => {
-      const originalBody = document.body
-      ;(document as any).body = null
+      // Use vi.stubGlobal to create a document with null body
+      vi.stubGlobal('document', {
+        body: null,
+        createElement: document.createElement.bind(document),
+      })
 
       expect(() => plugin.downloadRecording('test-recording')).toThrow(
         'Download is only supported in browser environments with DOM access'
       )
-
-      ;(document as any).body = originalBody
     })
 
     it('should work normally in browser environment', () => {
@@ -61,8 +63,12 @@ describe('RecordingPlugin - Download', () => {
       const createElementSpy = vi
         .spyOn(document, 'createElement')
         .mockReturnValue(mockAnchor as any)
-      const appendChildSpy = vi.spyOn(document.body, 'appendChild').mockImplementation(() => mockAnchor as any)
-      const removeChildSpy = vi.spyOn(document.body, 'removeChild').mockImplementation(() => mockAnchor as any)
+      const appendChildSpy = vi
+        .spyOn(document.body, 'appendChild')
+        .mockImplementation(() => mockAnchor as any)
+      const removeChildSpy = vi
+        .spyOn(document.body, 'removeChild')
+        .mockImplementation(() => mockAnchor as any)
 
       plugin.downloadRecording('test-recording', 'test.webm')
 

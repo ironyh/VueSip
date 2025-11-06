@@ -9,25 +9,29 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { AnalyticsPlugin } from '../../../src/plugins/AnalyticsPlugin'
-import { createMockPluginContext } from '../../utils/test-helpers'
+import { EventBus } from '../../../src/core/EventBus'
 
 describe('AnalyticsPlugin - Validation', () => {
   describe('Empty Event Tracking Validation', () => {
     let plugin: AnalyticsPlugin
-    let context: ReturnType<typeof createMockPluginContext>
+    let eventBus: EventBus
 
     beforeEach(async () => {
       plugin = new AnalyticsPlugin()
-      context = createMockPluginContext()
-      await plugin.install(context, {
-        endpoint: 'https://test.com',
-        validateEventData: true, // Enable validation
-        batchEvents: false, // Disable batching for easier testing
-      })
+      eventBus = new EventBus()
+
+      await plugin.install(
+        { eventBus },
+        {
+          endpoint: 'https://test.com',
+          validateEventData: true, // Enable validation
+          batchEvents: false, // Disable batching for easier testing
+        }
+      )
     })
 
     afterEach(async () => {
-      await plugin.uninstall(context)
+      await plugin.uninstall({ eventBus })
     })
 
     it('should reject null event data when validation enabled', () => {
@@ -36,10 +40,13 @@ describe('AnalyticsPlugin - Validation', () => {
       plugin.trackEvent('test:event', null as any)
 
       expect(consoleSpy).toHaveBeenCalled()
-      expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Invalid event data'),
-        expect.anything()
-      )
+      // Logger uses formatted output, check that any argument contains the message
+      const calls = consoleSpy.mock.calls
+      expect(
+        calls.some((call) =>
+          call.some((arg) => typeof arg === 'string' && arg.includes('Invalid event data'))
+        )
+      ).toBe(true)
 
       consoleSpy.mockRestore()
     })
@@ -50,10 +57,12 @@ describe('AnalyticsPlugin - Validation', () => {
       plugin.trackEvent('test:event', undefined)
 
       // Should not warn about invalid data
-      expect(consoleSpy).not.toHaveBeenCalledWith(
-        expect.stringContaining('Invalid event data'),
-        expect.anything()
-      )
+      const calls = consoleSpy.mock.calls
+      expect(
+        calls.some((call) =>
+          call.some((arg) => typeof arg === 'string' && arg.includes('Invalid event data'))
+        )
+      ).toBe(false)
 
       consoleSpy.mockRestore()
     })
@@ -64,10 +73,12 @@ describe('AnalyticsPlugin - Validation', () => {
       plugin.trackEvent('test:event', {})
 
       // Should not warn about invalid data
-      expect(consoleSpy).not.toHaveBeenCalledWith(
-        expect.stringContaining('Invalid event data'),
-        expect.anything()
-      )
+      const calls = consoleSpy.mock.calls
+      expect(
+        calls.some((call) =>
+          call.some((arg) => typeof arg === 'string' && arg.includes('Invalid event data'))
+        )
+      ).toBe(false)
 
       consoleSpy.mockRestore()
     })
@@ -78,10 +89,12 @@ describe('AnalyticsPlugin - Validation', () => {
       plugin.trackEvent('test:event', [] as any)
 
       expect(consoleSpy).toHaveBeenCalled()
-      expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Invalid event data'),
-        expect.anything()
-      )
+      const calls = consoleSpy.mock.calls
+      expect(
+        calls.some((call) =>
+          call.some((arg) => typeof arg === 'string' && arg.includes('Invalid event data'))
+        )
+      ).toBe(true)
 
       consoleSpy.mockRestore()
     })
@@ -99,24 +112,29 @@ describe('AnalyticsPlugin - Validation', () => {
     })
 
     it('should allow disabling validation', async () => {
-      await plugin.uninstall(context)
+      await plugin.uninstall({ eventBus })
 
       plugin = new AnalyticsPlugin()
-      await plugin.install(context, {
-        endpoint: 'https://test.com',
-        validateEventData: false, // Disable validation
-        batchEvents: false,
-      })
+      await plugin.install(
+        { eventBus },
+        {
+          endpoint: 'https://test.com',
+          validateEventData: false, // Disable validation
+          batchEvents: false,
+        }
+      )
 
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
       // Null should be allowed when validation disabled
       plugin.trackEvent('test:event', null as any)
 
-      expect(consoleSpy).not.toHaveBeenCalledWith(
-        expect.stringContaining('Invalid event data'),
-        expect.anything()
-      )
+      const calls = consoleSpy.mock.calls
+      expect(
+        calls.some((call) =>
+          call.some((arg) => typeof arg === 'string' && arg.includes('Invalid event data'))
+        )
+      ).toBe(false)
 
       consoleSpy.mockRestore()
     })
@@ -124,20 +142,24 @@ describe('AnalyticsPlugin - Validation', () => {
 
   describe('Large Event Payload Size Limits', () => {
     let plugin: AnalyticsPlugin
-    let context: ReturnType<typeof createMockPluginContext>
+    let eventBus: EventBus
 
     beforeEach(async () => {
       plugin = new AnalyticsPlugin()
-      context = createMockPluginContext()
-      await plugin.install(context, {
-        endpoint: 'https://test.com',
-        maxPayloadSize: 1000, // 1KB limit for testing
-        batchEvents: false,
-      })
+      eventBus = new EventBus()
+
+      await plugin.install(
+        { eventBus },
+        {
+          endpoint: 'https://test.com',
+          maxPayloadSize: 1000, // 1KB limit for testing
+          batchEvents: false,
+        }
+      )
     })
 
     afterEach(async () => {
-      await plugin.uninstall(context)
+      await plugin.uninstall({ eventBus })
     })
 
     it('should reject events exceeding payload size limit', () => {
@@ -151,10 +173,12 @@ describe('AnalyticsPlugin - Validation', () => {
       plugin.trackEvent('test:event', largeData)
 
       expect(consoleSpy).toHaveBeenCalled()
-      expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Event payload too large'),
-        expect.anything()
-      )
+      const calls = consoleSpy.mock.calls
+      expect(
+        calls.some((call) =>
+          call.some((arg) => typeof arg === 'string' && arg.includes('Event payload too large'))
+        )
+      ).toBe(true)
 
       consoleSpy.mockRestore()
     })
@@ -169,23 +193,28 @@ describe('AnalyticsPlugin - Validation', () => {
 
       plugin.trackEvent('test:event', smallData)
 
-      expect(consoleSpy).not.toHaveBeenCalledWith(
-        expect.stringContaining('Event payload too large'),
-        expect.anything()
-      )
+      const calls = consoleSpy.mock.calls
+      expect(
+        calls.some((call) =>
+          call.some((arg) => typeof arg === 'string' && arg.includes('Event payload too large'))
+        )
+      ).toBe(false)
 
       consoleSpy.mockRestore()
     })
 
     it('should use default 100KB limit', async () => {
-      await plugin.uninstall(context)
+      await plugin.uninstall({ eventBus })
 
       plugin = new AnalyticsPlugin()
-      await plugin.install(context, {
-        endpoint: 'https://test.com',
-        // maxPayloadSize not specified, should default to 100KB
-        batchEvents: false,
-      })
+      await plugin.install(
+        { eventBus },
+        {
+          endpoint: 'https://test.com',
+          // maxPayloadSize not specified, should default to 100KB
+          batchEvents: false,
+        }
+      )
 
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
@@ -197,10 +226,12 @@ describe('AnalyticsPlugin - Validation', () => {
       plugin.trackEvent('test:event', mediumData)
 
       // Should not exceed 100KB default limit
-      expect(consoleSpy).not.toHaveBeenCalledWith(
-        expect.stringContaining('Event payload too large'),
-        expect.anything()
-      )
+      const calls = consoleSpy.mock.calls
+      expect(
+        calls.some((call) =>
+          call.some((arg) => typeof arg === 'string' && arg.includes('Event payload too large'))
+        )
+      ).toBe(false)
 
       consoleSpy.mockRestore()
     })
@@ -214,11 +245,13 @@ describe('AnalyticsPlugin - Validation', () => {
 
       plugin.trackEvent('test:event', circular)
 
-      expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Failed to serialize event'),
-        expect.anything(),
-        expect.anything()
-      )
+      expect(consoleSpy).toHaveBeenCalled()
+      const calls = consoleSpy.mock.calls
+      expect(
+        calls.some((call) =>
+          call.some((arg) => typeof arg === 'string' && arg.includes('Failed to serialize event'))
+        )
+      ).toBe(true)
 
       consoleSpy.mockRestore()
     })

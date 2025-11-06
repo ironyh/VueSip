@@ -9,21 +9,22 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { AnalyticsPlugin } from '../../../src/plugins/AnalyticsPlugin'
-import { createMockPluginContext, checkEventBusListeners } from '../../utils/test-helpers'
+import { EventBus } from '../../../src/core/EventBus'
+import { checkEventBusListeners } from '../../utils/test-helpers'
 
 describe('AnalyticsPlugin - Lifecycle', () => {
   describe('Multiple Install Protection', () => {
     let plugin: AnalyticsPlugin
-    let context: ReturnType<typeof createMockPluginContext>
+    let eventBus: EventBus
 
     beforeEach(() => {
       plugin = new AnalyticsPlugin()
-      context = createMockPluginContext()
+      eventBus = new EventBus()
     })
 
     afterEach(async () => {
       try {
-        await plugin.uninstall(context)
+        await plugin.uninstall({ eventBus })
       } catch {
         // Ignore if already uninstalled
       }
@@ -32,24 +33,27 @@ describe('AnalyticsPlugin - Lifecycle', () => {
     it('should prevent double installation', async () => {
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
-      await plugin.install(context, { endpoint: 'https://test.com' })
-      await plugin.install(context, { endpoint: 'https://test.com' })
+      await plugin.install({ eventBus }, { endpoint: 'https://test.com' })
+      await plugin.install({ eventBus }, { endpoint: 'https://test.com' })
 
-      expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('already installed'),
-        expect.anything()
-      )
+      expect(consoleSpy).toHaveBeenCalled()
+      const calls = consoleSpy.mock.calls
+      expect(
+        calls.some((call) =>
+          call.some((arg) => typeof arg === 'string' && arg.includes('already installed'))
+        )
+      ).toBe(true)
 
       consoleSpy.mockRestore()
     })
 
     it('should allow reinstallation after uninstall', async () => {
-      await plugin.install(context, { endpoint: 'https://test.com' })
-      await plugin.uninstall(context)
+      await plugin.install({ eventBus }, { endpoint: 'https://test.com' })
+      await plugin.uninstall({ eventBus })
 
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
-      await plugin.install(context, { endpoint: 'https://test.com' })
+      await plugin.install({ eventBus }, { endpoint: 'https://test.com' })
 
       expect(consoleSpy).not.toHaveBeenCalledWith(
         expect.stringContaining('already installed'),
@@ -60,19 +64,25 @@ describe('AnalyticsPlugin - Lifecycle', () => {
     })
 
     it('should not start duplicate timers on double install', async () => {
-      await plugin.install(context, {
-        endpoint: 'https://test.com',
-        batchEvents: true,
-        sendInterval: 1000,
-      })
+      await plugin.install(
+        { eventBus },
+        {
+          endpoint: 'https://test.com',
+          batchEvents: true,
+          sendInterval: 1000,
+        }
+      )
 
       const batchTimerBefore = (plugin as any).batchTimer
 
-      await plugin.install(context, {
-        endpoint: 'https://test.com',
-        batchEvents: true,
-        sendInterval: 1000,
-      })
+      await plugin.install(
+        { eventBus },
+        {
+          endpoint: 'https://test.com',
+          batchEvents: true,
+          sendInterval: 1000,
+        }
+      )
 
       const batchTimerAfter = (plugin as any).batchTimer
 
@@ -80,13 +90,11 @@ describe('AnalyticsPlugin - Lifecycle', () => {
     })
 
     it('should not register duplicate event listeners on double install', async () => {
-      const eventBus = context.eventBus
-
-      await plugin.install(context, { endpoint: 'https://test.com' })
+      await plugin.install({ eventBus }, { endpoint: 'https://test.com' })
 
       const listenersBefore = checkEventBusListeners(eventBus)
 
-      await plugin.install(context, { endpoint: 'https://test.com' })
+      await plugin.install({ eventBus }, { endpoint: 'https://test.com' })
 
       const listenersAfter = checkEventBusListeners(eventBus)
 
@@ -96,11 +104,11 @@ describe('AnalyticsPlugin - Lifecycle', () => {
 
   describe('Batch Timer Memory Leak', () => {
     let plugin: AnalyticsPlugin
-    let context: ReturnType<typeof createMockPluginContext>
+    let eventBus: EventBus
 
     beforeEach(() => {
       plugin = new AnalyticsPlugin()
-      context = createMockPluginContext()
+      eventBus = new EventBus()
     })
 
     it('should cleanup timer when install fails', async () => {
@@ -110,11 +118,14 @@ describe('AnalyticsPlugin - Lifecycle', () => {
       })
 
       await expect(
-        plugin.install(context, {
-          endpoint: 'https://test.com',
-          batchEvents: true,
-          sendInterval: 1000,
-        })
+        plugin.install(
+          { eventBus },
+          {
+            endpoint: 'https://test.com',
+            batchEvents: true,
+            sendInterval: 1000,
+          }
+        )
       ).rejects.toThrow('Registration failed')
 
       const batchTimer = (plugin as any).batchTimer
@@ -122,7 +133,6 @@ describe('AnalyticsPlugin - Lifecycle', () => {
 
       const cleanupFunctions = (plugin as any).cleanupFunctions
       expect(cleanupFunctions).toHaveLength(0)
-
       ;(plugin as any).registerEventListeners = originalMethod
     })
 
@@ -133,10 +143,13 @@ describe('AnalyticsPlugin - Lifecycle', () => {
       })
 
       await expect(
-        plugin.install(context, {
-          endpoint: 'https://test.com',
-          batchEvents: true,
-        })
+        plugin.install(
+          { eventBus },
+          {
+            endpoint: 'https://test.com',
+            batchEvents: true,
+          }
+        )
       ).rejects.toThrow('Track failed')
 
       const batchTimer = (plugin as any).batchTimer
