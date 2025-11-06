@@ -11,6 +11,9 @@ This document provides comprehensive guidance on testing the VueSip library.
 - [Test Utilities](#test-utilities)
 - [Coverage Reports](#coverage-reports)
 - [Best Practices](#best-practices)
+- [Test Data Builders](#test-data-builders)
+- [Debugging Tests](#debugging-tests)
+- [Common Issues](#common-issues)
 
 ## Overview
 
@@ -453,6 +456,389 @@ pnpm test:e2e --debug
 # Generate trace
 pnpm test:e2e --trace on
 ```
+
+## Test Data Builders
+
+Test data builders help create consistent test data with minimal boilerplate. Use the builder pattern for complex test objects.
+
+### Creating Test Data Builders
+
+```typescript
+// Example: Call builder
+class CallBuilder {
+  private call: Partial<CallData> = {
+    id: 'test-call-123',
+    direction: 'outgoing',
+    state: 'active',
+    startTime: new Date(),
+  }
+
+  withId(id: string): this {
+    this.call.id = id
+    return this
+  }
+
+  withDirection(direction: 'incoming' | 'outgoing'): this {
+    this.call.direction = direction
+    return this
+  }
+
+  withState(state: CallState): this {
+    this.call.state = state
+    return this
+  }
+
+  build(): CallData {
+    return this.call as CallData
+  }
+}
+
+// Usage
+const call = new CallBuilder()
+  .withId('custom-id')
+  .withDirection('incoming')
+  .withState('ringing')
+  .build()
+```
+
+### Using Existing Helpers
+
+VueSip provides several test data helpers in `tests/utils/test-helpers.ts`:
+
+```typescript
+import {
+  createMockSipConfig,
+  createMockPluginContext,
+  createMockMediaStream,
+  createMockUA,
+} from '../utils/test-helpers'
+
+// Create mock SIP configuration
+const config = createMockSipConfig({
+  sipUri: 'sip:custom@example.com',
+  password: 'custom-password',
+})
+
+// Create mock plugin context
+const context = createMockPluginContext()
+
+// Create mock media stream
+const stream = createMockMediaStream({ audio: true, video: false })
+
+// Create mock UA
+const ua = createMockUA()
+```
+
+### Best Practices for Test Data
+
+1. **Use Builders for Complex Objects**: When objects have many optional properties
+2. **Provide Sensible Defaults**: Default values should represent typical scenarios
+3. **Make Overrides Easy**: Allow selective override of specific properties
+4. **Keep Builders Simple**: Don't add complex logic to builders
+5. **Reuse Across Tests**: Share builders in test utility modules
+
+### Example: Analytics Event Builder
+
+```typescript
+class AnalyticsEventBuilder {
+  private event: Partial<AnalyticsEvent> = {
+    type: 'test:event',
+    timestamp: new Date(),
+    sessionId: 'test-session',
+  }
+
+  withType(type: string): this {
+    this.event.type = type
+    return this
+  }
+
+  withData(data: Record<string, any>): this {
+    this.event.data = data
+    return this
+  }
+
+  withSessionId(sessionId: string): this {
+    this.event.sessionId = sessionId
+    return this
+  }
+
+  build(): AnalyticsEvent {
+    return this.event as AnalyticsEvent
+  }
+}
+
+// Usage in tests
+const event = new AnalyticsEventBuilder()
+  .withType('call:started')
+  .withData({ callId: 'test-123' })
+  .build()
+```
+
+## Debugging Tests
+
+Effective debugging techniques for failing tests.
+
+### Debugging Unit Tests
+
+#### 1. Use Console Logging
+
+```typescript
+it('should process data', () => {
+  const input = createTestData()
+  console.log('Input:', input)
+
+  const result = processData(input)
+  console.log('Result:', result)
+
+  expect(result).toBe(expected)
+})
+```
+
+#### 2. Use Debugger Statement
+
+```typescript
+it('should calculate correctly', () => {
+  const value = calculate(10, 20)
+
+  debugger // Execution will pause here
+
+  expect(value).toBe(30)
+})
+```
+
+#### 3. Run Single Test
+
+```bash
+# Run specific test file
+pnpm test tests/unit/specific-file.test.ts
+
+# Run single test by name
+pnpm test -t "should handle edge case"
+
+# Run tests matching pattern
+pnpm test -t "AnalyticsPlugin"
+```
+
+#### 4. Use --inspect with Node
+
+```bash
+# Run with Chrome DevTools
+node --inspect-brk node_modules/.bin/vitest run
+
+# Then open chrome://inspect in Chrome
+```
+
+#### 5. Disable Parallel Execution
+
+```bash
+# Run tests sequentially for easier debugging
+pnpm test --no-threads
+```
+
+### Debugging Integration Tests
+
+#### 1. Add Wait Points
+
+```typescript
+it('should complete workflow', async () => {
+  await startWorkflow()
+
+  // Add explicit wait to see intermediate state
+  await new Promise(resolve => setTimeout(resolve, 1000))
+
+  console.log('Current state:', getState())
+
+  await completeWorkflow()
+})
+```
+
+#### 2. Use Test Spies
+
+```typescript
+it('should call handlers in order', () => {
+  const spy1 = vi.spyOn(handler, 'onStart')
+  const spy2 = vi.spyOn(handler, 'onComplete')
+
+  performAction()
+
+  console.log('onStart called:', spy1.mock.calls.length, 'times')
+  console.log('onComplete called:', spy2.mock.calls.length, 'times')
+
+  expect(spy1).toHaveBeenCalledBefore(spy2)
+})
+```
+
+### Debugging E2E Tests
+
+#### 1. Run in Headed Mode
+
+```bash
+# See browser while tests run
+pnpm test:e2e --headed
+```
+
+#### 2. Use Playwright Inspector
+
+```bash
+# Step through test with inspector
+pnpm test:e2e --debug
+```
+
+#### 3. Add Screenshots
+
+```typescript
+test('should login', async ({ page }) => {
+  await page.goto('http://localhost:3000')
+
+  // Take screenshot at specific point
+  await page.screenshot({ path: 'before-login.png' })
+
+  await page.click('[data-testid="login-button"]')
+
+  await page.screenshot({ path: 'after-login.png' })
+})
+```
+
+#### 4. Use Slow Motion
+
+```typescript
+// In playwright.config.ts
+use: {
+  launchOptions: {
+    slowMo: 1000, // Slow down by 1 second
+  },
+}
+```
+
+#### 5. Generate Trace
+
+```bash
+# Generate trace for debugging
+pnpm test:e2e --trace on
+
+# View trace
+npx playwright show-trace trace.zip
+```
+
+### Common Debugging Scenarios
+
+#### Test Times Out
+
+**Symptoms**: Test runs until timeout without completing
+
+**Debug Steps**:
+1. Check for unresolved promises
+2. Look for missing `await` keywords
+3. Verify event handlers are being called
+4. Add timeout logs to identify where it's stuck
+
+```typescript
+it('should complete', async () => {
+  console.log('Step 1')
+  await step1()
+
+  console.log('Step 2')
+  await step2()
+
+  console.log('Step 3')
+  await step3() // If we never see "Step 3", it's stuck in step2
+
+  console.log('Complete')
+})
+```
+
+#### Mock Not Working
+
+**Symptoms**: Mock function not being called or returning unexpected values
+
+**Debug Steps**:
+1. Verify mock is created before code runs
+2. Check if module path is correct
+3. Ensure mock is reset between tests
+4. Verify the function is actually being called
+
+```typescript
+beforeEach(() => {
+  vi.clearAllMocks() // Clear all mocks
+})
+
+it('should call mock', () => {
+  const mockFn = vi.fn()
+
+  // Log when mock is called
+  mockFn.mockImplementation((...args) => {
+    console.log('Mock called with:', args)
+    return 'result'
+  })
+
+  callTheFunction(mockFn)
+
+  console.log('Mock call count:', mockFn.mock.calls.length)
+  expect(mockFn).toHaveBeenCalled()
+})
+```
+
+#### Flaky Test
+
+**Symptoms**: Test passes sometimes, fails other times
+
+**Debug Steps**:
+1. Look for race conditions
+2. Check for shared state between tests
+3. Verify proper cleanup in afterEach
+4. Use deterministic values instead of random/time-based
+
+```typescript
+// BAD: Flaky due to timing
+it('should update', async () => {
+  trigger()
+  await wait(100) // Might not be enough time
+  expect(value).toBe('updated')
+})
+
+// GOOD: Wait for actual event
+it('should update', async () => {
+  const promise = waitForEvent(eventBus, 'updated')
+  trigger()
+  await promise
+  expect(value).toBe('updated')
+})
+```
+
+### Memory Leak Debugging
+
+Use the memory leak detection helper:
+
+```typescript
+import { detectMemoryLeaks } from '../utils/test-helpers'
+
+it('should not leak memory', async () => {
+  const result = await detectMemoryLeaks(
+    async () => {
+      // Code to test
+      const obj = createObject()
+      await useObject(obj)
+      // obj should be garbage collected here
+    },
+    {
+      iterations: 100,
+      threshold: 10, // 10MB
+    }
+  )
+
+  console.log('Heap delta:', result.heapDelta / (1024 * 1024), 'MB')
+
+  expect(result.leaked).toBe(false)
+})
+```
+
+### Useful Debugging Tools
+
+1. **VS Code Debugger**: Set breakpoints in test files
+2. **Chrome DevTools**: Use --inspect flag
+3. **Vitest UI**: Visual test runner with `pnpm test --ui`
+4. **Playwright Trace Viewer**: Visual timeline of E2E tests
+5. **Console Methods**: console.log, console.table, console.trace
 
 ## Common Issues
 
