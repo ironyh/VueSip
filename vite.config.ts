@@ -72,6 +72,26 @@ export default defineConfig({
     retry: 2,
     // Test timeout (10 seconds)
     testTimeout: 10000,
+
+    // Parallelization settings for faster test execution
+    // Use thread pool for better performance (default, but explicit here)
+    pool: 'threads',
+    poolOptions: {
+      threads: {
+        // Use all available CPU cores (default is CPU count)
+        // You can set a specific number if needed: minThreads: 1, maxThreads: 4
+        useAtomics: true, // Better performance for thread communication
+        singleThread: false, // Ensure multi-threading is enabled
+      },
+    },
+
+    // File-level parallelization settings
+    fileParallelism: true, // Run test files in parallel (default true)
+    maxConcurrency: 5, // Max concurrent tests within a single file
+
+    // Isolation settings
+    isolate: true, // Each test file runs in isolated context (safer, default)
+
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
