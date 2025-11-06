@@ -1072,13 +1072,13 @@ Phase 6 (Core Composables) has been substantially completed with the following i
 - useCallSession - 71 tests (all passing)
 - useDTMF - 51 tests (all passing)
 - useMediaDevices - 59 tests (all passing)
-- useSipRegistration - 49 tests (all passing) ⭐ _Just completed!_
+- useSipRegistration - 49 tests (all passing)
+- useCallControls - 57 tests (all passing) ⭐ _Just completed!_
 
-**Total: 278 tests across 5 composables**
+**Total: 335 tests across 6 composables**
 
 ❌ **No Tests (Need Test Files):**
 
-- useCallControls - No test file exists
 - useCallHistory - No test file exists
 - usePresence - No test file exists
 - useMessaging - No test file exists
@@ -1089,7 +1089,8 @@ Phase 6 (Core Composables) has been substantially completed with the following i
 1. ~~Add tests for useDTMF (already has 15 tests, expand to comprehensive)~~ ✅ **DONE!**
 2. ~~Add tests for useMediaDevices (only has 2 tests, needs much more)~~ ✅ **DONE!**
 3. ~~Create test file for useSipRegistration (critical composable)~~ ✅ **DONE!**
-4. Create test files for remaining composables
+4. ~~Create test file for useCallControls~~ ✅ **DONE!**
+5. Create test files for remaining composables
 
 **Next Steps:**
 
