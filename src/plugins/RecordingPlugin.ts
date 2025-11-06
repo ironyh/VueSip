@@ -71,6 +71,9 @@ export class RecordingPlugin implements Plugin<RecordingPluginConfig> {
   /** IndexedDB database */
   private db: IDBDatabase | null = null
 
+  /** Flag to prevent concurrent deletion operations */
+  private isDeleting: boolean = false
+
   /**
    * Install the plugin
    *
@@ -258,7 +261,7 @@ export class RecordingPlugin implements Plugin<RecordingPluginConfig> {
       videoBitsPerSecond: recordingOptions.videoBitsPerSecond,
     })
 
-    const recordingId = `recording-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
+    const recordingId = this.generateRecordingId()
 
     // Create recording data
     const recordingData: RecordingData = {
@@ -559,6 +562,14 @@ export class RecordingPlugin implements Plugin<RecordingPluginConfig> {
       return
     }
 
+    // Prevent concurrent deletion operations
+    if (this.isDeleting) {
+      logger.debug('Deletion already in progress, skipping')
+      return
+    }
+
+    this.isDeleting = true
+
     return new Promise((resolve, reject) => {
       const transaction = this.db!.transaction(['recordings'], 'readwrite')
       const store = transaction.objectStore('recordings')
@@ -570,6 +581,7 @@ export class RecordingPlugin implements Plugin<RecordingPluginConfig> {
         const count = countRequest.result
 
         if (count <= this.config.maxRecordings) {
+          this.isDeleting = false
           resolve()
           return
         }
@@ -588,16 +600,19 @@ export class RecordingPlugin implements Plugin<RecordingPluginConfig> {
             cursor.continue()
           } else {
             logger.debug(`Deleted ${deleted} old recordings`)
+            this.isDeleting = false
             resolve()
           }
         }
 
         request.onerror = () => {
+          this.isDeleting = false
           reject(new Error('Failed to delete old recordings'))
         }
       }
 
       countRequest.onerror = () => {
+        this.isDeleting = false
         reject(new Error('Failed to count recordings'))
       }
     })
@@ -629,6 +644,33 @@ export class RecordingPlugin implements Plugin<RecordingPluginConfig> {
     }
 
     return null
+  }
+
+  /**
+   * Generate a unique recording ID using cryptographically secure random values
+   * @returns A unique recording ID
+   */
+  private generateRecordingId(): string {
+    // Use crypto.randomUUID if available (modern browsers)
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      return `recording-${crypto.randomUUID()}`
+    }
+
+    // Fallback: Use Web Crypto API with getRandomValues
+    if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+      const array = new Uint32Array(4)
+      crypto.getRandomValues(array)
+      const hex = Array.from(array)
+        .map((num) => num.toString(16).padStart(8, '0'))
+        .join('')
+      return `recording-${Date.now()}-${hex}`
+    }
+
+    // Final fallback for non-browser environments (testing)
+    const timestamp = Date.now()
+    const random = Math.random().toString(36).substring(2, 9)
+    logger.warn('Using non-cryptographic recording ID generation - crypto API not available')
+    return `recording-${timestamp}-${random}`
   }
 
   /**

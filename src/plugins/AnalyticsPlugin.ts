@@ -30,6 +30,8 @@ const DEFAULT_CONFIG: Required<AnalyticsPluginConfig> = {
   ignoreEvents: [],
   maxQueueSize: 1000, // Maximum events in queue before dropping old ones
   requestTimeout: 30000, // 30 seconds timeout for requests
+  maxPayloadSize: 100000, // 100KB maximum payload size
+  validateEventData: true, // Validate event data by default
 }
 
 /**
@@ -75,6 +77,9 @@ export class AnalyticsPlugin implements Plugin<AnalyticsPluginConfig> {
   /** Abort controller for fetch timeout */
   private abortController: AbortController | null = null
 
+  /** Flag to prevent multiple install calls */
+  private isInstalled: boolean = false
+
   constructor() {
     // Generate session ID using crypto for better uniqueness
     this.sessionId = this.generateSessionId()
@@ -115,6 +120,12 @@ export class AnalyticsPlugin implements Plugin<AnalyticsPluginConfig> {
    * @param config - Plugin configuration
    */
   async install(context: PluginContext, config?: AnalyticsPluginConfig): Promise<void> {
+    // Prevent multiple install calls
+    if (this.isInstalled) {
+      logger.warn('Analytics plugin is already installed, ignoring')
+      return
+    }
+
     try {
       this.config = { ...DEFAULT_CONFIG, ...config }
 
@@ -132,6 +143,9 @@ export class AnalyticsPlugin implements Plugin<AnalyticsPluginConfig> {
       if (this.config.batchEvents) {
         this.startBatchTimer()
       }
+
+      // Mark as installed
+      this.isInstalled = true
 
       // Track plugin installation
       this.trackEvent('plugin:installed', {
@@ -177,6 +191,9 @@ export class AnalyticsPlugin implements Plugin<AnalyticsPluginConfig> {
       cleanup()
     }
     this.cleanupFunctions = []
+
+    // Reset installed flag to allow reinstallation
+    this.isInstalled = false
 
     logger.info('Analytics plugin uninstalled')
   }
@@ -324,6 +341,12 @@ export class AnalyticsPlugin implements Plugin<AnalyticsPluginConfig> {
       return
     }
 
+    // Validate event data if enabled
+    if (this.config.validateEventData && !this.isValidEventData(data)) {
+      logger.warn(`Invalid event data for type "${type}", skipping`)
+      return
+    }
+
     // Create event
     let event: AnalyticsEvent = {
       type,
@@ -343,6 +366,12 @@ export class AnalyticsPlugin implements Plugin<AnalyticsPluginConfig> {
     } catch (error) {
       logger.error('Event transformation failed, using original event', error)
       // Continue with untransformed event
+    }
+
+    // Check payload size
+    if (!this.isPayloadSizeValid(event)) {
+      logger.warn(`Event payload too large for type "${type}", skipping`)
+      return
     }
 
     // Add to queue or send immediately
@@ -370,6 +399,65 @@ export class AnalyticsPlugin implements Plugin<AnalyticsPluginConfig> {
     }
 
     logger.debug(`Event tracked: ${type}`)
+  }
+
+  /**
+   * Validate event data
+   * Checks for null, undefined, and empty objects
+   *
+   * @param data - Event data
+   * @returns True if data is valid
+   */
+  private isValidEventData(data?: Record<string, any>): boolean {
+    // Undefined is okay (no data)
+    if (data === undefined) {
+      return true
+    }
+
+    // Null is not okay
+    if (data === null) {
+      logger.debug('Event data is null')
+      return false
+    }
+
+    // Must be an object
+    if (typeof data !== 'object') {
+      logger.debug('Event data is not an object')
+      return false
+    }
+
+    // Arrays are not okay
+    if (Array.isArray(data)) {
+      logger.debug('Event data is an array, not an object')
+      return false
+    }
+
+    // Empty objects are okay (some events may not have additional data)
+    return true
+  }
+
+  /**
+   * Check if payload size is within limits
+   *
+   * @param event - Analytics event
+   * @returns True if payload size is valid
+   */
+  private isPayloadSizeValid(event: AnalyticsEvent): boolean {
+    try {
+      const serialized = JSON.stringify(event)
+      const sizeInBytes = new Blob([serialized]).size
+
+      if (sizeInBytes > this.config.maxPayloadSize!) {
+        logger.warn(`Payload size ${sizeInBytes} exceeds limit ${this.config.maxPayloadSize}`)
+        return false
+      }
+
+      return true
+    } catch (error) {
+      // If serialization fails, reject the event
+      logger.error('Failed to serialize event for size check', error)
+      return false
+    }
   }
 
   /**

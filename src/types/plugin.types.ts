@@ -350,6 +350,10 @@ export interface AnalyticsPluginConfig extends PluginConfig {
   maxQueueSize?: number
   /** Request timeout in milliseconds (prevents hanging requests) */
   requestTimeout?: number
+  /** Maximum event payload size in bytes (prevents large payloads) */
+  maxPayloadSize?: number
+  /** Validate event data (null, undefined, empty objects) */
+  validateEventData?: boolean
 }
 
 /**
