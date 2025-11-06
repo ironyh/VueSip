@@ -8,14 +8,46 @@
 
 // Core composables
 export { useSipClient, type UseSipClientReturn } from './useSipClient'
+export {
+  useSipRegistration,
+  type UseSipRegistrationReturn,
+  type RegistrationOptions,
+} from './useSipRegistration'
+export {
+  useCallSession,
+  type UseCallSessionReturn,
+  type CallSessionOptions,
+} from './useCallSession'
+export {
+  useMediaDevices,
+  type UseMediaDevicesReturn,
+  type DeviceTestOptions,
+} from './useMediaDevices'
+export {
+  useDTMF,
+  type UseDTMFReturn,
+  type DTMFSequenceOptions,
+  type DTMFSendResult,
+} from './useDTMF'
 
-// Note: Additional composables will be added in future phases:
-// - useSipRegistration (Phase 6.2)
-// - useCallSession (Phase 6.3)
-// - useMediaDevices (Phase 6.4)
-// - useCallControls (Phase 6.5)
-// - useCallHistory (Phase 6.6)
-// - useDTMF (Phase 6.7)
-// - usePresence (Phase 6.8)
-// - useMessaging (Phase 6.9)
-// - useConference (Phase 6.10)
+// Advanced composables
+export { useCallHistory, type UseCallHistoryReturn } from './useCallHistory'
+export { useCallControls, type UseCallControlsReturn, type ActiveTransfer } from './useCallControls'
+export { usePresence, type UsePresenceReturn } from './usePresence'
+export { useMessaging, type UseMessagingReturn, type Conversation } from './useMessaging'
+export { useConference, type UseConferenceReturn } from './useConference'
+
+// Constants
+export {
+  REGISTRATION_CONSTANTS,
+  PRESENCE_CONSTANTS,
+  MESSAGING_CONSTANTS,
+  CONFERENCE_CONSTANTS,
+  TRANSFER_CONSTANTS,
+  HISTORY_CONSTANTS,
+  CALL_CONSTANTS,
+  MEDIA_CONSTANTS,
+  DTMF_CONSTANTS,
+  TIMEOUTS,
+  RETRY_CONFIG,
+} from './constants'

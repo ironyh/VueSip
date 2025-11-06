@@ -156,6 +156,9 @@ export function useSipRegistration(
   // Auto-refresh timer ID
   let refreshTimerId: number | null = null
 
+  // Critical fix: Track retry timeout for cleanup on unmount
+  let retryTimeoutId: number | null = null
+
   // ============================================================================
   // Computed Values
   // ============================================================================
@@ -172,7 +175,9 @@ export function useSipRegistration(
     return Math.max(0, Math.floor((expiry - now) / 1000))
   })
 
-  const isExpiringSoon = computed(() => secondsUntilExpiry.value < REGISTRATION_CONSTANTS.EXPIRING_SOON_THRESHOLD)
+  const isExpiringSoon = computed(
+    () => secondsUntilExpiry.value < REGISTRATION_CONSTANTS.EXPIRING_SOON_THRESHOLD
+  )
   const hasExpired = computed(() => secondsUntilExpiry.value === 0)
 
   // ============================================================================
@@ -355,8 +360,15 @@ export function useSipRegistration(
             `(attempt ${retryCount.value + 1}/${maxRetries})`
         )
 
-        setTimeout(() => {
-          register().catch((err) => log.error('Retry failed:', err))
+        // Critical fix: Track timeout and check if still mounted before retrying
+        retryTimeoutId = window.setTimeout(() => {
+          retryTimeoutId = null
+          // Only retry if component is still mounted (sipClient ref exists)
+          if (sipClient.value) {
+            register().catch((err) => log.error('Retry failed:', err))
+          } else {
+            log.debug('Component unmounted, skipping retry')
+          }
         }, retryDelay)
       } else {
         log.error(`Max retries (${maxRetries}) reached, giving up`)
@@ -461,8 +473,16 @@ export function useSipRegistration(
 
   // Cleanup on component unmount
   onUnmounted(() => {
-    log.debug('Composable unmounting, clearing auto-refresh timer and store watch')
+    log.debug('Composable unmounting, clearing timers and store watch')
     clearAutoRefresh()
+
+    // Critical fix: Clear retry timeout to prevent orphaned promises
+    if (retryTimeoutId !== null) {
+      clearTimeout(retryTimeoutId)
+      retryTimeoutId = null
+      log.debug('Cleared retry timeout')
+    }
+
     stopStoreWatch()
   })
 

@@ -115,6 +115,51 @@ export const TIMEOUTS = {
 } as const
 
 /**
+ * Call configuration
+ */
+export const CALL_CONSTANTS = {
+  /** Maximum concurrent calls */
+  MAX_CONCURRENT_CALLS: 5,
+
+  /** Call timeout in milliseconds */
+  CALL_TIMEOUT: 30000,
+
+  /** Ring timeout in milliseconds */
+  RING_TIMEOUT: 60000,
+} as const
+
+/**
+ * Media configuration
+ */
+export const MEDIA_CONSTANTS = {
+  /** Device enumeration retry delay in milliseconds */
+  ENUMERATION_RETRY_DELAY: 1000,
+
+  /** Device test duration in milliseconds */
+  DEFAULT_TEST_DURATION: 2000,
+
+  /** Audio level threshold for device test (0-1) */
+  AUDIO_LEVEL_THRESHOLD: 0.01,
+} as const
+
+/**
+ * DTMF configuration
+ */
+export const DTMF_CONSTANTS = {
+  /** Default DTMF tone duration in milliseconds */
+  DEFAULT_DURATION: 100,
+
+  /** Default inter-tone gap in milliseconds */
+  DEFAULT_INTER_TONE_GAP: 70,
+
+  /** Minimum allowed duration in milliseconds */
+  MIN_DURATION: 40,
+
+  /** Maximum allowed duration in milliseconds */
+  MAX_DURATION: 6000,
+} as const
+
+/**
  * Retry configuration
  */
 export const RETRY_CONFIG = {
