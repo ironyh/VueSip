@@ -106,6 +106,7 @@ export class SipClient {
   private messageHandlers: Array<(from: string, content: string, contentType?: string) => void> = []
   private composingHandlers: Array<(from: string, isComposing: boolean) => void> = []
   private presenceSubscriptions = new Map<string, any>()
+  private presencePublications = new Map<string, { etag: string; expires: number }>()
   private isMuted = false
 
   // Conference management
@@ -1300,6 +1301,7 @@ export class SipClient {
       this.activeCalls.clear()
       this.conferences.clear()
       this.presenceSubscriptions.clear()
+      this.presencePublications.clear()
 
       // Reset mute state
       this.isMuted = false
@@ -1361,8 +1363,14 @@ export class SipClient {
   }
 
   /**
-   * Publish presence information
-   * @param presence - Presence data
+   * Publish presence information using SIP PUBLISH
+   *
+   * Sends a real SIP PUBLISH request to the server. Supports SIP-ETag
+   * for efficient presence refreshes. Works with Asterisk/FreePBX and
+   * other RFC 3903 compliant servers.
+   *
+   * @param presence - Presence data (state, note, activity)
+   * @throws Error if not connected or PUBLISH fails
    */
   async publishPresence(presence: PresencePublishOptions): Promise<void> {
     if (!this.ua) {
@@ -1381,30 +1389,82 @@ export class SipClient {
     // Clone extraHeaders to avoid mutating input
     const extraHeaders = [...(presence.extraHeaders || [])]
     extraHeaders.push('Event: presence')
-    extraHeaders.push('Content-Type: application/pidf+xml')
 
-    if (presence.expires) {
-      extraHeaders.push(`Expires: ${presence.expires}`)
+    const expires = presence.expires || 3600
+
+    // Check if this is a refresh (we have an ETag)
+    const publication = this.presencePublications.get(this.config.sipUri)
+    if (publication) {
+      extraHeaders.push(`SIP-If-Match: ${publication.etag}`)
     }
 
-    // Send PUBLISH request using JsSIP sendRequest
-    // Note: JsSIP doesn't have built-in PUBLISH support, so we log it for now
-    // A full implementation would require extending JsSIP or using raw SIP messages
-    logger.warn('PUBLISH method not fully supported by JsSIP - emitting event for external handling')
+    extraHeaders.push(`Expires: ${expires}`)
 
-    this.eventBus.emitSync('sip:presence:publish', {
-      type: 'sip:presence:publish',
-      timestamp: new Date(),
-      presence,
-      body: pidfBody,
-      extraHeaders,
-    } satisfies PresencePublishEvent)
+    return new Promise((resolve, reject) => {
+      // Send PUBLISH request using JsSIP's sendRequest
+      this.ua.sendRequest('PUBLISH', this.config.sipUri, {
+        body: pidfBody,
+        contentType: 'application/pidf+xml',
+        extraHeaders,
+        eventHandlers: {
+          onSuccessResponse: (response: any) => {
+            logger.info('PUBLISH successful', { status: response.status_code })
+
+            // Extract SIP-ETag for future refreshes
+            const etag = response.getHeader('SIP-ETag')
+            if (etag) {
+              this.presencePublications.set(this.config.sipUri, {
+                etag,
+                expires,
+              })
+              logger.debug('Stored SIP-ETag for presence refresh', { etag })
+            }
+
+            // Emit event for app-level tracking
+            this.eventBus.emitSync('sip:presence:publish', {
+              type: 'sip:presence:publish',
+              timestamp: new Date(),
+              presence,
+              body: pidfBody,
+              extraHeaders,
+            } satisfies PresencePublishEvent)
+
+            resolve()
+          },
+          onErrorResponse: (response: any) => {
+            logger.error('PUBLISH failed', {
+              status: response.status_code,
+              reason: response.reason_phrase,
+            })
+            reject(
+              new Error(
+                `PUBLISH failed: ${response.status_code} ${response.reason_phrase}`
+              )
+            )
+          },
+          onRequestTimeout: () => {
+            logger.error('PUBLISH request timeout')
+            reject(new Error('PUBLISH request timeout'))
+          },
+          onTransportError: () => {
+            logger.error('PUBLISH transport error')
+            reject(new Error('PUBLISH transport error'))
+          },
+        },
+      })
+    })
   }
 
   /**
-   * Subscribe to presence updates
-   * @param uri - URI to subscribe to
-   * @param options - Subscription options
+   * Subscribe to presence updates using SIP SUBSCRIBE
+   *
+   * Sends a real SIP SUBSCRIBE request to watch another user's presence.
+   * Server will send NOTIFY messages when the target's presence changes.
+   * Works with Asterisk/FreePBX extension hints and device states.
+   *
+   * @param uri - Target SIP URI to watch (e.g., 'sip:6001@pbx.com')
+   * @param options - Subscription options (expires, extraHeaders)
+   * @throws Error if not connected or SUBSCRIBE fails
    */
   async subscribePresence(uri: string, options?: PresenceSubscriptionOptions): Promise<void> {
     if (!this.ua) {
@@ -1423,29 +1483,72 @@ export class SipClient {
       return
     }
 
-    // Store subscription
-    const subscription = {
-      uri,
-      options,
-      active: true,
-    }
-    this.presenceSubscriptions.set(uri, subscription)
+    const extraHeaders = [...(options?.extraHeaders || [])]
+    extraHeaders.push('Event: presence')
+    extraHeaders.push('Accept: application/pidf+xml')
 
-    // Emit event for external handling
-    // Note: JsSIP doesn't have built-in SUBSCRIBE support for presence
-    logger.warn('SUBSCRIBE method not fully supported by JsSIP - emitting event for external handling')
+    const expires = options?.expires || 3600
+    extraHeaders.push(`Expires: ${expires}`)
 
-    this.eventBus.emitSync('sip:presence:subscribe', {
-      type: 'sip:presence:subscribe',
-      timestamp: new Date(),
-      uri,
-      options,
-    } satisfies PresenceSubscribeEvent)
+    return new Promise((resolve, reject) => {
+      // Send SUBSCRIBE request using JsSIP's sendRequest
+      this.ua.sendRequest('SUBSCRIBE', uri, {
+        extraHeaders,
+        eventHandlers: {
+          onSuccessResponse: (response: any) => {
+            logger.info('SUBSCRIBE successful', { uri, status: response.status_code })
+
+            // Store subscription
+            const subscription = {
+              uri,
+              options,
+              active: true,
+              expires,
+            }
+            this.presenceSubscriptions.set(uri, subscription)
+
+            // Emit event for app-level tracking
+            this.eventBus.emitSync('sip:presence:subscribe', {
+              type: 'sip:presence:subscribe',
+              timestamp: new Date(),
+              uri,
+              options,
+            } satisfies PresenceSubscribeEvent)
+
+            resolve()
+          },
+          onErrorResponse: (response: any) => {
+            logger.error('SUBSCRIBE failed', {
+              uri,
+              status: response.status_code,
+              reason: response.reason_phrase,
+            })
+            reject(
+              new Error(
+                `SUBSCRIBE failed: ${response.status_code} ${response.reason_phrase}`
+              )
+            )
+          },
+          onRequestTimeout: () => {
+            logger.error('SUBSCRIBE request timeout', { uri })
+            reject(new Error('SUBSCRIBE request timeout'))
+          },
+          onTransportError: () => {
+            logger.error('SUBSCRIBE transport error', { uri })
+            reject(new Error('SUBSCRIBE transport error'))
+          },
+        },
+      })
+    })
   }
 
   /**
    * Unsubscribe from presence updates
-   * @param uri - URI to unsubscribe from
+   *
+   * Sends SUBSCRIBE with Expires: 0 to terminate the subscription.
+   *
+   * @param uri - Target SIP URI to stop watching
+   * @throws Error if not connected or UNSUBSCRIBE fails
    */
   async unsubscribePresence(uri: string): Promise<void> {
     if (!this.ua) {
@@ -1460,15 +1563,55 @@ export class SipClient {
       return
     }
 
-    // Remove subscription
-    this.presenceSubscriptions.delete(uri)
+    const extraHeaders = ['Event: presence', 'Expires: 0']
 
-    // Emit event for external handling
-    this.eventBus.emitSync('sip:presence:unsubscribe', {
-      type: 'sip:presence:unsubscribe',
-      timestamp: new Date(),
-      uri,
-    } satisfies PresenceUnsubscribeEvent)
+    return new Promise((resolve, reject) => {
+      // Send SUBSCRIBE with Expires: 0 to unsubscribe
+      this.ua.sendRequest('SUBSCRIBE', uri, {
+        extraHeaders,
+        eventHandlers: {
+          onSuccessResponse: (response: any) => {
+            logger.info('UNSUBSCRIBE successful', { uri, status: response.status_code })
+
+            // Remove subscription
+            this.presenceSubscriptions.delete(uri)
+
+            // Emit event for app-level tracking
+            this.eventBus.emitSync('sip:presence:unsubscribe', {
+              type: 'sip:presence:unsubscribe',
+              timestamp: new Date(),
+              uri,
+            } satisfies PresenceUnsubscribeEvent)
+
+            resolve()
+          },
+          onErrorResponse: (response: any) => {
+            logger.error('UNSUBSCRIBE failed', {
+              uri,
+              status: response.status_code,
+              reason: response.reason_phrase,
+            })
+            // Still remove from local tracking
+            this.presenceSubscriptions.delete(uri)
+            reject(
+              new Error(
+                `UNSUBSCRIBE failed: ${response.status_code} ${response.reason_phrase}`
+              )
+            )
+          },
+          onRequestTimeout: () => {
+            logger.error('UNSUBSCRIBE request timeout', { uri })
+            this.presenceSubscriptions.delete(uri)
+            reject(new Error('UNSUBSCRIBE request timeout'))
+          },
+          onTransportError: () => {
+            logger.error('UNSUBSCRIBE transport error', { uri })
+            this.presenceSubscriptions.delete(uri)
+            reject(new Error('UNSUBSCRIBE transport error'))
+          },
+        },
+      })
+    })
   }
 
   /**
