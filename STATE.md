@@ -2476,7 +2476,7 @@ Each task documents a single composable with JSDoc/TSDoc comments:
   - Add usage examples in JSDoc
   - Add @since, @example, and @throws tags
 
-- [ ] Document useConference composable
+- [x] Document useConference composable
   - **Files:** `src/composables/useConference.ts`
   - Add JSDoc comments to all exported functions and types
   - Add parameter descriptions and return value docs
