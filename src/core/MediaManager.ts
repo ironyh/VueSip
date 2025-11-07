@@ -1395,7 +1395,7 @@ export class MediaManager {
             source.disconnect()
             audioContext.close()
             resolve()
-          }, 100) // Sample for 100ms
+          }, 250) // Sample for 250ms for more accurate measurement
         })
       } catch (audioContextError) {
         logger.warn('Failed to measure audio level:', audioContextError)

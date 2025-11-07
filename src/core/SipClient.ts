@@ -25,6 +25,33 @@ import {
   ConnectionState,
   type AuthenticationCredentials,
 } from '@/types/sip.types'
+import type {
+  SipConnectedEvent,
+  SipDisconnectedEvent,
+  SipRegisteredEvent,
+  SipUnregisteredEvent,
+  SipRegistrationFailedEvent,
+  SipRegistrationExpiringEvent,
+  SipNewSessionEvent,
+  SipNewMessageEvent,
+  SipGenericEvent,
+  ConferenceCreatedEvent,
+  ConferenceJoinedEvent,
+  ConferenceEndedEvent,
+  ConferenceParticipantJoinedEvent,
+  ConferenceParticipantLeftEvent,
+  ConferenceParticipantInvitedEvent,
+  ConferenceParticipantRemovedEvent,
+  ConferenceParticipantMutedEvent,
+  ConferenceParticipantUnmutedEvent,
+  ConferenceRecordingStartedEvent,
+  ConferenceRecordingStoppedEvent,
+  AudioMutedEvent,
+  AudioUnmutedEvent,
+  PresencePublishEvent,
+  PresenceSubscribeEvent,
+  PresenceUnsubscribeEvent,
+} from '@/types/events.types'
 import { createLogger } from '@/utils/logger'
 import { validateSipConfig } from '@/utils/validators'
 import { USER_AGENT } from '@/utils/constants'
@@ -418,18 +445,20 @@ export class SipClient {
       logger.debug('UA connected')
       this.updateConnectionState(ConnectionState.Connected)
       this.eventBus.emitSync('sip:connected', {
+        type: 'sip:connected',
         timestamp: new Date(),
         transport: e.socket?.url,
-      } as any)
+      } satisfies SipConnectedEvent)
     })
 
     this.ua.on('disconnected', (e: any) => {
       logger.debug('UA disconnected:', e)
       this.updateConnectionState(ConnectionState.Disconnected)
       this.eventBus.emitSync('sip:disconnected', {
+        type: 'sip:disconnected',
         timestamp: new Date(),
         error: e.error,
-      } as any)
+      } satisfies SipDisconnectedEvent)
     })
 
     this.ua.on('connecting', (_e: any) => {
@@ -444,10 +473,11 @@ export class SipClient {
       this.state.registeredUri = this.config.sipUri
       this.state.lastRegistrationTime = new Date()
       this.eventBus.emitSync('sip:registered', {
+        type: 'sip:registered',
         timestamp: new Date(),
         uri: this.config.sipUri,
         expires: e.response?.getHeader('Expires'),
-      } as any)
+      } satisfies SipRegisteredEvent)
     })
 
     this.ua.on('unregistered', (e: any) => {
@@ -455,26 +485,29 @@ export class SipClient {
       this.updateRegistrationState(RegistrationState.Unregistered)
       this.state.registeredUri = undefined
       this.eventBus.emitSync('sip:unregistered', {
+        type: 'sip:unregistered',
         timestamp: new Date(),
         cause: e.cause,
-      } as any)
+      } satisfies SipUnregisteredEvent)
     })
 
     this.ua.on('registrationFailed', (e: any) => {
       logger.error('UA registration failed:', e)
       this.updateRegistrationState(RegistrationState.RegistrationFailed)
       this.eventBus.emitSync('sip:registration_failed', {
+        type: 'sip:registration_failed',
         timestamp: new Date(),
         cause: e.cause,
         response: e.response,
-      } as any)
+      } satisfies SipRegistrationFailedEvent)
     })
 
     this.ua.on('registrationExpiring', () => {
       logger.debug('Registration expiring, refreshing')
       this.eventBus.emitSync('sip:registration_expiring', {
+        type: 'sip:registration_expiring',
         timestamp: new Date(),
-      } as any)
+      } satisfies SipRegistrationExpiringEvent)
     })
 
     // Call events (will be handled by CallSession)
@@ -492,12 +525,13 @@ export class SipClient {
       }
 
       this.eventBus.emitSync('sip:new_session', {
+        type: 'sip:new_session',
         timestamp: new Date(),
         session: e.session,
         originator: e.originator,
         request: e.request,
         callId,
-      } as any)
+      } satisfies SipNewSessionEvent)
     })
 
     // Message events
@@ -538,6 +572,7 @@ export class SipClient {
       }
 
       this.eventBus.emitSync('sip:new_message', {
+        type: 'sip:new_message',
         timestamp: new Date(),
         message: e.message,
         originator: e.originator,
@@ -545,17 +580,18 @@ export class SipClient {
         from,
         content,
         contentType,
-      } as any)
+      } satisfies SipNewMessageEvent)
     })
 
     // SIP events
     this.ua.on('sipEvent', (e: any) => {
       logger.debug('SIP event:', e)
       this.eventBus.emitSync('sip:event', {
+        type: 'sip:event',
         timestamp: new Date(),
         event: e.event,
         request: e.request,
-      } as any)
+      } satisfies SipGenericEvent)
     })
   }
 
@@ -712,10 +748,11 @@ export class SipClient {
 
     // Emit event
     this.eventBus.emitSync('sip:conference:created', {
+      type: 'sip:conference:created',
       timestamp: new Date(),
       conferenceId,
       conference,
-    } as any)
+    } satisfies ConferenceCreatedEvent)
   }
 
   /**
@@ -787,10 +824,11 @@ export class SipClient {
 
           // Emit event
           this.eventBus.emitSync('sip:conference:joined', {
+            type: 'sip:conference:joined',
             timestamp: new Date(),
             conferenceId,
             conference,
-          } as any)
+          } satisfies ConferenceJoinedEvent)
         })
 
         session.once('failed', (e: any) => {
@@ -848,10 +886,11 @@ export class SipClient {
 
           // Emit participant joined event
           this.eventBus.emitSync('sip:conference:participant:joined', {
+            type: 'sip:conference:participant:joined',
             timestamp: new Date(),
             conferenceId,
             participant,
-          } as any)
+          } satisfies ConferenceParticipantJoinedEvent)
         })
 
         session.once('failed', (e: any) => {
@@ -871,10 +910,11 @@ export class SipClient {
 
           // Emit participant left event
           this.eventBus.emitSync('sip:conference:participant:left', {
+            type: 'sip:conference:participant:left',
             timestamp: new Date(),
             conferenceId,
             participant,
-          } as any)
+          } satisfies ConferenceParticipantLeftEvent)
         })
       }
 
@@ -882,10 +922,11 @@ export class SipClient {
 
       // Emit event
       this.eventBus.emitSync('sip:conference:participant:invited', {
+        type: 'sip:conference:participant:invited',
         timestamp: new Date(),
         conferenceId,
         participant,
-      } as any)
+      } satisfies ConferenceParticipantInvitedEvent)
     } catch (error) {
       logger.error('Failed to invite participant to conference:', error)
       throw error
@@ -926,10 +967,11 @@ export class SipClient {
 
     // Emit event
     this.eventBus.emitSync('sip:conference:participant:removed', {
+      type: 'sip:conference:participant:removed',
       timestamp: new Date(),
       conferenceId,
       participant,
-    } as any)
+    } satisfies ConferenceParticipantRemovedEvent)
   }
 
   /**
@@ -963,10 +1005,11 @@ export class SipClient {
 
     // Emit event
     this.eventBus.emitSync('sip:conference:participant:muted', {
+      type: 'sip:conference:participant:muted',
       timestamp: new Date(),
       conferenceId,
       participant,
-    } as any)
+    } satisfies ConferenceParticipantMutedEvent)
   }
 
   /**
@@ -1000,10 +1043,11 @@ export class SipClient {
 
     // Emit event
     this.eventBus.emitSync('sip:conference:participant:unmuted', {
+      type: 'sip:conference:participant:unmuted',
       timestamp: new Date(),
       conferenceId,
       participant,
-    } as any)
+    } satisfies ConferenceParticipantUnmutedEvent)
   }
 
   /**
@@ -1055,10 +1099,11 @@ export class SipClient {
 
     // Emit event
     this.eventBus.emitSync('sip:conference:ended', {
+      type: 'sip:conference:ended',
       timestamp: new Date(),
       conferenceId,
       conference,
-    } as any)
+    } satisfies ConferenceEndedEvent)
   }
 
   /**
@@ -1080,9 +1125,10 @@ export class SipClient {
 
     // Emit event
     this.eventBus.emitSync('sip:conference:recording:started', {
+      type: 'sip:conference:recording:started',
       timestamp: new Date(),
       conferenceId,
-    } as any)
+    } satisfies ConferenceRecordingStartedEvent)
   }
 
   /**
@@ -1103,9 +1149,10 @@ export class SipClient {
 
     // Emit event
     this.eventBus.emitSync('sip:conference:recording:stopped', {
+      type: 'sip:conference:recording:stopped',
       timestamp: new Date(),
       conferenceId,
-    } as any)
+    } satisfies ConferenceRecordingStoppedEvent)
   }
 
   /**
@@ -1151,23 +1198,37 @@ export class SipClient {
 
     logger.info('Muting audio on all active calls')
     let mutedCount = 0
+    let errorCount = 0
 
     // Mute all active call sessions
     this.activeCalls.forEach((session) => {
       if (session && session.connection) {
-        const senders = session.connection.getSenders()
-        senders.forEach((sender: RTCRtpSender) => {
-          if (sender.track && sender.track.kind === 'audio') {
-            sender.track.enabled = false
-            mutedCount++
-          }
-        })
+        try {
+          const senders = session.connection.getSenders()
+          senders.forEach((sender: RTCRtpSender) => {
+            try {
+              if (sender.track && sender.track.kind === 'audio') {
+                sender.track.enabled = false
+                mutedCount++
+              }
+            } catch (error) {
+              errorCount++
+              logger.error('Failed to mute audio track:', error)
+            }
+          })
+        } catch (error) {
+          errorCount++
+          logger.error('Failed to get senders from connection:', error)
+        }
       }
     })
 
     this.isMuted = true
-    this.eventBus.emitSync('sip:audio:muted', { timestamp: new Date() } as any)
-    logger.info(`Muted ${mutedCount} audio tracks`)
+    this.eventBus.emitSync('sip:audio:muted', {
+      type: 'sip:audio:muted',
+      timestamp: new Date(),
+    } satisfies AudioMutedEvent)
+    logger.info(`Muted ${mutedCount} audio tracks (${errorCount} errors)`)
   }
 
   /**
@@ -1181,23 +1242,37 @@ export class SipClient {
 
     logger.info('Unmuting audio on all active calls')
     let unmutedCount = 0
+    let errorCount = 0
 
     // Unmute all active call sessions
     this.activeCalls.forEach((session) => {
       if (session && session.connection) {
-        const senders = session.connection.getSenders()
-        senders.forEach((sender: RTCRtpSender) => {
-          if (sender.track && sender.track.kind === 'audio') {
-            sender.track.enabled = true
-            unmutedCount++
-          }
-        })
+        try {
+          const senders = session.connection.getSenders()
+          senders.forEach((sender: RTCRtpSender) => {
+            try {
+              if (sender.track && sender.track.kind === 'audio') {
+                sender.track.enabled = true
+                unmutedCount++
+              }
+            } catch (error) {
+              errorCount++
+              logger.error('Failed to unmute audio track:', error)
+            }
+          })
+        } catch (error) {
+          errorCount++
+          logger.error('Failed to get senders from connection:', error)
+        }
       }
     })
 
     this.isMuted = false
-    this.eventBus.emitSync('sip:audio:unmuted', { timestamp: new Date() } as any)
-    logger.info(`Unmuted ${unmutedCount} audio tracks`)
+    this.eventBus.emitSync('sip:audio:unmuted', {
+      type: 'sip:audio:unmuted',
+      timestamp: new Date(),
+    } satisfies AudioUnmutedEvent)
+    logger.info(`Unmuted ${unmutedCount} audio tracks (${errorCount} errors)`)
   }
 
   /**
@@ -1206,25 +1281,37 @@ export class SipClient {
   destroy(): void {
     logger.info('Destroying SIP client')
 
-    // Stop UA
-    if (this.ua) {
-      this.ua.stop()
+    try {
+      // Stop UA
+      if (this.ua) {
+        try {
+          this.ua.stop()
+        } catch (error) {
+          logger.error('Error stopping UA:', error)
+        }
+        this.ua = null
+      }
+
+      // Clear all handler arrays
+      this.messageHandlers = []
+      this.composingHandlers = []
+
+      // Clear all Maps
+      this.activeCalls.clear()
+      this.conferences.clear()
+      this.presenceSubscriptions.clear()
+
+      // Reset mute state
+      this.isMuted = false
+
+      logger.info('SIP client destroyed and all resources cleared')
+    } catch (error) {
+      logger.error('Error during SIP client destruction:', error)
+      // Still try to clear resources
+      this.messageHandlers = []
+      this.composingHandlers = []
       this.ua = null
     }
-
-    // Clear all handler arrays
-    this.messageHandlers = []
-    this.composingHandlers = []
-
-    // Clear all Maps
-    this.activeCalls.clear()
-    this.conferences.clear()
-    this.presenceSubscriptions.clear()
-
-    // Reset mute state
-    this.isMuted = false
-
-    logger.info('SIP client destroyed and all resources cleared')
   }
 
   // ============================================================================
@@ -1306,11 +1393,12 @@ export class SipClient {
     logger.warn('PUBLISH method not fully supported by JsSIP - emitting event for external handling')
 
     this.eventBus.emitSync('sip:presence:publish', {
+      type: 'sip:presence:publish',
       timestamp: new Date(),
       presence,
       body: pidfBody,
       extraHeaders,
-    } as any)
+    } satisfies PresencePublishEvent)
   }
 
   /**
@@ -1348,10 +1436,11 @@ export class SipClient {
     logger.warn('SUBSCRIBE method not fully supported by JsSIP - emitting event for external handling')
 
     this.eventBus.emitSync('sip:presence:subscribe', {
+      type: 'sip:presence:subscribe',
       timestamp: new Date(),
       uri,
       options,
-    } as any)
+    } satisfies PresenceSubscribeEvent)
   }
 
   /**
@@ -1376,9 +1465,10 @@ export class SipClient {
 
     // Emit event for external handling
     this.eventBus.emitSync('sip:presence:unsubscribe', {
+      type: 'sip:presence:unsubscribe',
       timestamp: new Date(),
       uri,
-    } as any)
+    } satisfies PresenceUnsubscribeEvent)
   }
 
   /**
