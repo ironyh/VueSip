@@ -8,6 +8,11 @@ import JsSIP, { type UA, type Socket } from 'jssip'
 import type { UAConfiguration } from 'jssip/lib/UA'
 import type { EventBus } from './EventBus'
 import type { SipClientConfig, ValidationResult } from '@/types/config.types'
+import type { ConferenceOptions } from '@/types/conference.types'
+import type { PresencePublishOptions, PresenceSubscriptionOptions } from '@/types/presence.types'
+import type { CallSession, CallOptions } from '@/types/call.types'
+// Note: JsSIP types are defined in jssip.types.ts for documentation purposes,
+// but we use 'any' for JsSIP event handlers since the library doesn't export proper types
 import {
   RegistrationState,
   ConnectionState,
@@ -268,11 +273,11 @@ export class SipClient {
         resolve()
       }
 
-      const onFailure = (cause: any) => {
+      const onFailure = (cause: unknown) => {
         clearTimeout(timeout)
         logger.error('Registration failed:', cause)
         this.updateRegistrationState(RegistrationState.RegistrationFailed)
-        reject(new Error(`Registration failed: ${cause}`))
+        reject(new Error(`Registration failed: ${String(cause)}`))
       }
 
       // Register using JsSIP
@@ -315,10 +320,10 @@ export class SipClient {
         resolve()
       }
 
-      const onFailure = (cause: any) => {
+      const onFailure = (cause: unknown) => {
         clearTimeout(timeout)
         logger.error('Unregistration failed:', cause)
-        reject(new Error(`Unregistration failed: ${cause}`))
+        reject(new Error(`Unregistration failed: ${String(cause)}`))
       }
 
       // Unregister using JsSIP
@@ -592,7 +597,7 @@ export class SipClient {
    * Create a conference (Phase 11+ feature - stub implementation)
    * @todo Implement conference functionality in Phase 11
    */
-  async createConference(_conferenceId: string, _options?: any): Promise<any> {
+  async createConference(_conferenceId: string, _options?: ConferenceOptions): Promise<void> {
     throw new Error('Conference functionality not yet implemented (Phase 11+)')
   }
 
@@ -600,7 +605,7 @@ export class SipClient {
    * Join a conference (Phase 11+ feature - stub implementation)
    * @todo Implement conference functionality in Phase 11
    */
-  async joinConference(_conferenceUri: string, _options?: any): Promise<void> {
+  async joinConference(_conferenceUri: string, _options?: ConferenceOptions): Promise<void> {
     throw new Error('Conference functionality not yet implemented (Phase 11+)')
   }
 
@@ -719,7 +724,7 @@ export class SipClient {
    * Publish presence information
    * @param presence - Presence data
    */
-  async publishPresence(_presence: any): Promise<void> {
+  async publishPresence(_presence: PresencePublishOptions): Promise<void> {
     throw new Error('Presence functionality not yet implemented (Phase 11+)')
   }
 
@@ -728,7 +733,7 @@ export class SipClient {
    * @param uri - URI to subscribe to
    * @param options - Subscription options
    */
-  async subscribePresence(_uri: string, _options?: any): Promise<void> {
+  async subscribePresence(_uri: string, _options?: PresenceSubscriptionOptions): Promise<void> {
     throw new Error('Presence functionality not yet implemented (Phase 11+)')
   }
 
@@ -749,7 +754,7 @@ export class SipClient {
    * @param callId - Call ID to retrieve
    * @returns Call session or undefined if not found
    */
-  getActiveCall(_callId: string): any {
+  getActiveCall(_callId: string): CallSession | undefined {
     throw new Error('Call management functionality not yet implemented (Phase 11+)')
   }
 
@@ -759,7 +764,7 @@ export class SipClient {
    * @param options - Call options
    * @returns Promise resolving to call ID
    */
-  async makeCall(_target: string, _options?: any): Promise<string> {
+  async makeCall(_target: string, _options?: CallOptions): Promise<string> {
     throw new Error('Call management functionality not yet implemented (Phase 11+)')
   }
 }
