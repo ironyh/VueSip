@@ -113,9 +113,10 @@ const SIP_DELAYS = {
 }
 
 /**
- * Parse SIP method from request
+ * Parse SIP method from request (used in injected mock script)
  */
-function parseSipMethod(data: string): string | null {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function _parseSipMethod(data: string): string | null {
   const lines = data.split('\r\n')
   if (lines.length === 0) return null
   const firstLine = lines[0]
@@ -124,49 +125,55 @@ function parseSipMethod(data: string): string | null {
 }
 
 /**
- * Extract Call-ID from SIP message
+ * Extract Call-ID from SIP message (used in injected mock script)
  */
-function extractCallId(data: string): string {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function _extractCallId(data: string): string {
   const match = data.match(/Call-ID:\s*(.+)/i)
   return match ? match[1].trim() : 'default-call-id'
 }
 
 /**
- * Extract CSeq number from SIP message
+ * Extract CSeq number from SIP message (used in injected mock script)
  */
-function extractCSeq(data: string): string {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function _extractCSeq(data: string): string {
   const match = data.match(/CSeq:\s*(\d+)/i)
   return match ? match[1] : '1'
 }
 
 /**
- * Extract branch from Via header
+ * Extract branch from Via header (used in injected mock script)
  */
-function extractBranch(data: string): string {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function _extractBranch(data: string): string {
   const match = data.match(/branch=([^;\s]+)/i)
   return match ? match[1] : 'z9hG4bK123'
 }
 
 /**
- * Extract From tag
+ * Extract From tag (used in injected mock script)
  */
-function extractFromTag(data: string): string {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function _extractFromTag(data: string): string {
   const match = data.match(/From:.*tag=([^;\s]+)/i)
   return match ? match[1] : '123'
 }
 
 /**
- * Extract To URI
+ * Extract To URI (used in injected mock script)
  */
-function extractToUri(data: string): string {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function _extractToUri(data: string): string {
   const match = data.match(/To:\s*<([^>]+)>/i)
   return match ? match[1] : 'sip:destination@example.com'
 }
 
 /**
- * Extract From URI
+ * Extract From URI (used in injected mock script)
  */
-function extractFromUri(data: string): string {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function _extractFromUri(data: string): string {
   const match = data.match(/From:\s*<([^>]+)>/i)
   return match ? match[1] : 'sip:testuser@example.com'
 }
@@ -590,7 +597,7 @@ function mockGetUserMedia(page: Page, devices: MockMediaDevice[]) {
 function mockRTCPeerConnection(page: Page) {
   return page.addInitScript(() => {
     // Store original RTCPeerConnection
-    const OriginalRTCPeerConnection = window.RTCPeerConnection
+    const _OriginalRTCPeerConnection = window.RTCPeerConnection
 
     class MockRTCPeerConnection extends EventTarget {
       localDescription: RTCSessionDescription | null = null
@@ -600,9 +607,9 @@ function mockRTCPeerConnection(page: Page) {
       connectionState: RTCPeerConnectionState = 'new'
       iceGatheringState: RTCIceGatheringState = 'new'
 
-      constructor(configuration?: RTCConfiguration) {
+      constructor(_configuration?: RTCConfiguration) {
         super()
-        console.log('Mock RTCPeerConnection created with config:', configuration)
+        console.log('Mock RTCPeerConnection created with config:', _configuration)
 
         // Simulate ICE gathering
         setTimeout(() => {
@@ -620,14 +627,14 @@ function mockRTCPeerConnection(page: Page) {
         }, 200)
       }
 
-      async createOffer(options?: RTCOfferOptions): Promise<RTCSessionDescriptionInit> {
+      async createOffer(_options?: RTCOfferOptions): Promise<RTCSessionDescriptionInit> {
         return {
           type: 'offer',
           sdp: 'v=0\r\no=- 123 456 IN IP4 127.0.0.1\r\ns=-\r\nt=0 0\r\na=group:BUNDLE audio\r\n',
         }
       }
 
-      async createAnswer(options?: RTCAnswerOptions): Promise<RTCSessionDescriptionInit> {
+      async createAnswer(_options?: RTCAnswerOptions): Promise<RTCSessionDescriptionInit> {
         return {
           type: 'answer',
           sdp: 'v=0\r\no=- 789 012 IN IP4 127.0.0.1\r\ns=-\r\nt=0 0\r\na=group:BUNDLE audio\r\n',
@@ -644,11 +651,11 @@ function mockRTCPeerConnection(page: Page) {
         this.signalingState = description.type === 'offer' ? 'have-remote-offer' : 'stable'
       }
 
-      addTrack(track: MediaStreamTrack, ...streams: MediaStream[]): RTCRtpSender {
+      addTrack(_track: MediaStreamTrack, ..._streams: MediaStream[]): RTCRtpSender {
         return {} as RTCRtpSender
       }
 
-      addIceCandidate(candidate?: RTCIceCandidateInit): Promise<void> {
+      addIceCandidate(_candidate?: RTCIceCandidateInit): Promise<void> {
         return Promise.resolve()
       }
 
@@ -684,7 +691,7 @@ function mockRTCPeerConnection(page: Page) {
  */
 export const test = base.extend<TestFixtures>({
   mockSipServer: async ({ page }, use) => {
-    await use(async (config?: Partial<MockSipServerConfig>) => {
+    await use(async (_config?: Partial<MockSipServerConfig>) => {
       await mockWebSocketResponses(page)
       await mockRTCPeerConnection(page)
     })
@@ -722,19 +729,33 @@ export const test = base.extend<TestFixtures>({
 
   waitForConnectionState: async ({ page }, use) => {
     await use(async (state: 'connected' | 'disconnected') => {
-      const regex = state === 'connected' ? /connected/i : /disconnected/i
-      await page.waitForSelector(`[data-testid="connection-status"]:has-text("${state}")`, {
-        timeout: 10000,
-      })
+      // Wait for the connection status element to contain the expected text (case-insensitive)
+      await page.waitForFunction(
+        (expectedState) => {
+          const statusElement = document.querySelector('[data-testid="connection-status"]')
+          if (!statusElement) return false
+          const text = statusElement.textContent || ''
+          return text.toLowerCase().includes(expectedState.toLowerCase())
+        },
+        state,
+        { timeout: 10000 }
+      )
     })
   },
 
   waitForRegistrationState: async ({ page }, use) => {
     await use(async (state: 'registered' | 'unregistered') => {
-      const regex = state === 'registered' ? /registered/i : /unregistered/i
-      await page.waitForSelector(`[data-testid="registration-status"]:has-text("${state}")`, {
-        timeout: 10000,
-      })
+      // Wait for the registration status element to contain the expected text (case-insensitive)
+      await page.waitForFunction(
+        (expectedState) => {
+          const statusElement = document.querySelector('[data-testid="registration-status"]')
+          if (!statusElement) return false
+          const text = statusElement.textContent || ''
+          return text.toLowerCase().includes(expectedState.toLowerCase())
+        },
+        state,
+        { timeout: 10000 }
+      )
     })
   },
 })

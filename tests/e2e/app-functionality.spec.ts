@@ -105,14 +105,11 @@ test.describe('Connection Management', () => {
     await expect(page.locator('[data-testid="disconnect-button"]')).not.toBeVisible()
   })
 
-  test.skip('should show disconnect button when connected', async ({
+  test('should show disconnect button when connected', async ({
     page,
     configureSip,
     waitForConnectionState,
   }) => {
-    // TODO: Complete this test after improving WebSocket mock to properly simulate connection
-    // Current mock doesn't fully integrate with VueSip's connection state management
-
     // Configure and connect
     await configureSip({
       uri: 'wss://sip.example.com:7443',
@@ -130,10 +127,7 @@ test.describe('Connection Management', () => {
     await expect(page.locator('[data-testid="connect-button"]')).not.toBeVisible()
   })
 
-  test.skip('should allow disconnection', async ({ page, configureSip }) => {
-    // TODO: Complete this test after improving WebSocket mock to properly simulate disconnection
-    // Current mock doesn't fully integrate with VueSip's connection state management
-
+  test('should allow disconnection', async ({ page, configureSip, waitForConnectionState }) => {
     // Configure SIP
     await configureSip({
       uri: 'wss://sip.example.com:7443',
@@ -143,15 +137,19 @@ test.describe('Connection Management', () => {
 
     // Connect
     await page.click('[data-testid="connect-button"]')
-    await page.waitForSelector('[data-testid="disconnect-button"]', { state: 'visible' })
+
+    // Wait for connection to be established
+    await waitForConnectionState('connected')
+    await expect(page.locator('[data-testid="disconnect-button"]')).toBeVisible()
 
     // Disconnect
     await page.click('[data-testid="disconnect-button"]')
 
+    // Wait for disconnection
+    await waitForConnectionState('disconnected')
+
     // Verify disconnected state
-    await expect(page.locator('[data-testid="connection-status"]')).toContainText(
-      /disconnected/i
-    )
+    await expect(page.locator('[data-testid="connection-status"]')).toContainText(/disconnected/i)
     await expect(page.locator('[data-testid="connect-button"]')).toBeVisible()
   })
 })

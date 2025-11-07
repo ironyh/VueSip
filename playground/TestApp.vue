@@ -207,9 +207,7 @@
 
               <!-- Audio/Video Status -->
               <div class="media-status">
-                <div data-testid="audio-status">
-                  Audio: {{ isMuted ? 'Muted' : 'Unmuted' }}
-                </div>
+                <div data-testid="audio-status">Audio: {{ isMuted ? 'Muted' : 'Unmuted' }}</div>
                 <div data-testid="video-status">
                   Video: {{ videoEnabled ? 'Enabled' : 'Disabled' }}
                 </div>
@@ -298,7 +296,11 @@
                 data-testid="audio-input-select"
                 @change="handleInputChange"
               >
-                <option v-for="device in audioInputDevices" :key="device.deviceId" :value="device.deviceId">
+                <option
+                  v-for="device in audioInputDevices"
+                  :key="device.deviceId"
+                  :value="device.deviceId"
+                >
                   {{ device.label || 'Unknown Device' }}
                 </option>
               </select>
@@ -310,7 +312,11 @@
                 data-testid="audio-output-select"
                 @change="handleOutputChange"
               >
-                <option v-for="device in audioOutputDevices" :key="device.deviceId" :value="device.deviceId">
+                <option
+                  v-for="device in audioOutputDevices"
+                  :key="device.deviceId"
+                  :value="device.deviceId"
+                >
                   {{ device.label || 'Unknown Device' }}
                 </option>
               </select>
@@ -323,7 +329,11 @@
       </div>
 
       <!-- Settings Button -->
-      <button class="btn btn-secondary settings-btn" data-testid="settings-button" @click="showSettings = !showSettings">
+      <button
+        class="btn btn-secondary settings-btn"
+        data-testid="settings-button"
+        @click="showSettings = !showSettings"
+      >
         <i class="pi pi-cog"></i> {{ showSettings ? 'Close' : 'Settings' }}
       </button>
 
@@ -339,7 +349,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onUnmounted } from 'vue'
+import { ref, watch, onUnmounted } from 'vue'
 import {
   useSipClient,
   useCallSession,
@@ -348,7 +358,7 @@ import {
   useCallHistory,
   useCallControls,
   validateSipUri,
-  validateWebSocketUri,
+  validateWebSocketUrl,
   type SipClientConfig,
 } from '../src'
 
@@ -429,16 +439,8 @@ try {
     autoConnect: false,
     autoCleanup: true,
   })
-
-  ;({
-    isConnected,
-    isRegistered,
-    connectionState,
-    lastError,
-    connect,
-    disconnect,
-    updateConfig,
-  } = sipClient)
+  ;({ isConnected, isRegistered, connectionState, lastError, connect, disconnect, updateConfig } =
+    sipClient)
 
   // Call Session
   callSession = useCallSession(sipClient)
@@ -498,7 +500,7 @@ const saveSettings = () => {
   }
 
   // Validate WebSocket URI format
-  const uriValidation = validateWebSocketUri(tempConfig.value.uri)
+  const uriValidation = validateWebSocketUrl(tempConfig.value.uri)
   if (!uriValidation.isValid) {
     validationError.value = `Invalid Server URI: ${uriValidation.error}`
     return
@@ -680,12 +682,14 @@ const formatDuration = () => {
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
 }
 
-// Watch for connection errors
-watch(lastError, (error) => {
-  if (error) {
-    console.error('SIP Error:', error)
-  }
-})
+// Watch for connection errors (only if lastError was successfully initialized)
+if (lastError) {
+  watch(lastError, (error) => {
+    if (error) {
+      console.error('SIP Error:', error)
+    }
+  })
+}
 
 // Cleanup on component unmount
 onUnmounted(() => {
@@ -703,7 +707,8 @@ onUnmounted(() => {
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
   background: #f3f4f6;
   color: #1f2937;
 }
@@ -727,7 +732,8 @@ h1 {
   color: #111827;
 }
 
-h2, h3 {
+h2,
+h3 {
   margin-bottom: 1rem;
   color: #374151;
 }
