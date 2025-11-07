@@ -83,7 +83,6 @@ export class SipClient {
 
   // Conference management
   private conferences = new Map<string, ConferenceStateInterface>()
-  private conferenceParticipants = new Map<string, Map<string, Participant>>()
 
   constructor(config: SipClientConfig, eventBus: EventBus) {
     this.config = config
@@ -512,7 +511,8 @@ export class SipClient {
 
       // Check for composing indicator
       if (contentType === 'application/im-iscomposing+xml') {
-        const isComposing = content.includes('<state>active</state>')
+        // Parse composing state - handle whitespace variations
+        const isComposing = /<state>\s*active\s*<\/state>/i.test(content)
         logger.debug('Composing indicator:', { from, isComposing })
 
         // Call composing handlers
@@ -703,7 +703,6 @@ export class SipClient {
 
     // Store conference
     this.conferences.set(conferenceId, conference)
-    this.conferenceParticipants.set(conferenceId, conference.participants)
 
     // Update state
     conference.state = ConferenceState.Active
@@ -750,45 +749,64 @@ export class SipClient {
       metadata: options?.metadata,
     }
 
-    // Make call to conference URI
-    const callId = await this.makeCall(conferenceUri, {
-      audio: true,
-      video: options?.enableVideo,
-    })
-
-    // Create local participant
-    const localParticipant: Participant = {
-      id: callId,
-      uri: this.config.sipUri,
-      displayName: this.config.displayName,
-      state: ParticipantState.Connecting,
-      isMuted: false,
-      isOnHold: false,
-      isModerator: false,
-      isSelf: true,
-      joinedAt: new Date(),
-    }
-
-    conference.participants.set(callId, localParticipant)
-    conference.localParticipant = localParticipant
-
-    // Store conference
+    // Store conference early
     this.conferences.set(conferenceId, conference)
-    this.conferenceParticipants.set(conferenceId, conference.participants)
 
-    // Update state when call connects
-    conference.state = ConferenceState.Active
-    conference.startedAt = new Date()
-    localParticipant.state = ParticipantState.Connected
+    try {
+      // Make call to conference URI
+      const callId = await this.makeCall(conferenceUri, {
+        audio: true,
+        video: options?.enableVideo,
+      })
 
-    logger.info('Joined conference', { conferenceId })
+      // Create local participant
+      const localParticipant: Participant = {
+        id: callId,
+        uri: this.config.sipUri,
+        displayName: this.config.displayName,
+        state: ParticipantState.Connecting,
+        isMuted: false,
+        isOnHold: false,
+        isModerator: false,
+        isSelf: true,
+        joinedAt: new Date(),
+      }
 
-    // Emit event
-    this.eventBus.emitSync('sip:conference:joined', {
-      timestamp: new Date(),
-      conferenceId,
-      conference,
-    } as any)
+      conference.participants.set(callId, localParticipant)
+      conference.localParticipant = localParticipant
+
+      // Setup listener to update state when call connects
+      const session = this.activeCalls.get(callId)
+      if (session) {
+        session.once('confirmed', () => {
+          conference.state = ConferenceState.Active
+          conference.startedAt = new Date()
+          localParticipant.state = ParticipantState.Connected
+
+          logger.info('Joined conference', { conferenceId })
+
+          // Emit event
+          this.eventBus.emitSync('sip:conference:joined', {
+            timestamp: new Date(),
+            conferenceId,
+            conference,
+          } as any)
+        })
+
+        session.once('failed', (e: any) => {
+          conference.state = ConferenceState.Failed
+          localParticipant.state = ParticipantState.Disconnected
+          this.conferences.delete(conferenceId)
+
+          logger.error('Failed to join conference', { conferenceId, cause: e.cause })
+        })
+      }
+    } catch (error) {
+      // Clean up on error
+      this.conferences.delete(conferenceId)
+      logger.error('Failed to join conference:', error)
+      throw error
+    }
   }
 
   /**
@@ -802,32 +820,76 @@ export class SipClient {
 
     logger.info('Inviting participant to conference', { conferenceId, participantUri })
 
-    // Make call to participant
-    const callId = await this.makeCall(participantUri, { audio: true })
+    try {
+      // Make call to participant
+      const callId = await this.makeCall(participantUri, { audio: true })
 
-    // Create participant
-    const participant: Participant = {
-      id: callId,
-      uri: participantUri,
-      state: ParticipantState.Connecting,
-      isMuted: false,
-      isOnHold: false,
-      isModerator: false,
-      isSelf: false,
-      joinedAt: new Date(),
+      // Create participant
+      const participant: Participant = {
+        id: callId,
+        uri: participantUri,
+        state: ParticipantState.Connecting,
+        isMuted: false,
+        isOnHold: false,
+        isModerator: false,
+        isSelf: false,
+        joinedAt: new Date(),
+      }
+
+      // Add to conference
+      conference.participants.set(callId, participant)
+
+      // Setup listener to update state when participant connects
+      const session = this.activeCalls.get(callId)
+      if (session) {
+        session.once('confirmed', () => {
+          participant.state = ParticipantState.Connected
+          logger.info('Participant connected to conference', { conferenceId, participantUri, callId })
+
+          // Emit participant joined event
+          this.eventBus.emitSync('sip:conference:participant:joined', {
+            timestamp: new Date(),
+            conferenceId,
+            participant,
+          } as any)
+        })
+
+        session.once('failed', (e: any) => {
+          participant.state = ParticipantState.Disconnected
+          conference.participants.delete(callId)
+          logger.error('Participant failed to join conference', {
+            conferenceId,
+            participantUri,
+            cause: e.cause,
+          })
+        })
+
+        session.once('ended', () => {
+          participant.state = ParticipantState.Disconnected
+          conference.participants.delete(callId)
+          logger.info('Participant left conference', { conferenceId, participantUri, callId })
+
+          // Emit participant left event
+          this.eventBus.emitSync('sip:conference:participant:left', {
+            timestamp: new Date(),
+            conferenceId,
+            participant,
+          } as any)
+        })
+      }
+
+      logger.info('Participant invited', { conferenceId, participantUri, callId })
+
+      // Emit event
+      this.eventBus.emitSync('sip:conference:participant:invited', {
+        timestamp: new Date(),
+        conferenceId,
+        participant,
+      } as any)
+    } catch (error) {
+      logger.error('Failed to invite participant to conference:', error)
+      throw error
     }
-
-    // Add to conference
-    conference.participants.set(callId, participant)
-
-    logger.info('Participant invited', { conferenceId, participantUri, callId })
-
-    // Emit event
-    this.eventBus.emitSync('sip:conference:participant:invited', {
-      timestamp: new Date(),
-      conferenceId,
-      participant,
-    } as any)
   }
 
   /**
@@ -988,7 +1050,6 @@ export class SipClient {
 
     // Clean up
     this.conferences.delete(conferenceId)
-    this.conferenceParticipants.delete(conferenceId)
 
     logger.info('Conference ended', { conferenceId })
 
@@ -1144,10 +1205,26 @@ export class SipClient {
    */
   destroy(): void {
     logger.info('Destroying SIP client')
+
+    // Stop UA
     if (this.ua) {
       this.ua.stop()
       this.ua = null
     }
+
+    // Clear all handler arrays
+    this.messageHandlers = []
+    this.composingHandlers = []
+
+    // Clear all Maps
+    this.activeCalls.clear()
+    this.conferences.clear()
+    this.presenceSubscriptions.clear()
+
+    // Reset mute state
+    this.isMuted = false
+
+    logger.info('SIP client destroyed and all resources cleared')
   }
 
   // ============================================================================
@@ -1164,12 +1241,36 @@ export class SipClient {
   }
 
   /**
+   * Remove incoming message handler
+   * @param handler - Message handler function to remove
+   */
+  offIncomingMessage(handler: (from: string, content: string, contentType?: string) => void): void {
+    const index = this.messageHandlers.indexOf(handler)
+    if (index > -1) {
+      this.messageHandlers.splice(index, 1)
+      logger.debug('Unregistered incoming message handler')
+    }
+  }
+
+  /**
    * Set composing indicator handler
    * @param handler - Composing indicator handler function
    */
   onComposingIndicator(handler: (from: string, isComposing: boolean) => void): void {
     logger.debug('Registering composing indicator handler')
     this.composingHandlers.push(handler)
+  }
+
+  /**
+   * Remove composing indicator handler
+   * @param handler - Composing indicator handler function to remove
+   */
+  offComposingIndicator(handler: (from: string, isComposing: boolean) => void): void {
+    const index = this.composingHandlers.indexOf(handler)
+    if (index > -1) {
+      this.composingHandlers.splice(index, 1)
+      logger.debug('Unregistered composing indicator handler')
+    }
   }
 
   /**
@@ -1190,7 +1291,8 @@ export class SipClient {
     // Build PIDF presence document
     const pidfBody = this.buildPresenceDocument(presence)
 
-    const extraHeaders = presence.extraHeaders || []
+    // Clone extraHeaders to avoid mutating input
+    const extraHeaders = [...(presence.extraHeaders || [])]
     extraHeaders.push('Event: presence')
     extraHeaders.push('Content-Type: application/pidf+xml')
 
