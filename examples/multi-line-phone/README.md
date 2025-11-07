@@ -27,7 +27,9 @@ This example demonstrates the following advanced VueSip capabilities:
 - **Multiple Call Session Managers**: Dynamic creation and management of call session instances
 - **State Synchronization**: Proper reactive state management across multiple calls
 - **Audio Stream Handling**: Correct WebRTC stream attachment and muting for inactive lines
-- **Memory Management**: Automatic cleanup of terminated calls
+- **Memory Management**: Automatic cleanup of terminated calls with proper watcher disposal
+- **Race Condition Prevention**: Operation locks to prevent concurrent state modifications
+- **Error Handling**: Comprehensive error handling with user-friendly messages
 - **TypeScript**: Full type safety throughout the application
 
 ## Prerequisites
@@ -257,25 +259,39 @@ Critical for multi-line phones is proper audio management:
 
 ### Call Switching Logic
 
-When switching to a different call:
+When switching to a different call, the system uses operation locks to prevent race conditions:
 
 ```typescript
 async function makeLineActive(lineId: string) {
-  // Put current active line on hold
-  if (activeLineId.value) {
-    const currentActiveLine = callLines.value.find(l => l.id === activeLineId.value)
-    if (currentActiveLine && !currentActiveLine.isOnHold) {
-      await handleHold(currentActiveLine)
+  // Check for ongoing operations to prevent race conditions
+  if (operationLocks.value.get(lineId)) {
+    console.warn('Operation already in progress for line', lineId)
+    return
+  }
+
+  try {
+    // Lock this operation
+    operationLocks.value.set(lineId, true)
+
+    // Put current active line on hold
+    if (activeLineId.value) {
+      const currentActiveLine = callLines.value.find(l => l.id === activeLineId.value)
+      if (currentActiveLine && !currentActiveLine.isOnHold) {
+        await handleHold(currentActiveLine)
+      }
     }
-  }
 
-  // Unhold the new active line
-  const newActiveLine = callLines.value.find(l => l.id === lineId)
-  if (newActiveLine?.isOnHold) {
-    await handleUnhold(newActiveLine)
-  }
+    // Unhold the new active line
+    const newActiveLine = callLines.value.find(l => l.id === lineId)
+    if (newActiveLine?.isOnHold) {
+      await handleUnhold(newActiveLine)
+    }
 
-  activeLineId.value = lineId
+    activeLineId.value = lineId
+  } finally {
+    // Release the lock
+    operationLocks.value.delete(lineId)
+  }
 }
 ```
 
@@ -297,17 +313,28 @@ await manager2.makeCall('sip:3000@domain.com')
 
 ### Handling Incoming Calls
 
+The system automatically handles incoming calls and rejects them when all lines are busy:
+
 ```typescript
 // Listen for incoming calls
 eventBus.on('call:incoming', (event) => {
   const line = findAvailableLine()
   if (!line) {
-    // No available lines, reject call
+    // Auto-reject when no lines available
+    if (event.session && typeof event.session.terminate === 'function') {
+      event.session.terminate({
+        status_code: 486, // Busy Here
+        reason_phrase: 'Busy Here - All Lines Occupied'
+      })
+    }
     return
   }
 
   const manager = getCallSessionManager(line.id)
-  // Set up the session from the incoming call
+  // IMPORTANT: Set the session in the manager's ref
+  if (manager.session && typeof manager.session === 'object' && 'value' in manager.session) {
+    manager.session.value = event.session
+  }
   line.session = event.session
   setupLineWatchers(line, manager)
 })
@@ -368,23 +395,31 @@ Edit `CallLine.vue` styles to match your design:
 - Check browser console for connection errors
 - Ensure CORS headers are set on SIP server
 - Verify firewall allows WebSocket connections
+- **Check microphone permissions**: The browser must have permission to access your microphone
 
 #### 2. No Audio on Second Call
 - Check that browser has microphone permission
 - Verify only one call line is active (not on hold)
 - Check browser console for media errors
 - Ensure SIP server allows multiple simultaneous calls
+- Verify that only the active line has unmuted remote audio
 
 #### 3. Incoming Calls Not Showing
 - Verify event bus is properly initialized
 - Check that `call:incoming` events are being emitted
 - Ensure at least one line is available (under MAX_LINES)
+- **Note**: If all lines are occupied, incoming calls are automatically rejected with "486 Busy Here"
 - Check browser console for errors
 
 #### 4. Call Switching Not Working
 - Verify hold/unhold operations complete successfully
 - Check network connectivity (hold requires SIP re-INVITE)
 - Ensure SIP server supports hold (sendonly/recvonly)
+- **Note**: Rapid clicking may be throttled by operation locks to prevent race conditions
+
+#### 5. Maximum Lines Warning
+- If you see the "Maximum Lines Reached" warning, you need to end a call before starting a new one
+- The system enforces a limit of 5 concurrent calls for stability
 
 ### Debug Mode
 
@@ -400,13 +435,15 @@ Then refresh the page. You'll see detailed logs of all VueSip operations.
 
 ### Memory Management
 
-The application automatically cleans up terminated calls after 5 seconds:
+The application automatically cleans up terminated calls after 5 seconds and properly disposes of all watchers:
 
 ```typescript
 watch(manager.state, (newState) => {
   if (newState === 'terminated' || newState === 'failed') {
     setTimeout(() => {
       if (line.state === 'terminated' || line.state === 'failed') {
+        // Clean up watchers first
+        cleanupLineWatchers(line.id)
         // Remove line and cleanup manager
         callLines.value.splice(index, 1)
         callSessionManagers.value.delete(line.id)
@@ -414,6 +451,20 @@ watch(manager.state, (newState) => {
     }, 5000)
   }
 })
+```
+
+All watchers are stored and properly disposed of to prevent memory leaks:
+
+```typescript
+const watcherCleanupFns = ref<Map<string, Array<() => void>>>(new Map())
+
+function cleanupLineWatchers(lineId: string) {
+  const cleanupFns = watcherCleanupFns.value.get(lineId)
+  if (cleanupFns) {
+    cleanupFns.forEach(fn => fn())
+    watcherCleanupFns.value.delete(lineId)
+  }
+}
 ```
 
 ### Audio Performance

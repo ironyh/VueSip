@@ -186,7 +186,7 @@ While in an active video call, you can:
 - **Mute/Unmute**: Toggle your microphone on/off
 - **Stop/Start Video**: Toggle your camera on/off
 - **Hold/Resume**: Put the call on hold or resume
-- **Switch Camera**: Click the camera icon in the local preview to select a different camera
+- **Switch Camera**: Click the camera icon in the local preview to select a different camera (Note: Camera switching during active calls has limitations - see Known Limitations below)
 - **Hang Up**: End the call
 
 ### 5. Local Video Preview
@@ -536,6 +536,14 @@ video: {
 - Always stop tracks when hanging up
 - Remove event listeners on component unmount
 - Null out video element srcObject references
+
+## Known Limitations
+
+### Camera Switching During Calls
+
+Camera switching during active calls currently has limitations. While you can switch cameras, the track replacement in the peer connection may not work seamlessly in all scenarios. This feature requires proper integration with the underlying CallSession's peer connection track replacement mechanism.
+
+**Workaround**: Select your desired camera before initiating or answering a call.
 
 ## License
 

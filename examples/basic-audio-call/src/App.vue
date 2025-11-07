@@ -25,8 +25,9 @@
           <label for="audio-input">Microphone</label>
           <select
             id="audio-input"
-            v-model="selectedAudioInput"
+            v-model="selectedAudioInputId"
             @change="handleAudioInputChange"
+            aria-label="Select microphone device"
           >
             <option
               v-for="device in audioInputDevices"
@@ -42,8 +43,9 @@
           <label for="audio-output">Speaker</label>
           <select
             id="audio-output"
-            v-model="selectedAudioOutput"
+            v-model="selectedAudioOutputId"
             @change="handleAudioOutputChange"
+            aria-label="Select speaker device"
           >
             <option
               v-for="device in audioOutputDevices"
@@ -118,7 +120,12 @@ const {
   isConnected,
   isRegistered,
   error: sipError,
+  updateConfig,
+  getClient,
 } = useSipClient()
+
+// Get SIP client ref for useCallSession
+const sipClientRef = computed(() => getClient())
 
 /**
  * Call Session Composable
@@ -145,7 +152,7 @@ const {
   unhold,
   mute,
   unmute,
-} = useCallSession()
+} = useCallSession(sipClientRef)
 
 /**
  * Media Devices Composable
@@ -154,11 +161,11 @@ const {
 const {
   audioInputDevices,
   audioOutputDevices,
-  selectedAudioInput,
-  selectedAudioOutput,
+  selectedAudioInputId,
+  selectedAudioOutputId,
   enumerateDevices,
-  setAudioInput,
-  setAudioOutput,
+  selectAudioInput,
+  selectAudioOutput,
 } = useMediaDevices()
 
 /**
@@ -180,8 +187,8 @@ const handleConnect = async (config: {
     connecting.value = true
     connectionError.value = ''
 
-    // Connect to SIP server with provided configuration
-    await connect({
+    // Update SIP client configuration
+    const validationResult = updateConfig({
       uri: config.uri,
       sipUri: config.sipUri,
       password: config.password,
@@ -192,6 +199,13 @@ const handleConnect = async (config: {
       connectionTimeout: 10000,
       registerExpires: 600,
     })
+
+    if (!validationResult.valid) {
+      throw new Error(`Invalid configuration: ${validationResult.errors?.join(', ')}`)
+    }
+
+    // Connect to SIP server
+    await connect()
 
     // Enumerate audio devices after successful connection
     await enumerateDevices()
@@ -307,9 +321,11 @@ const handleToggleHold = async () => {
 /**
  * Handle audio input device change
  */
-const handleAudioInputChange = async () => {
+const handleAudioInputChange = () => {
   try {
-    await setAudioInput(selectedAudioInput.value)
+    if (selectedAudioInputId.value) {
+      selectAudioInput(selectedAudioInputId.value)
+    }
   } catch (error) {
     console.error('Audio input change error:', error)
   }
@@ -318,9 +334,11 @@ const handleAudioInputChange = async () => {
 /**
  * Handle audio output device change
  */
-const handleAudioOutputChange = async () => {
+const handleAudioOutputChange = () => {
   try {
-    await setAudioOutput(selectedAudioOutput.value)
+    if (selectedAudioOutputId.value) {
+      selectAudioOutput(selectedAudioOutputId.value)
+    }
   } catch (error) {
     console.error('Audio output change error:', error)
   }

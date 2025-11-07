@@ -11,6 +11,7 @@
         <ConnectionPanel
           v-model:connected="isConnected"
           v-model:registered="isRegistered"
+          :is-connecting="isConnecting"
           @connect="handleConnect"
           @disconnect="handleDisconnect"
         />
@@ -130,6 +131,18 @@
       @answer="handleAnswer(line)"
       @reject="handleReject(line)"
     />
+
+    <!-- Max Lines Warning -->
+    <div v-if="maxLinesWarning" class="max-lines-warning">
+      <div class="warning-content">
+        <span class="warning-icon">⚠️</span>
+        <div class="warning-text">
+          <strong>Maximum Lines Reached</strong>
+          <p>You've reached the maximum of {{ MAX_LINES }} concurrent calls. Please end a call before starting a new one.</p>
+        </div>
+        <button @click="maxLinesWarning = false" class="warning-close">×</button>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -160,6 +173,8 @@ const isRegistered = ref(false)
 // UI state
 const showDialpad = ref(false)
 const dialNumber = ref('')
+const isConnecting = ref(false)
+const maxLinesWarning = ref(false)
 
 /**
  * Call Line Interface
@@ -207,6 +222,12 @@ const { history: callHistory } = useCallHistory()
 // Create useCallSession instances for each line
 // We'll create them on-demand when a call is made or received
 const callSessionManagers = ref<Map<string, ReturnType<typeof useCallSession>>>(new Map())
+
+// Track watcher cleanup functions for proper memory management
+const watcherCleanupFns = ref<Map<string, Array<() => void>>>(new Map())
+
+// Track ongoing operations to prevent race conditions
+const operationLocks = ref<Map<string, boolean>>(new Map())
 
 /**
  * Get or create a call session manager for a line
@@ -270,29 +291,46 @@ function updateLineFromSession(line: CallLine, manager: ReturnType<typeof useCal
  * Setup watchers for a call session manager
  */
 function setupLineWatchers(line: CallLine, manager: ReturnType<typeof useCallSession>) {
+  const cleanupFns: Array<() => void> = []
+
   // Watch all reactive properties
-  watch(manager.state, () => updateLineFromSession(line, manager))
-  watch(manager.duration, () => updateLineFromSession(line, manager))
-  watch(manager.isOnHold, () => updateLineFromSession(line, manager))
-  watch(manager.isMuted, () => updateLineFromSession(line, manager))
-  watch(manager.localStream, () => updateLineFromSession(line, manager))
-  watch(manager.remoteStream, () => updateLineFromSession(line, manager))
+  cleanupFns.push(watch(manager.state, () => updateLineFromSession(line, manager)))
+  cleanupFns.push(watch(manager.duration, () => updateLineFromSession(line, manager)))
+  cleanupFns.push(watch(manager.isOnHold, () => updateLineFromSession(line, manager)))
+  cleanupFns.push(watch(manager.isMuted, () => updateLineFromSession(line, manager)))
+  cleanupFns.push(watch(manager.localStream, () => updateLineFromSession(line, manager)))
+  cleanupFns.push(watch(manager.remoteStream, () => updateLineFromSession(line, manager)))
 
   // When call ends, check if we should clear the line
-  watch(manager.state, (newState) => {
+  cleanupFns.push(watch(manager.state, (newState) => {
     if (newState === 'terminated' || newState === 'failed') {
       setTimeout(() => {
         // If still terminated after 5 seconds, clear the line
         if (line.state === 'terminated' || line.state === 'failed') {
           const index = callLines.value.findIndex((l) => l.id === line.id)
           if (index !== -1 && callLines.value.length > 1) {
+            cleanupLineWatchers(line.id)
             callLines.value.splice(index, 1)
             callSessionManagers.value.delete(line.id)
           }
         }
       }, 5000)
     }
-  })
+  }))
+
+  // Store cleanup functions
+  watcherCleanupFns.value.set(line.id, cleanupFns)
+}
+
+/**
+ * Cleanup watchers for a line
+ */
+function cleanupLineWatchers(lineId: string) {
+  const cleanupFns = watcherCleanupFns.value.get(lineId)
+  if (cleanupFns) {
+    cleanupFns.forEach(fn => fn())
+    watcherCleanupFns.value.delete(lineId)
+  }
 }
 
 /**
@@ -301,13 +339,19 @@ function setupLineWatchers(line: CallLine, manager: ReturnType<typeof useCallSes
 async function handleMakeCall() {
   if (!dialNumber.value.trim()) return
   if (activeCallCount.value >= MAX_LINES) {
-    alert('Maximum number of concurrent calls reached')
+    maxLinesWarning.value = true
+    setTimeout(() => {
+      maxLinesWarning.value = false
+    }, 3000)
     return
   }
 
   const line = findAvailableLine()
   if (!line) {
-    alert('No available lines')
+    maxLinesWarning.value = true
+    setTimeout(() => {
+      maxLinesWarning.value = false
+    }, 3000)
     return
   }
 
@@ -321,7 +365,27 @@ async function handleMakeCall() {
     showDialpad.value = false
   } catch (error) {
     console.error('Failed to make call:', error)
-    alert(`Failed to make call: ${error}`)
+
+    // Provide user-friendly error messages
+    let errorMessage = 'Failed to make call'
+    if (error instanceof Error) {
+      if (error.message.includes('permission')) {
+        errorMessage = 'Microphone permission denied. Please allow microphone access and try again.'
+      } else if (error.message.includes('NotFoundError')) {
+        errorMessage = 'No microphone found. Please connect a microphone and try again.'
+      } else {
+        errorMessage = `Failed to make call: ${error.message}`
+      }
+    }
+    alert(errorMessage)
+
+    // Clean up the line if call setup failed
+    const index = callLines.value.findIndex((l) => l.id === line.id)
+    if (index !== -1) {
+      cleanupLineWatchers(line.id)
+      callLines.value.splice(index, 1)
+      callSessionManagers.value.delete(line.id)
+    }
   }
 }
 
@@ -335,7 +399,19 @@ async function handleAnswer(line: CallLine) {
     makeLineActive(line.id)
   } catch (error) {
     console.error('Failed to answer call:', error)
-    alert(`Failed to answer call: ${error}`)
+
+    // Provide user-friendly error messages
+    let errorMessage = 'Failed to answer call'
+    if (error instanceof Error) {
+      if (error.message.includes('permission')) {
+        errorMessage = 'Microphone permission denied. Please allow microphone access and try again.'
+      } else if (error.message.includes('NotFoundError')) {
+        errorMessage = 'No microphone found. Please connect a microphone and try again.'
+      } else {
+        errorMessage = `Failed to answer call: ${error.message}`
+      }
+    }
+    alert(errorMessage)
   }
 }
 
@@ -438,20 +514,37 @@ async function makeLineActive(lineId: string) {
   // If the line is already active, do nothing
   if (activeLineId.value === lineId) return
 
-  // Put current active line on hold
-  if (activeLineId.value) {
-    const currentActiveLine = callLines.value.find((l) => l.id === activeLineId.value)
-    if (currentActiveLine && currentActiveLine.state === 'active' && !currentActiveLine.isOnHold) {
-      await handleHold(currentActiveLine)
+  // Check if there's an ongoing operation for this line
+  if (operationLocks.value.get(lineId)) {
+    console.warn('Operation already in progress for line', lineId)
+    return
+  }
+
+  try {
+    // Lock this operation
+    operationLocks.value.set(lineId, true)
+
+    // Put current active line on hold
+    if (activeLineId.value) {
+      const currentActiveLine = callLines.value.find((l) => l.id === activeLineId.value)
+      if (currentActiveLine && currentActiveLine.state === 'active' && !currentActiveLine.isOnHold) {
+        await handleHold(currentActiveLine)
+      }
     }
-  }
 
-  // Unhold the new active line if it's on hold
-  if (line.isOnHold) {
-    await handleUnhold(line)
-  }
+    // Unhold the new active line if it's on hold
+    if (line.isOnHold) {
+      await handleUnhold(line)
+    }
 
-  activeLineId.value = lineId
+    activeLineId.value = lineId
+  } catch (error) {
+    console.error('Error making line active:', error)
+    throw error
+  } finally {
+    // Release the lock
+    operationLocks.value.delete(lineId)
+  }
 }
 
 /**
@@ -461,20 +554,40 @@ function handleIncomingCall(event: any) {
   const line = findAvailableLine()
   if (!line) {
     console.warn('No available lines for incoming call, rejecting')
-    // TODO: Auto-reject the call
+    // Auto-reject the call when no lines are available
+    try {
+      if (event.session && typeof event.session.terminate === 'function') {
+        event.session.terminate({
+          status_code: 486, // Busy Here
+          reason_phrase: 'Busy Here - All Lines Occupied'
+        })
+      }
+    } catch (error) {
+      console.error('Failed to reject incoming call:', error)
+    }
     return
   }
 
-  const manager = getCallSessionManager(line.id)
+  try {
+    const manager = getCallSessionManager(line.id)
 
-  // Set the session from the incoming call event
-  // Note: This depends on how the SIP client emits incoming call events
-  // We'll need to get the session from the event
-  const session = event.session
-  if (session) {
-    line.session = session
-    setupLineWatchers(line, manager)
-    updateLineFromSession(line, manager)
+    // Get the session from the incoming call event
+    const session = event.session
+    if (session) {
+      // IMPORTANT: Set the session in the manager's ref
+      // This is critical for the manager to properly track the session
+      if (manager.session && typeof manager.session === 'object' && 'value' in manager.session) {
+        manager.session.value = session
+      }
+
+      line.session = session
+      setupLineWatchers(line, manager)
+      updateLineFromSession(line, manager)
+
+      console.log('Incoming call set up on line:', line.id)
+    }
+  } catch (error) {
+    console.error('Error handling incoming call:', error)
   }
 }
 
@@ -483,6 +596,8 @@ function handleIncomingCall(event: any) {
  */
 async function handleConnect(config: any) {
   try {
+    isConnecting.value = true
+
     // Update config
     sipConfig.value = config
 
@@ -496,6 +611,8 @@ async function handleConnect(config: any) {
   } catch (error) {
     console.error('Failed to connect:', error)
     alert(`Failed to connect: ${error}`)
+  } finally {
+    isConnecting.value = false
   }
 }
 
@@ -506,9 +623,16 @@ async function handleDisconnect() {
   try {
     await disconnect()
 
+    // Cleanup all watchers before clearing
+    callLines.value.forEach(line => {
+      cleanupLineWatchers(line.id)
+    })
+
     // Clear all call lines
     callLines.value = []
     callSessionManagers.value.clear()
+    watcherCleanupFns.value.clear()
+    operationLocks.value.clear()
     activeLineId.value = null
   } catch (error) {
     console.error('Failed to disconnect:', error)
@@ -548,6 +672,16 @@ onMounted(() => {
 onUnmounted(() => {
   const eventBus = getEventBus()
   eventBus.off('call:incoming', handleIncomingCall)
+
+  // Cleanup all watchers
+  callLines.value.forEach(line => {
+    cleanupLineWatchers(line.id)
+  })
+
+  // Clear all state
+  callSessionManagers.value.clear()
+  watcherCleanupFns.value.clear()
+  operationLocks.value.clear()
 })
 </script>
 
@@ -772,6 +906,83 @@ onUnmounted(() => {
   font-weight: bold;
 }
 
+/* Max Lines Warning */
+.max-lines-warning {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9998;
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    transform: translateX(-50%) translateY(-100px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+  }
+}
+
+.warning-content {
+  background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%);
+  color: #fff;
+  border-radius: 12px;
+  padding: 20px 24px;
+  box-shadow: 0 8px 24px rgba(255, 152, 0, 0.4);
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  min-width: 400px;
+  max-width: 500px;
+}
+
+.warning-icon {
+  font-size: 2em;
+  flex-shrink: 0;
+}
+
+.warning-text {
+  flex: 1;
+}
+
+.warning-text strong {
+  display: block;
+  font-size: 1.1em;
+  margin-bottom: 8px;
+}
+
+.warning-text p {
+  font-size: 0.95em;
+  opacity: 0.95;
+  line-height: 1.4;
+}
+
+.warning-close {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 2em;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+
+.warning-close:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
 /* Responsive Design */
 @media (max-width: 1400px) {
   .main-container {
@@ -790,6 +1001,19 @@ onUnmounted(() => {
 
   .center-panel {
     order: 1;
+  }
+}
+
+@media (max-width: 600px) {
+  .warning-content {
+    min-width: auto;
+    max-width: calc(100vw - 40px);
+  }
+
+  .max-lines-warning {
+    left: 20px;
+    right: 20px;
+    transform: none;
   }
 }
 </style>

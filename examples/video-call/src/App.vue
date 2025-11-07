@@ -71,6 +71,7 @@
             :is-on-hold="isOnHold"
             @make-call="handleMakeCall"
             @answer="handleAnswer"
+            @reject="handleReject"
             @hangup="handleHangup"
             @toggle-mute="handleToggleMute"
             @toggle-video="handleToggleVideo"
@@ -90,7 +91,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onUnmounted } from 'vue'
 import { useSipClient, useCallSession, useMediaDevices } from 'vuesip'
 import { EventBus } from 'vuesip'
 import { MediaManager } from 'vuesip'
@@ -104,7 +105,7 @@ import VideoCallControls from './components/VideoCallControls.vue'
 // ============================================================================
 
 const eventBus = new EventBus()
-const mediaManager = ref(new MediaManager())
+const mediaManager = ref(new MediaManager({ eventBus }))
 
 // ============================================================================
 // SIP Client Setup
@@ -117,6 +118,8 @@ const {
   error: sipError,
   connect,
   updateConfig,
+  getClient,
+  getEventBus,
 } = useSipClient(undefined, {
   eventBus,
   autoConnect: false,
@@ -127,11 +130,8 @@ const {
 // Call Session Setup
 // ============================================================================
 
-const sipClientRef = computed(() => {
-  // Access the actual SIP client instance from useSipClient
-  // This is a bit of a workaround since useSipClient doesn't expose the client directly
-  return null // We'll handle this via eventBus
-})
+// Get SIP client ref for useCallSession
+const sipClientRef = computed(() => getClient())
 
 const {
   session,
@@ -148,6 +148,7 @@ const {
   duration,
   makeCall,
   answer,
+  reject,
   hangup,
   toggleMute,
   toggleHold,
@@ -279,6 +280,18 @@ async function handleAnswer() {
 }
 
 /**
+ * Reject incoming call
+ */
+async function handleReject() {
+  try {
+    await reject()
+  } catch (error) {
+    console.error('Failed to reject call:', error)
+    connectionError.value = error instanceof Error ? error.message : 'Failed to reject call'
+  }
+}
+
+/**
  * Hangup call
  */
 async function handleHangup() {
@@ -286,6 +299,7 @@ async function handleHangup() {
     await hangup()
   } catch (error) {
     console.error('Failed to hangup:', error)
+    connectionError.value = error instanceof Error ? error.message : 'Failed to hangup'
   }
 }
 
@@ -300,15 +314,22 @@ function handleToggleMute() {
  * Toggle video on/off
  */
 async function handleToggleVideo() {
-  if (!session.value || !localStream.value) return
+  if (!localStream.value) return
 
   try {
     const videoTracks = localStream.value.getVideoTracks()
+    if (videoTracks.length === 0) {
+      console.warn('No video tracks available to toggle')
+      return
+    }
+
+    // Toggle video tracks
     videoTracks.forEach((track) => {
       track.enabled = !track.enabled
     })
   } catch (error) {
     console.error('Failed to toggle video:', error)
+    connectionError.value = error instanceof Error ? error.message : 'Failed to toggle video'
   }
 }
 
@@ -328,27 +349,44 @@ async function handleToggleHold() {
  */
 async function handleCameraSelect(deviceId: string) {
   try {
+    // Update selected device
     selectVideoInput(deviceId)
 
-    // If in a call, restart video with new camera
+    // If in a call, we need to restart the video with the new camera
     if (session.value && localStream.value) {
-      // Stop current video tracks
-      localStream.value.getVideoTracks().forEach((track) => track.stop())
+      try {
+        // Get new video stream with selected camera
+        const newStream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: { deviceId: { exact: deviceId } },
+        })
 
-      // Get new video stream with selected camera
-      const newStream = await navigator.mediaDevices.getUserMedia({
-        video: { deviceId: { exact: deviceId } },
-      })
+        const newVideoTrack = newStream.getVideoTracks()[0]
+        if (!newVideoTrack) {
+          throw new Error('No video track in new stream')
+        }
 
-      // Replace video track in the peer connection
-      const videoTrack = newStream.getVideoTracks()[0]
-      if (videoTrack && session.value) {
-        // Update local stream (implementation depends on CallSession internals)
+        // Get the old video track
+        const oldVideoTrack = localStream.value.getVideoTracks()[0]
+
+        // Replace the track in the peer connection via the session
+        // Note: This requires CallSession to expose a method to replace tracks
+        // For now, we'll just update the stream reference
+        if (oldVideoTrack) {
+          oldVideoTrack.stop()
+          localStream.value.removeTrack(oldVideoTrack)
+        }
+        localStream.value.addTrack(newVideoTrack)
+
         console.log('Camera switched to:', deviceId)
+      } catch (error) {
+        console.error('Failed to switch camera during call:', error)
+        connectionError.value = error instanceof Error ? error.message : 'Failed to switch camera'
       }
     }
   } catch (error) {
-    console.error('Failed to switch camera:', error)
+    console.error('Failed to select camera:', error)
+    connectionError.value = error instanceof Error ? error.message : 'Failed to select camera'
   }
 }
 
@@ -375,7 +413,7 @@ function formatDuration(seconds: number): string {
 // ============================================================================
 
 // Listen for incoming calls
-eventBus.on('call:incoming', (data: any) => {
+eventBus.on('call:incoming', (data: { remoteUri: string; remoteDisplayName?: string }) => {
   console.log('Incoming call from:', data.remoteUri)
   // The UI will show the answer button automatically when callState changes
 })
@@ -384,6 +422,19 @@ eventBus.on('call:incoming', (data: any) => {
 watch(sipError, (error) => {
   if (error) {
     connectionError.value = error.message
+  }
+})
+
+// ============================================================================
+// Lifecycle Hooks
+// ============================================================================
+
+// Clean up media streams on unmount
+onUnmounted(() => {
+  if (localStream.value) {
+    localStream.value.getTracks().forEach((track) => {
+      track.stop()
+    })
   }
 })
 </script>

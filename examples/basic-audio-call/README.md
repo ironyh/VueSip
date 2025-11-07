@@ -58,7 +58,7 @@ Before running the application, you'll need to configure your SIP server setting
 
 1. **Open `src/components/ConnectionPanel.vue`**
 
-2. **Update the default form values (lines 98-102):**
+2. **Update the default form values (around line 118):**
 
 ```typescript
 const form = reactive({
@@ -69,7 +69,7 @@ const form = reactive({
 })
 ```
 
-3. **Update the default call target in `src/components/CallControls.vue` (line 42):**
+3. **Update the default call target in `src/components/CallControls.vue` (around line 122):**
 
 ```typescript
 const targetUri = ref('sip:2000@your-domain.com')
@@ -207,13 +207,16 @@ The main application component that:
 
 ```typescript
 // SIP Client - manages connection and registration
-const { connect, disconnect, isConnected, isRegistered } = useSipClient()
+const { connect, disconnect, isConnected, isRegistered, updateConfig } = useSipClient()
 
-// Call Session - manages call state and controls
-const { makeCall, answer, reject, hangup, hold, unhold, mute, unmute } = useCallSession()
+// Get SIP client reference for useCallSession
+const sipClientRef = computed(() => getClient())
+
+// Call Session - manages call state and controls (requires sipClient ref)
+const { makeCall, answer, reject, hangup, hold, unhold, mute, unmute } = useCallSession(sipClientRef)
 
 // Media Devices - manages audio devices
-const { audioInputDevices, audioOutputDevices, setAudioInput, setAudioOutput } = useMediaDevices()
+const { audioInputDevices, audioOutputDevices, selectAudioInput, selectAudioOutput } = useMediaDevices()
 ```
 
 #### `src/components/ConnectionPanel.vue`
@@ -242,19 +245,31 @@ Manages WebSocket connection to SIP server and user registration.
 
 ```typescript
 const {
-  connect,        // Connect to SIP server
+  connect,        // Connect to SIP server (no parameters - config must be set first)
   disconnect,     // Disconnect from SIP server
+  updateConfig,   // Update SIP configuration (call before connect)
   isConnected,    // Connection status
   isRegistered,   // Registration status
-  error           // Error message
+  error,          // Error message
+  getClient       // Get underlying SIP client instance
 } = useSipClient()
+
+// Usage:
+// 1. Update configuration first
+updateConfig({ uri, sipUri, password, displayName, autoRegister: true })
+// 2. Then connect
+await connect()
 ```
 
 ### 2. `useCallSession()`
 
-Manages call state, media streams, and call controls.
+Manages call state, media streams, and call controls. **Requires** a ref to the SIP client instance.
 
 ```typescript
+// First, get the SIP client reference
+const sipClientRef = computed(() => getClient())
+
+// Then pass it to useCallSession
 const {
   session,              // Active call session
   state,                // Call state (idle, calling, active, etc.)
@@ -264,15 +279,15 @@ const {
   isOnHold,             // Hold status
   duration,             // Call duration in seconds
   remoteStream,         // Remote audio stream
-  makeCall,             // Make outgoing call
-  answer,               // Answer incoming call
-  reject,               // Reject incoming call
+  makeCall,             // Make outgoing call (target: string, options?: CallSessionOptions)
+  answer,               // Answer incoming call (options?: AnswerOptions)
+  reject,               // Reject incoming call (statusCode?: number)
   hangup,               // End call
   mute,                 // Mute microphone
   unmute,               // Unmute microphone
   hold,                 // Put call on hold
   unhold                // Resume from hold
-} = useCallSession()
+} = useCallSession(sipClientRef)
 ```
 
 ### 3. `useMediaDevices()`
@@ -281,14 +296,23 @@ Manages audio/video device enumeration and selection.
 
 ```typescript
 const {
-  audioInputDevices,    // Available microphones
-  audioOutputDevices,   // Available speakers
-  selectedAudioInput,   // Selected microphone ID
-  selectedAudioOutput,  // Selected speaker ID
-  enumerateDevices,     // Refresh device list
-  setAudioInput,        // Set microphone
-  setAudioOutput        // Set speaker
+  audioInputDevices,     // Available microphones (readonly MediaDevice[])
+  audioOutputDevices,    // Available speakers (readonly MediaDevice[])
+  selectedAudioInputId,  // Selected microphone ID (ref)
+  selectedAudioOutputId, // Selected speaker ID (ref)
+  enumerateDevices,      // Refresh device list
+  selectAudioInput,      // Select microphone by device ID
+  selectAudioOutput,     // Select speaker by device ID
+  requestPermissions     // Request media permissions
 } = useMediaDevices()
+
+// Usage:
+// 1. Request permissions
+await requestPermissions(true, false) // audio: true, video: false
+// 2. Enumerate devices
+await enumerateDevices()
+// 3. Select device
+selectAudioInput(deviceId)
 ```
 
 ## TypeScript Support

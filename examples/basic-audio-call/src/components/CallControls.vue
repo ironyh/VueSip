@@ -3,16 +3,21 @@
     <h2>Call Controls</h2>
 
     <!-- Incoming Call Alert -->
-    <div v-if="callState === 'incoming'" class="incoming-call">
+    <div
+      v-if="callState === 'incoming'"
+      class="incoming-call"
+      role="alert"
+      aria-live="assertive"
+    >
       <div class="incoming-call-info">
         <h3>Incoming Call</h3>
         <p class="caller-id">{{ remoteDisplayName || remoteUri }}</p>
       </div>
-      <div class="button-group">
-        <button @click="emit('answer')" class="success">
+      <div class="button-group" role="group" aria-label="Call actions">
+        <button @click="emit('answer')" class="success" aria-label="Answer incoming call">
           Answer
         </button>
-        <button @click="emit('reject')" class="danger">
+        <button @click="emit('reject')" class="danger" aria-label="Reject incoming call">
           Reject
         </button>
       </div>
@@ -28,30 +33,40 @@
           type="text"
           placeholder="sip:2000@example.com"
           @keyup.enter="handleMakeCall"
+          aria-describedby="target-uri-help"
         />
-        <p class="info-message">
+        <p id="target-uri-help" class="info-message">
           Enter the SIP URI of the person you want to call
         </p>
       </div>
-      <button @click="handleMakeCall" class="primary" :disabled="!targetUri.trim()">
+      <button
+        @click="handleMakeCall"
+        class="primary"
+        :disabled="!targetUri.trim()"
+        aria-label="Make outgoing call"
+      >
         Call
       </button>
     </div>
 
     <!-- Active Call Controls -->
     <div v-else class="active-call">
-      <div class="call-status">
+      <div class="call-status" role="status" aria-live="polite">
         <h3>{{ callStateLabel }}</h3>
         <p class="caller-id">{{ remoteDisplayName || remoteUri }}</p>
-        <p v-if="duration > 0" class="duration">{{ formattedDuration }}</p>
+        <p v-if="duration > 0" class="duration" aria-label="Call duration">
+          {{ formattedDuration }}
+        </p>
       </div>
 
-      <div class="button-group">
+      <div class="button-group" role="group" aria-label="Call controls">
         <!-- Mute/Unmute -->
         <button
           v-if="callState === 'active'"
           @click="emit('toggleMute')"
           :class="isMuted ? 'warning' : 'secondary'"
+          :aria-label="isMuted ? 'Unmute microphone' : 'Mute microphone'"
+          :aria-pressed="isMuted"
         >
           {{ isMuted ? 'Unmute' : 'Mute' }}
         </button>
@@ -61,6 +76,8 @@
           v-if="callState === 'active'"
           @click="emit('toggleHold')"
           :class="isOnHold ? 'warning' : 'secondary'"
+          :aria-label="isOnHold ? 'Resume call' : 'Put call on hold'"
+          :aria-pressed="isOnHold"
         >
           {{ isOnHold ? 'Unhold' : 'Hold' }}
         </button>
@@ -70,6 +87,7 @@
           v-if="callState !== 'idle'"
           @click="emit('hangup')"
           class="danger"
+          aria-label="End call"
         >
           Hangup
         </button>
@@ -81,24 +99,41 @@
         ref="remoteAudioRef"
         autoplay
         style="display: none"
+        aria-hidden="true"
       />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+/**
+ * CallControls Component
+ *
+ * Displays call controls and handles user interactions during calls.
+ * Supports three states:
+ * - Idle: Shows form to make outgoing calls
+ * - Incoming: Shows answer/reject buttons for incoming calls
+ * - Active/Calling/Ringing: Shows call status and control buttons (mute, hold, hangup)
+ */
 import { ref, computed, watch } from 'vue'
 
 /**
  * Props for the CallControls component
  */
 interface Props {
+  /** Current state of the call */
   callState: 'idle' | 'calling' | 'incoming' | 'ringing' | 'active' | 'held' | 'ended'
+  /** SIP URI of the remote party */
   remoteUri: string | null
+  /** Display name of the remote party */
   remoteDisplayName: string | null
+  /** Whether the local microphone is muted */
   isMuted: boolean
+  /** Whether the call is on hold */
   isOnHold: boolean
+  /** Call duration in seconds (for active calls) */
   duration: number
+  /** Remote audio stream to play */
   remoteStream: MediaStream | null
 }
 
@@ -108,26 +143,35 @@ const props = defineProps<Props>()
  * Events emitted by the CallControls component
  */
 const emit = defineEmits<{
+  /** Emitted when user initiates an outgoing call */
   makeCall: [target: string]
+  /** Emitted when user answers an incoming call */
   answer: []
+  /** Emitted when user rejects an incoming call */
   reject: []
+  /** Emitted when user hangs up the call */
   hangup: []
+  /** Emitted when user toggles mute state */
   toggleMute: []
+  /** Emitted when user toggles hold state */
   toggleHold: []
 }>()
 
 /**
  * Target URI for outgoing calls
+ * Users can modify this default value to match their test setup
  */
 const targetUri = ref('sip:2000@example.com')
 
 /**
  * Reference to the remote audio element
+ * Used to attach the remote audio stream for playback
  */
 const remoteAudioRef = ref<HTMLAudioElement | null>(null)
 
 /**
  * Computed call state label for display
+ * Converts internal call state into user-friendly text
  */
 const callStateLabel = computed(() => {
   switch (props.callState) {
@@ -148,6 +192,7 @@ const callStateLabel = computed(() => {
 
 /**
  * Format duration as MM:SS
+ * Converts duration in seconds to a readable time format
  */
 const formattedDuration = computed(() => {
   const minutes = Math.floor(props.duration / 60)
@@ -157,6 +202,7 @@ const formattedDuration = computed(() => {
 
 /**
  * Handle making an outgoing call
+ * Validates the target URI and emits the makeCall event
  */
 const handleMakeCall = () => {
   if (targetUri.value.trim()) {
@@ -166,15 +212,17 @@ const handleMakeCall = () => {
 
 /**
  * Watch for changes to remote stream and attach it to audio element
+ * This ensures that remote audio is played when a stream becomes available
  */
 watch(
   () => props.remoteStream,
   (newStream) => {
     if (remoteAudioRef.value && newStream) {
+      // Attach the remote stream to the audio element for playback
       remoteAudioRef.value.srcObject = newStream
     }
   },
-  { immediate: true }
+  { immediate: true } // Run immediately to handle existing streams
 )
 </script>
 

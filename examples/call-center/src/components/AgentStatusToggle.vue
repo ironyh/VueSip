@@ -6,24 +6,30 @@
         class="status-btn"
         :class="{ active: agentStatus === 'available' }"
         @click="$emit('update:status', 'available')"
+        aria-label="Set agent status to available"
+        :aria-pressed="agentStatus === 'available'"
       >
-        <span class="status-dot available"></span>
+        <span class="status-dot available" aria-hidden="true"></span>
         Available
       </button>
       <button
         class="status-btn"
         :class="{ active: agentStatus === 'busy' }"
         @click="$emit('update:status', 'busy')"
+        aria-label="Set agent status to busy"
+        :aria-pressed="agentStatus === 'busy'"
       >
-        <span class="status-dot busy"></span>
+        <span class="status-dot busy" aria-hidden="true"></span>
         Busy
       </button>
       <button
         class="status-btn"
         :class="{ active: agentStatus === 'away' }"
         @click="$emit('update:status', 'away')"
+        aria-label="Set agent status to away"
+        :aria-pressed="agentStatus === 'away'"
       >
-        <span class="status-dot away"></span>
+        <span class="status-dot away" aria-hidden="true"></span>
         Away
       </button>
     </div>

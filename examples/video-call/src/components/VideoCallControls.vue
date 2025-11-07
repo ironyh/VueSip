@@ -27,7 +27,7 @@
           :class="{ active: isMuted }"
           title="Toggle Microphone"
         >
-          <span class="icon">{{ isMuted ? '🎤' : '🎤' }}</span>
+          <span class="icon">{{ isMuted ? '🔇' : '🎤' }}</span>
           <span class="label">{{ isMuted ? 'Unmute' : 'Mute' }}</span>
         </button>
 
@@ -38,7 +38,7 @@
           :class="{ active: !hasLocalVideo }"
           title="Toggle Camera"
         >
-          <span class="icon">{{ hasLocalVideo ? '📹' : '📹' }}</span>
+          <span class="icon">{{ hasLocalVideo ? '📹' : '🚫' }}</span>
           <span class="label">{{ hasLocalVideo ? 'Stop Video' : 'Start Video' }}</span>
         </button>
 
@@ -67,7 +67,7 @@
         <!-- Reject Button (for incoming calls) -->
         <button
           v-if="callState === 'ringing'"
-          @click="$emit('hangup')"
+          @click="$emit('reject')"
           class="control-button hangup-button"
           title="Reject Call"
         >
@@ -115,6 +115,7 @@ defineProps<Props>()
 interface Emits {
   (e: 'make-call', targetUri: string): void
   (e: 'answer'): void
+  (e: 'reject'): void
   (e: 'hangup'): void
   (e: 'toggle-mute'): void
   (e: 'toggle-video'): void

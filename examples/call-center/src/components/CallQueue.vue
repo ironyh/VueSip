@@ -31,6 +31,7 @@
             class="btn btn-success btn-sm"
             :disabled="agentStatus !== 'available'"
             @click="$emit('answer', call)"
+            :aria-label="`Answer call from ${call.displayName || 'Unknown'}`"
           >
             Answer
           </button>

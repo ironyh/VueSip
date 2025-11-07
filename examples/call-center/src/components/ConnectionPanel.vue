@@ -87,8 +87,26 @@ const handleConnect = async () => {
   try {
     error.value = null
 
-    // Update config and connect
-    await connect()
+    // Validate config
+    if (!config.value.server || !config.value.username || !config.value.password) {
+      error.value = 'Please fill in all required fields'
+      return
+    }
+
+    // Validate SIP server format
+    const serverPattern = /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/
+    if (!serverPattern.test(config.value.server)) {
+      error.value = 'Invalid server address format'
+      return
+    }
+
+    // Connect with config
+    await connect({
+      server: `wss://${config.value.server}`,
+      username: config.value.username,
+      password: config.value.password,
+      displayName: config.value.displayName || config.value.username,
+    })
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Connection failed'
     console.error('Connection failed:', err)

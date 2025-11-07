@@ -90,23 +90,26 @@
  * Users must connect before they can create or join conferences.
  */
 
-defineProps<{
+interface Props {
   server: string
   username: string
   password: string
   displayName: string
   isConnected: boolean
   isRegistered: boolean
-}>()
+}
 
-defineEmits<{
-  'update:server': [value: string]
-  'update:username': [value: string]
-  'update:password': [value: string]
-  'update:displayName': [value: string]
-  connect: []
-  disconnect: []
-}>()
+interface Emits {
+  (e: 'update:server', value: string): void
+  (e: 'update:username', value: string): void
+  (e: 'update:password', value: string): void
+  (e: 'update:displayName', value: string): void
+  (e: 'connect'): void
+  (e: 'disconnect'): void
+}
+
+defineProps<Props>()
+defineEmits<Emits>()
 </script>
 
 <style scoped>

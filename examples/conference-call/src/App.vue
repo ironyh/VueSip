@@ -26,7 +26,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onUnmounted } from 'vue'
 import { SipClient } from 'vuesip'
 import type { SipClientConfig } from 'vuesip'
 import ConnectionPanel from './components/ConnectionPanel.vue'
@@ -45,6 +45,9 @@ const sipClient = ref<SipClient | null>(null)
 const isConnected = ref(false)
 const isRegistered = ref(false)
 
+// Store event listener cleanup functions
+const eventCleanupFunctions: Array<() => void> = []
+
 /**
  * Connect to SIP server
  */
@@ -52,30 +55,41 @@ const handleConnect = async () => {
   try {
     console.log('Connecting to SIP server...')
 
+    // Clean up any existing listeners
+    cleanupEventListeners()
+
     // Create SIP client
     sipClient.value = new SipClient(config.value)
 
-    // Listen to connection events
-    sipClient.value.on('connected', () => {
+    // Listen to connection events and store cleanup functions
+    const onConnected = () => {
       console.log('Connected to SIP server')
       isConnected.value = true
-    })
+    }
+    sipClient.value.on('connected', onConnected)
+    eventCleanupFunctions.push(() => sipClient.value?.off('connected', onConnected))
 
-    sipClient.value.on('registered', () => {
+    const onRegistered = () => {
       console.log('Registered with SIP server')
       isRegistered.value = true
-    })
+    }
+    sipClient.value.on('registered', onRegistered)
+    eventCleanupFunctions.push(() => sipClient.value?.off('registered', onRegistered))
 
-    sipClient.value.on('disconnected', () => {
+    const onDisconnected = () => {
       console.log('Disconnected from SIP server')
       isConnected.value = false
       isRegistered.value = false
-    })
+    }
+    sipClient.value.on('disconnected', onDisconnected)
+    eventCleanupFunctions.push(() => sipClient.value?.off('disconnected', onDisconnected))
 
-    sipClient.value.on('registrationFailed', (error: Error) => {
+    const onRegistrationFailed = (error: Error) => {
       console.error('Registration failed:', error)
       alert(`Registration failed: ${error.message}`)
-    })
+    }
+    sipClient.value.on('registrationFailed', onRegistrationFailed)
+    eventCleanupFunctions.push(() => sipClient.value?.off('registrationFailed', onRegistrationFailed))
 
     // Start the client
     await sipClient.value.start()
@@ -86,10 +100,21 @@ const handleConnect = async () => {
 }
 
 /**
+ * Clean up event listeners
+ */
+const cleanupEventListeners = () => {
+  eventCleanupFunctions.forEach(cleanup => cleanup())
+  eventCleanupFunctions.length = 0
+}
+
+/**
  * Disconnect from SIP server
  */
 const handleDisconnect = async () => {
   try {
+    // Clean up event listeners first
+    cleanupEventListeners()
+
     if (sipClient.value) {
       await sipClient.value.stop()
       sipClient.value = null
@@ -100,6 +125,13 @@ const handleDisconnect = async () => {
     console.error('Failed to disconnect:', error)
   }
 }
+
+/**
+ * Clean up on component unmount
+ */
+onUnmounted(async () => {
+  await handleDisconnect()
+})
 </script>
 
 <style scoped>

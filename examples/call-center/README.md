@@ -6,15 +6,18 @@ A comprehensive, enterprise-grade call center application built with Vue 3, Type
 
 ### Core Call Center Functionality
 
-- **Agent Status Management**: Toggle between Available, Busy, and Away states
+- **Agent Status Management**: Toggle between Available, Busy, and Away states (persisted in localStorage)
 - **Call Queue Visualization**: Real-time display of waiting calls with priority and wait time
 - **Automatic Call Routing**: Route incoming calls to available agents
 - **Active Call Interface**: Full-featured call controls during active calls
 - **Call History Tracking**: Comprehensive call history with filtering and search
 - **Statistics Dashboard**: Real-time analytics and performance metrics
-- **Call Notes**: Add notes and comments during or after calls
+- **Call Notes**: Add notes and comments during calls (automatically saved to call history)
 - **DTMF Support**: Send DTMF tones during calls for IVR interaction
 - **Export Functionality**: Export call history to CSV or JSON
+- **Notification System**: Toast notifications for call events, errors, and status changes
+- **Input Validation**: Validates SIP server addresses and credentials
+- **Accessibility**: Full keyboard navigation and screen reader support
 
 ### User Interface
 
@@ -70,16 +73,14 @@ pnpm install
 
 ### 2. Configure SIP Server
 
-Update the connection panel or modify `src/App.vue` to set default SIP credentials:
+The connection panel (`src/components/ConnectionPanel.vue`) handles SIP credentials:
 
-```typescript
-const config = ref({
-  server: 'sip.yourdomain.com',  // Your SIP server domain
-  username: '',                   // Agent extension
-  password: '',                   // Agent password
-  displayName: '',               // Agent name
-})
-```
+- **Server**: Your SIP server domain (without wss:// prefix, it's added automatically)
+- **Username**: Agent extension number
+- **Password**: Agent password
+- **Display Name**: Agent's full name
+
+The application automatically prefixes the server with `wss://` for WebSocket Secure connections.
 
 ### 3. Run Development Server
 
@@ -319,7 +320,7 @@ const agentStatus = ref<AgentStatus>('away')
 - Managed in `App.vue`
 - Controls queue routing
 - Auto-updated during calls
-- Persists across sessions (optional)
+- Persists across sessions using localStorage
 
 ### Call Queue State
 
@@ -560,6 +561,21 @@ Contributions are welcome! Please:
 3. Make your changes
 4. Add tests if applicable
 5. Submit a pull request
+
+## Recent Improvements
+
+This example has been enhanced with:
+
+1. **Fixed Connection Handling**: SIP configuration is now properly passed to the connect function
+2. **Input Validation**: Server address and credentials are validated before connection
+3. **Call Notes Persistence**: Notes are automatically saved to call history metadata
+4. **Agent Status Persistence**: Status is preserved across page refreshes using localStorage
+5. **Event Bus Integration**: Proper handling of incoming calls and call failures
+6. **Notification System**: Real-time toast notifications for all important events
+7. **Type Safety**: Removed all `any` types for better TypeScript safety
+8. **Accessibility**: Added aria-labels, roles, and keyboard navigation support
+9. **Error Handling**: Comprehensive error handling with user-friendly messages
+10. **Production Ready**: Added .gitignore and improved overall code quality
 
 ## Next Steps
 

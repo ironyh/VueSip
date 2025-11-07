@@ -2,7 +2,12 @@
   <div class="call-history-panel card">
     <div class="history-header">
       <h2>Call History</h2>
-      <button class="btn btn-secondary btn-sm" @click="showFilters = !showFilters">
+      <button
+        class="btn btn-secondary btn-sm"
+        @click="showFilters = !showFilters"
+        :aria-label="showFilters ? 'Hide filters' : 'Show filters'"
+        :aria-expanded="showFilters"
+      >
         Filters
       </button>
     </div>
@@ -116,7 +121,7 @@
                 <button
                   class="btn btn-sm btn-primary"
                   @click="$emit('call-back', entry.remoteUri)"
-                  title="Call Back"
+                  :aria-label="`Call back ${entry.remoteDisplayName || formatUri(entry.remoteUri)}`"
                 >
                   Call
                 </button>
@@ -127,21 +132,23 @@
       </div>
 
       <!-- Pagination -->
-      <div v-if="totalPages > 1" class="pagination">
+      <div v-if="totalPages > 1" class="pagination" role="navigation" aria-label="Call history pagination">
         <button
           class="btn btn-sm btn-secondary"
           :disabled="currentPage === 1"
           @click="currentPage--"
+          aria-label="Go to previous page"
         >
           Previous
         </button>
-        <span class="page-info">
+        <span class="page-info" aria-live="polite" aria-atomic="true">
           Page {{ currentPage }} of {{ totalPages }}
         </span>
         <button
           class="btn btn-sm btn-secondary"
           :disabled="currentPage === totalPages"
           @click="currentPage++"
+          aria-label="Go to next page"
         >
           Next
         </button>
@@ -187,8 +194,8 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  filter: [filter: any]
-  export: [options: any]
+  filter: [filter: Record<string, unknown> | null]
+  export: [options: { format: string; filename?: string; includeMetadata?: boolean }]
   'call-back': [uri: string]
 }>()
 
@@ -265,7 +272,7 @@ const formatTime = (date: Date): string => {
 }
 
 const applyFilters = () => {
-  const filter: any = {}
+  const filter: Record<string, unknown> = {}
 
   if (filters.value.direction) {
     filter.direction = filters.value.direction

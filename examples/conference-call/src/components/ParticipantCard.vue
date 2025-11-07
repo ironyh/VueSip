@@ -1,5 +1,10 @@
 <template>
-  <div class="participant-card" :class="{ 'is-local': isLocal, 'is-speaking': isSpeaking }">
+  <div
+    class="participant-card"
+    :class="{ 'is-local': isLocal, 'is-speaking': isSpeaking }"
+    role="article"
+    :aria-label="`Participant: ${participant.displayName || 'Unknown'}`"
+  >
     <!-- Participant Header -->
     <div class="participant-header">
       <div class="participant-avatar">
@@ -46,7 +51,15 @@
       </div>
 
       <!-- Audio Level Indicator -->
-      <div v-if="participant.state === 'connected'" class="audio-level">
+      <div
+        v-if="participant.state === 'connected'"
+        class="audio-level"
+        role="progressbar"
+        :aria-valuenow="audioLevelPercent"
+        aria-valuemin="0"
+        aria-valuemax="100"
+        :aria-label="`Audio level: ${audioLevelPercent}%`"
+      >
         <div class="audio-level-bar">
           <div
             class="audio-level-fill"
@@ -57,11 +70,12 @@
     </div>
 
     <!-- Participant Controls -->
-    <div class="participant-controls">
+    <div class="participant-controls" role="group" :aria-label="`Controls for ${participant.displayName || 'participant'}`">
       <button
         v-if="!participant.isMuted"
         @click="$emit('mute')"
         class="control-btn"
+        :aria-label="`Mute ${participant.displayName || 'participant'}`"
         title="Mute participant"
       >
         Mute
@@ -70,6 +84,7 @@
         v-else
         @click="$emit('unmute')"
         class="control-btn"
+        :aria-label="`Unmute ${participant.displayName || 'participant'}`"
         title="Unmute participant"
       >
         Unmute
@@ -79,6 +94,7 @@
         v-if="!isLocal"
         @click="handleRemove"
         class="control-btn danger"
+        :aria-label="`Remove ${participant.displayName || 'participant'} from conference`"
         title="Remove participant"
       >
         Remove
@@ -93,7 +109,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
 import type { Participant } from 'vuesip'
 
 /**
@@ -109,16 +125,19 @@ import type { Participant } from 'vuesip'
  * - Mute/unmute/remove controls
  */
 
-const props = defineProps<{
+interface Props {
   participant: Participant
   isLocal: boolean
-}>()
+}
 
-const emit = defineEmits<{
-  mute: []
-  unmute: []
-  remove: []
-}>()
+interface Emits {
+  (e: 'mute'): void
+  (e: 'unmute'): void
+  (e: 'remove'): void
+}
+
+const props = defineProps<Props>()
+const emit = defineEmits<Emits>()
 
 // Avatar initials
 const avatarInitials = computed(() => {
@@ -153,9 +172,12 @@ watch(
   }
 )
 
-// Format joined time
+// Format joined time - updates reactively every minute
+const currentTime = ref(new Date())
+let timeUpdateInterval: number | null = null
+
 const joinedAtFormatted = computed(() => {
-  const now = new Date()
+  const now = currentTime.value
   const joined = props.participant.joinedAt
   const diffMs = now.getTime() - joined.getTime()
   const diffMins = Math.floor(diffMs / 60000)
@@ -167,6 +189,20 @@ const joinedAtFormatted = computed(() => {
   const diffHours = Math.floor(diffMins / 60)
   if (diffHours === 1) return '1 hour ago'
   return `${diffHours} hours ago`
+})
+
+// Update current time every 30 seconds for reactive join time display
+onMounted(() => {
+  timeUpdateInterval = window.setInterval(() => {
+    currentTime.value = new Date()
+  }, 30000) // Update every 30 seconds
+})
+
+onUnmounted(() => {
+  if (timeUpdateInterval !== null) {
+    clearInterval(timeUpdateInterval)
+    timeUpdateInterval = null
+  }
 })
 
 // Handle remove with confirmation

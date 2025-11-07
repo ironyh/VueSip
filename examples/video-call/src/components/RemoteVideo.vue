@@ -7,6 +7,7 @@
       playsinline
       class="remote-video"
       :class="{ active: isActive && stream }"
+      aria-label="Remote video stream"
     ></video>
 
     <!-- Placeholder when no call is active -->

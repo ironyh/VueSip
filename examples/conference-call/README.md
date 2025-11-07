@@ -194,24 +194,140 @@ await createConference({
 
 ### Server-Side Configuration
 
-#### Asterisk Example (confbridge.conf)
+#### Asterisk Example
+
+**1. WebSocket Configuration (http.conf)**
+
+```ini
+[general]
+enabled=yes
+bindaddr=0.0.0.0
+bindport=8088
+
+[http]
+tlsenable=yes
+tlsbindaddr=0.0.0.0:8089
+tlscertfile=/etc/asterisk/keys/asterisk.pem
+tlsprivatekey=/etc/asterisk/keys/asterisk.key
+```
+
+**2. SIP Configuration (pjsip.conf)**
+
+```ini
+[transport-wss]
+type=transport
+protocol=wss
+bind=0.0.0.0:7443
+cert_file=/etc/asterisk/keys/asterisk.pem
+priv_key_file=/etc/asterisk/keys/asterisk.key
+```
+
+**3. Conference Bridge Configuration (confbridge.conf)**
 
 ```ini
 [general]
 
-[my_conference]
+[my_conference_bridge]
 type=bridge
 max_members=10
 record_conference=yes
+video_mode=follow_talker
 ```
 
-#### FreeSWITCH Example (conference.conf.xml)
+**4. Dialplan Configuration (extensions.conf)**
+
+```ini
+[default]
+; Conference room dial plan
+exten => 5000,1,NoOp(Conference Room)
+  same => n,Answer()
+  same => n,ConfBridge(my_conference_bridge)
+  same => n,Hangup()
+```
+
+#### FreeSWITCH Example
+
+**1. WebSocket Configuration (verto.conf.xml)**
 
 ```xml
-<profile name="default">
-  <param name="max-members" value="10"/>
-  <param name="auto-record" value="true"/>
-</profile>
+<configuration name="verto.conf" description="HTML5 Verto">
+  <settings>
+    <param name="bind-local" value="0.0.0.0:8081"/>
+    <param name="secure-bind-local" value="0.0.0.0:8082"/>
+    <param name="enable-fs" value="true"/>
+  </settings>
+</configuration>
+```
+
+**2. Conference Configuration (conference.conf.xml)**
+
+```xml
+<configuration name="conference.conf" description="Conference">
+  <advertise>
+    <room name="default" status=""/>
+  </advertise>
+
+  <profiles>
+    <profile name="default">
+      <param name="domain" value="$${domain}"/>
+      <param name="rate" value="16000"/>
+      <param name="interval" value="20"/>
+      <param name="energy-level" value="300"/>
+      <param name="max-members" value="10"/>
+      <param name="auto-record" value="true"/>
+      <param name="caller-controls" value="default"/>
+    </profile>
+  </profiles>
+</configuration>
+```
+
+**3. Dialplan Configuration (dialplan/default.xml)**
+
+```xml
+<extension name="conference_rooms">
+  <condition field="destination_number" expression="^(5000)$">
+    <action application="answer"/>
+    <action application="conference" data="$1@default"/>
+  </condition>
+</extension>
+```
+
+#### Kamailio Example
+
+**1. WebSocket Configuration (kamailio.cfg)**
+
+```
+# WebSocket transport
+listen=tcp:0.0.0.0:5060
+listen=tls:0.0.0.0:5061
+listen=ws:0.0.0.0:8080
+listen=wss:0.0.0.0:4443
+
+# Load WebSocket module
+loadmodule "websocket.so"
+
+# WebSocket event route
+event_route[xhttp:request] {
+    if ($Rp != 8080 && $Rp != 4443) {
+        xhttp_reply("403", "Forbidden", "", "");
+        exit;
+    }
+
+    if ($hdr(Upgrade) =~ "websocket" && $hdr(Connection) =~ "Upgrade") {
+        if (ws_handle_handshake()) {
+            exit;
+        }
+    }
+    xhttp_reply("404", "Not Found", "", "");
+}
+```
+
+**2. Conference Module Configuration**
+
+```
+loadmodule "conference.so"
+
+modparam("conference", "db_url", "mysql://kamailio:password@localhost/kamailio")
 ```
 
 ## Architecture
@@ -379,6 +495,18 @@ await stopRecording()
 - Check if `sipClient.getConferenceAudioLevels()` is implemented
 - Verify WebRTC media is flowing (check browser DevTools)
 - Some servers may not support real-time audio level reporting
+- For Asterisk: Ensure `app_confbridge` is compiled with audio level support
+- For FreeSWITCH: Check that `mod_conference` has audio level indicators enabled
+
+**Debug Steps**:
+```javascript
+// Check if audio levels are being received
+onConferenceEvent((event) => {
+  if (event.type === 'audio:level') {
+    console.log('Audio levels:', event.levels)
+  }
+})
+```
 
 ### Recording Doesn't Work
 
@@ -390,6 +518,53 @@ await stopRecording()
 - Verify user has recording permissions
 - Check server configuration for recording path
 - Some servers require specific dial plans for recording
+
+**Asterisk Recording Setup**:
+```ini
+; In confbridge.conf
+[my_conference_bridge]
+record_conference=yes
+recording_file=/var/spool/asterisk/confbridge/conf-%s-%Y%m%d-%H%M%S.wav
+```
+
+**FreeSWITCH Recording Setup**:
+```xml
+<param name="auto-record" value="true"/>
+<param name="record-file-path" value="/usr/local/freeswitch/recordings"/>
+```
+
+### Mute/Unmute Not Working
+
+**Problem**: Mute/unmute commands don't affect participant audio
+
+**Solutions**:
+- Verify moderator has permissions to mute other participants
+- Check that the SIP server supports remote participant muting
+- Local participant muting should work immediately via WebRTC
+- Remote participant muting requires server-side support
+- Some servers require special permissions for moderator controls
+
+**Debug Steps**:
+```javascript
+// Check mute operation result
+try {
+  await muteParticipant(participantId)
+  console.log('Mute successful')
+} catch (error) {
+  console.error('Mute failed:', error)
+}
+```
+
+### Conference Cleanup Issues
+
+**Problem**: Conference doesn't end properly or participants remain connected
+
+**Solutions**:
+- Always call `endConference()` explicitly before component unmount
+- Check server logs for cleanup errors
+- Verify server timeout settings for idle conferences
+- Ensure network connection is stable during cleanup
+- Some servers may need explicit BYE messages for each participant
 
 ## Browser Compatibility
 

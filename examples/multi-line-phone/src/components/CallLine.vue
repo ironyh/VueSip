@@ -71,6 +71,8 @@
         <button
           @click.stop="showDtmfPad = !showDtmfPad"
           class="btn btn--secondary"
+          :class="{ active: showDtmfPad }"
+          :disabled="isOnHold"
           title="DTMF"
         >
           <span class="btn-icon">🔢</span>
@@ -104,8 +106,8 @@
       </template>
     </div>
 
-    <!-- DTMF Pad (shown when active) -->
-    <div v-if="showDtmfPad && (state === 'active' || isOnHold)" class="dtmf-pad">
+    <!-- DTMF Pad (shown when active and not on hold) -->
+    <div v-if="showDtmfPad && state === 'active' && !isOnHold" class="dtmf-pad">
       <div class="dtmf-grid">
         <button
           v-for="tone in dtmfTones"

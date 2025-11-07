@@ -70,16 +70,22 @@
 
     <!-- DTMF Dialpad -->
     <div class="dtmf-section">
-      <button class="toggle-dtmf" @click="showDialpad = !showDialpad">
+      <button
+        class="toggle-dtmf"
+        @click="showDialpad = !showDialpad"
+        :aria-label="showDialpad ? 'Hide dialpad' : 'Show dialpad'"
+        :aria-expanded="showDialpad"
+      >
         {{ showDialpad ? 'Hide' : 'Show' }} Dialpad
       </button>
 
-      <div v-if="showDialpad" class="dialpad">
+      <div v-if="showDialpad" class="dialpad" role="group" aria-label="DTMF dialpad">
         <button
           v-for="digit in dialpadDigits"
           :key="digit"
           class="dialpad-btn"
           @click="$emit('send-dtmf', digit)"
+          :aria-label="`Send DTMF tone ${digit}`"
         >
           {{ digit }}
         </button>
@@ -102,13 +108,14 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import type { CallSession } from 'vuesip'
 
 // ============================================================================
 // Props & Emits
 // ============================================================================
 
 const props = defineProps<{
-  session: any
+  session: CallSession | null
   state: string
   remoteUri: string | null
   remoteDisplayName: string | null

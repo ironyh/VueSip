@@ -63,10 +63,11 @@
           v-if="!isConnected"
           type="submit"
           class="btn btn--primary"
-          :disabled="!canConnect"
+          :disabled="!canConnect || isConnecting"
         >
-          <span class="btn-icon">🔌</span>
-          Connect
+          <span v-if="!isConnecting" class="btn-icon">🔌</span>
+          <span v-else class="btn-spinner"></span>
+          {{ isConnecting ? 'Connecting...' : 'Connect' }}
         </button>
         <button
           v-else
@@ -130,11 +131,13 @@ import { ref, computed, watch } from 'vue'
 interface Props {
   connected?: boolean
   registered?: boolean
+  isConnecting?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   connected: false,
   registered: false,
+  isConnecting: false,
 })
 
 // Emits
@@ -163,6 +166,7 @@ const config = ref<SipConfig>({
 
 const isConnected = ref(props.connected)
 const isRegistered = ref(props.registered)
+const isConnecting = ref(props.isConnecting)
 
 // Computed
 const canConnect = computed(() => {
@@ -216,6 +220,13 @@ watch(
   (value) => {
     isRegistered.value = value
     emit('update:registered', value)
+  }
+)
+
+watch(
+  () => props.isConnecting,
+  (value) => {
+    isConnecting.value = value
   }
 )
 </script>
@@ -456,5 +467,22 @@ watch(
   border-left: 4px solid #ffc107;
   border-radius: 4px;
   color: #856404;
+}
+
+/* Spinner */
+.btn-spinner {
+  width: 16px;
+  height: 16px;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  display: inline-block;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>

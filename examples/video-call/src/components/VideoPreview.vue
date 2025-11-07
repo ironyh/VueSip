@@ -7,6 +7,7 @@
       muted
       playsinline
       class="preview-video"
+      aria-label="Local video preview"
     ></video>
 
     <!-- No Video Placeholder -->

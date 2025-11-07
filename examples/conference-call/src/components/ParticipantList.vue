@@ -1,12 +1,17 @@
 <template>
-  <div class="card participant-list">
-    <h3>Participants</h3>
+  <div class="card participant-list" role="region" aria-label="Conference participants">
+    <h3 id="participants-heading">Participants</h3>
 
-    <div v-if="participants.length === 0" class="empty-state">
+    <div v-if="participants.length === 0" class="empty-state" role="status">
       <p>No participants yet. Add participants to start the conference.</p>
     </div>
 
-    <div v-else class="participants-grid">
+    <div
+      v-else
+      class="participants-grid"
+      role="list"
+      aria-labelledby="participants-heading"
+    >
       <ParticipantCard
         v-for="participant in participants"
         :key="participant.id"
@@ -31,16 +36,19 @@ import ParticipantCard from './ParticipantCard.vue'
  * Each participant is shown with their status and controls.
  */
 
-defineProps<{
+interface Props {
   participants: Participant[]
   localParticipantId?: string
-}>()
+}
 
-defineEmits<{
-  muteParticipant: [participantId: string]
-  unmuteParticipant: [participantId: string]
-  removeParticipant: [participantId: string]
-}>()
+interface Emits {
+  (e: 'muteParticipant', participantId: string): void
+  (e: 'unmuteParticipant', participantId: string): void
+  (e: 'removeParticipant', participantId: string): void
+}
+
+defineProps<Props>()
+defineEmits<Emits>()
 </script>
 
 <style scoped>

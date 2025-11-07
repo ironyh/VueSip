@@ -1,25 +1,41 @@
 <template>
-  <div class="conference-room">
+  <div class="conference-room" role="main" aria-label="Conference room">
     <!-- Conference Header -->
     <div class="card conference-header">
       <div class="header-content">
         <div class="conference-title">
-          <h2>Conference Room</h2>
-          <span v-if="isActive" class="status-badge status-connected">
+          <h2 id="conference-title">Conference Room</h2>
+          <span
+            v-if="isActive"
+            class="status-badge status-connected"
+            role="status"
+            aria-label="Conference status: active"
+          >
             Active
           </span>
-          <span v-else class="status-badge status-disconnected">
+          <span
+            v-else
+            class="status-badge status-disconnected"
+            role="status"
+            aria-label="Conference status: idle"
+          >
             Idle
           </span>
         </div>
 
-        <div v-if="isActive" class="participant-count">
+        <div
+          v-if="isActive"
+          class="participant-count"
+          role="status"
+          aria-live="polite"
+          aria-label="Current participant count"
+        >
           {{ participantCount }} {{ participantCount === 1 ? 'Participant' : 'Participants' }}
         </div>
       </div>
 
       <!-- Conference Controls -->
-      <div class="conference-controls">
+      <div class="conference-controls" role="group" aria-label="Conference control buttons">
         <button
           v-if="!isActive"
           @click="handleCreateConference"
@@ -81,9 +97,9 @@
     />
 
     <!-- Conference Events Log -->
-    <div v-if="eventLog.length > 0" class="card events-log">
+    <div v-if="eventLog.length > 0" class="card events-log" role="log" aria-label="Conference event log">
       <h3>Conference Events</h3>
-      <div class="events-list">
+      <div class="events-list" aria-live="polite">
         <div
           v-for="(event, index) in eventLog"
           :key="index"
@@ -98,11 +114,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import type { Ref } from 'vue'
 import type { SipClient } from 'vuesip'
 import { useConference } from 'vuesip'
-import type { ConferenceEvent } from 'vuesip'
+import type { ConferenceEvent, ParticipantUpdatedEvent } from 'vuesip'
 import ParticipantList from './ParticipantList.vue'
 import AddParticipantForm from './AddParticipantForm.vue'
 
@@ -328,8 +344,10 @@ const formatTime = (date: Date): string => {
 /**
  * Listen to conference events
  */
+let unsubscribeConferenceEvents: (() => void) | null = null
+
 onMounted(() => {
-  const unsubscribe = onConferenceEvent((event: ConferenceEvent) => {
+  unsubscribeConferenceEvents = onConferenceEvent((event: ConferenceEvent) => {
     console.log('Conference event:', event)
 
     // Log specific events
@@ -344,22 +362,29 @@ onMounted(() => {
           addEventLog(`${event.participant.displayName || event.participant.uri} left`)
         }
         break
-      case 'participant:updated':
-        // Only log mute changes
-        if (event.participant && 'isMuted' in (event as any).changes) {
-          const name = event.participant.displayName || event.participant.uri
-          addEventLog(`${name} ${event.participant.isMuted ? 'muted' : 'unmuted'}`)
+      case 'participant:updated': {
+        // Only log mute changes - properly typed
+        const updateEvent = event as ParticipantUpdatedEvent
+        if (updateEvent.participant && updateEvent.changes && 'isMuted' in updateEvent.changes) {
+          const name = updateEvent.participant.displayName || updateEvent.participant.uri
+          addEventLog(`${name} ${updateEvent.participant.isMuted ? 'muted' : 'unmuted'}`)
         }
         break
+      }
       case 'state:changed':
         addEventLog(`Conference state: ${event.state}`)
         break
     }
   })
+})
 
-  // Cleanup
-  return () => {
-    unsubscribe()
+/**
+ * Cleanup event listeners on unmount
+ */
+onUnmounted(() => {
+  if (unsubscribeConferenceEvents) {
+    unsubscribeConferenceEvents()
+    unsubscribeConferenceEvents = null
   }
 })
 </script>

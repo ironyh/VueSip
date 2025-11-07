@@ -90,15 +90,18 @@ import { ref } from 'vue'
  * Includes validation and quick-add buttons for testing.
  */
 
-defineProps<{
+interface Props {
   isLocked: boolean
   isFull: boolean
   maxParticipants: number
-}>()
+}
 
-const emit = defineEmits<{
-  addParticipant: [uri: string, displayName: string]
-}>()
+interface Emits {
+  (e: 'addParticipant', uri: string, displayName: string): void
+}
+
+defineProps<Props>()
+const emit = defineEmits<Emits>()
 
 const participantUri = ref('')
 const displayName = ref('')
@@ -107,39 +110,36 @@ const adding = ref(false)
 /**
  * Handle form submission
  */
-const handleSubmit = async () => {
+const handleSubmit = () => {
   if (!participantUri.value) {
     return
   }
 
-  try {
-    adding.value = true
+  adding.value = true
 
-    // Emit the add participant event
-    emit('addParticipant', participantUri.value, displayName.value)
+  // Emit the add participant event
+  emit('addParticipant', participantUri.value, displayName.value)
 
-    // Reset form
+  // Reset form and loading state after a short delay
+  // This gives the parent time to handle the request
+  setTimeout(() => {
     participantUri.value = ''
     displayName.value = ''
-  } catch (error) {
-    console.error('Failed to add participant:', error)
-  } finally {
     adding.value = false
-  }
+  }, 500)
 }
 
 /**
  * Quick add a participant with predefined values
  */
-const quickAdd = async (uri: string, name: string) => {
-  try {
-    adding.value = true
-    emit('addParticipant', uri, name)
-  } catch (error) {
-    console.error('Failed to quick add participant:', error)
-  } finally {
+const quickAdd = (uri: string, name: string) => {
+  adding.value = true
+  emit('addParticipant', uri, name)
+
+  // Reset loading state after a short delay
+  setTimeout(() => {
     adding.value = false
-  }
+  }, 500)
 }
 </script>
 

@@ -8,6 +8,12 @@
       </div>
     </div>
 
+    <!-- Notification Toast -->
+    <div v-if="notification" class="notification-toast" :class="notification.type">
+      <span>{{ notification.message }}</span>
+      <button class="close-btn" @click="notification = null" aria-label="Close notification">×</button>
+    </div>
+
     <!-- Connected State - Main Dashboard -->
     <div v-else class="dashboard">
       <!-- Header -->
@@ -111,12 +117,45 @@ interface QueuedCall {
 // State Management
 // ============================================================================
 
+// Load agent status from localStorage
+const loadAgentStatus = (): AgentStatus => {
+  try {
+    const saved = localStorage.getItem('callcenter:agentStatus')
+    if (saved && ['available', 'busy', 'away'].includes(saved)) {
+      return saved as AgentStatus
+    }
+  } catch (error) {
+    console.error('Failed to load agent status:', error)
+  }
+  return 'away'
+}
+
+// Save agent status to localStorage
+const saveAgentStatus = (status: AgentStatus) => {
+  try {
+    localStorage.setItem('callcenter:agentStatus', status)
+  } catch (error) {
+    console.error('Failed to save agent status:', error)
+  }
+}
+
 // Agent status
-const agentStatus = ref<AgentStatus>('away')
+const agentStatus = ref<AgentStatus>(loadAgentStatus())
 const currentCallNotes = ref('')
 
 // Call queue (simulated - in production this would come from the SIP server)
 const callQueue = ref<QueuedCall[]>([])
+
+// Error/notification state
+const notification = ref<{ type: 'success' | 'error' | 'info'; message: string } | null>(null)
+
+// Show notification helper
+const showNotification = (type: 'success' | 'error' | 'info', message: string, duration = 5000) => {
+  notification.value = { type, message }
+  setTimeout(() => {
+    notification.value = null
+  }, duration)
+}
 
 // ============================================================================
 // SIP Client Setup
@@ -164,6 +203,7 @@ const {
   getStatistics,
   setFilter,
   exportHistory,
+  updateCallMetadata,
 } = useCallHistory()
 
 // Statistics
@@ -239,13 +279,16 @@ const handleDisconnect = async () => {
   try {
     stopQueueSimulation()
     await disconnect()
+    showNotification('success', 'Disconnected from call center')
   } catch (error) {
     console.error('Disconnect failed:', error)
+    showNotification('error', 'Failed to disconnect: ' + (error instanceof Error ? error.message : 'Unknown error'))
   }
 }
 
 const updateAgentStatus = (status: AgentStatus) => {
   agentStatus.value = status
+  saveAgentStatus(status)
 
   // Start/stop queue simulation based on status
   if (status === 'available') {
@@ -265,13 +308,29 @@ const handleQueuedCallAnswer = async (queuedCall: QueuedCall) => {
 
     // Make the call (in real app, this would answer the queued call)
     await makeCall(queuedCall.from)
+    showNotification('success', `Connected to ${queuedCall.displayName || queuedCall.from}`)
   } catch (error) {
     console.error('Failed to answer queued call:', error)
+    showNotification('error', 'Failed to answer call: ' + (error instanceof Error ? error.message : 'Unknown error'))
+    // Re-add to queue if failed
+    callQueue.value.push(queuedCall)
   }
 }
 
 const handleHangup = async () => {
   try {
+    // Save call notes if any
+    if (currentCallNotes.value && callId.value) {
+      try {
+        updateCallMetadata(callId.value, {
+          notes: currentCallNotes.value,
+          agentName: getClient()?.configuration?.display_name || 'Unknown Agent',
+        })
+      } catch (notesError) {
+        console.error('Failed to save call notes:', notesError)
+      }
+    }
+
     await hangup()
 
     // Reset call notes
@@ -298,11 +357,11 @@ const handleSendDTMF = (digit: string) => {
   sendDTMF(digit)
 }
 
-const handleHistoryFilter = (filter: any) => {
+const handleHistoryFilter = (filter: Record<string, unknown> | null) => {
   setFilter(filter)
 }
 
-const handleHistoryExport = async (options: any) => {
+const handleHistoryExport = async (options: { format: string; filename?: string; includeMetadata?: boolean }) => {
   try {
     await exportHistory(options)
   } catch (error) {
@@ -313,8 +372,10 @@ const handleHistoryExport = async (options: any) => {
 const handleCallBack = async (uri: string) => {
   try {
     await makeCall(uri)
+    showNotification('info', `Calling ${uri}...`)
   } catch (error) {
     console.error('Failed to make callback:', error)
+    showNotification('error', 'Failed to make call: ' + (error instanceof Error ? error.message : 'Unknown error'))
   }
 }
 
@@ -326,7 +387,33 @@ const handleCallBack = async (uri: string) => {
 watch(isConnected, (connected) => {
   if (!connected) {
     stopQueueSimulation()
-    agentStatus.value = 'away'
+    const disconnectedStatus: AgentStatus = 'away'
+    agentStatus.value = disconnectedStatus
+    saveAgentStatus(disconnectedStatus)
+    callQueue.value = []
+  } else {
+    // Setup event bus listeners when connected
+    const eventBus = getEventBus()
+
+    // Handle incoming calls
+    eventBus.on('call:incoming', (event: any) => {
+      // Auto-answer if agent is available
+      if (agentStatus.value === 'available' && !isActive.value) {
+        console.log('Incoming call from:', event.remoteUri)
+        // The call will be automatically handled by useCallSession
+      }
+    })
+
+    // Handle call failures
+    eventBus.on('call:failed', (event: any) => {
+      console.error('Call failed:', event.cause)
+      showNotification('error', `Call failed: ${event.cause || 'Unknown error'}`)
+    })
+
+    // Handle call ended
+    eventBus.on('call:ended', (event: any) => {
+      showNotification('info', 'Call ended')
+    })
   }
 })
 
@@ -432,6 +519,68 @@ watch(isActive, (active) => {
   .sidebar,
   .history-panel {
     overflow-y: visible;
+  }
+}
+
+/* Notification Toast */
+.notification-toast {
+  position: fixed;
+  top: 80px;
+  right: 2rem;
+  padding: 1rem 1.5rem;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  z-index: 1000;
+  animation: slideIn 0.3s ease-out;
+  max-width: 400px;
+  border-left: 4px solid #3b82f6;
+}
+
+.notification-toast.success {
+  border-left-color: #10b981;
+}
+
+.notification-toast.error {
+  border-left-color: #ef4444;
+}
+
+.notification-toast.info {
+  border-left-color: #3b82f6;
+}
+
+.notification-toast .close-btn {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.notification-toast .close-btn:hover {
+  background: #f3f4f6;
+  color: #111827;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(400px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
   }
 }
 </style>
