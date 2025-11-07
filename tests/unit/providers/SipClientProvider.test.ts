@@ -40,6 +40,7 @@ vi.mock('@/core/EventBus', () => ({
     on: vi.fn(),
     once: vi.fn(),
     off: vi.fn(),
+    removeById: vi.fn(),
     emit: vi.fn(),
   })),
 }))
@@ -368,6 +369,7 @@ describe('SipClientProvider - Phase 7.1 Implementation', () => {
         }),
         once: vi.fn(),
         off: vi.fn(),
+        removeById: vi.fn(),
         emit: vi.fn(),
       }
 
@@ -413,6 +415,7 @@ describe('SipClientProvider - Phase 7.1 Implementation', () => {
         }),
         once: vi.fn(),
         off: vi.fn(),
+        removeById: vi.fn(),
         emit: vi.fn(),
       }
 
@@ -462,6 +465,7 @@ describe('SipClientProvider - Phase 7.1 Implementation', () => {
         }),
         once: vi.fn(),
         off: vi.fn(),
+        removeById: vi.fn(),
         emit: vi.fn(),
       }
 
@@ -490,6 +494,7 @@ describe('SipClientProvider - Phase 7.1 Implementation', () => {
         }),
         once: vi.fn(),
         off: vi.fn(),
+        removeById: vi.fn(),
         emit: vi.fn(),
       }
 
@@ -519,6 +524,7 @@ describe('SipClientProvider - Phase 7.1 Implementation', () => {
         }),
         once: vi.fn(),
         off: vi.fn(),
+        removeById: vi.fn(),
         emit: vi.fn(),
       }
 
@@ -547,6 +553,7 @@ describe('SipClientProvider - Phase 7.1 Implementation', () => {
         }),
         once: vi.fn(),
         off: vi.fn(),
+        removeById: vi.fn(),
         emit: vi.fn(),
       }
 
@@ -702,7 +709,7 @@ describe('SipClientProvider - Phase 7.1 Implementation', () => {
       vi.mocked(EventBus).mockImplementationOnce(() => {
         mockEventBus = {
           on: vi.fn().mockReturnValue('listener-id-1'),
-          off: vi.fn(),
+          removeById: vi.fn(),
         }
         return mockEventBus
       })
@@ -724,8 +731,8 @@ describe('SipClientProvider - Phase 7.1 Implementation', () => {
       wrapper.unmount()
       await flushPromises()
 
-      // Should have removed all event listeners
-      expect(mockEventBus.off).toHaveBeenCalled()
+      // Should have removed all event listeners by ID
+      expect(mockEventBus.removeById).toHaveBeenCalled()
     })
   })
 })
