@@ -1,87 +1,111 @@
 # Performance Optimization
 
-This guide covers performance optimization techniques for VueSip applications, including bundle size optimization, memory management, concurrent call handling, and network optimization.
+This guide covers performance optimization techniques for VueSip applications, helping you build fast, efficient VoIP applications that scale well and provide excellent user experience.
 
 ## Overview
 
-VueSip is designed with performance in mind, featuring:
+Performance is critical in real-time communication applications. A slow or resource-intensive VoIP application leads to poor call quality, dropped connections, and frustrated users. VueSip is designed with performance as a core principle, providing you with tools and patterns to build highly optimized applications.
 
-- **Small Bundle Size** - Optimized for minimal footprint with tree-shaking support
-- **Memory Efficient** - Proper cleanup and resource management
-- **Concurrent Calls** - Handle multiple simultaneous calls efficiently
-- **Network Optimized** - Smart reconnection and keep-alive strategies
-- **Performance Monitoring** - Built-in statistics and metrics collection
+**What This Guide Covers:**
+- **Bundle Size Optimization** - Keep your application lightweight and fast to load
+- **Memory Management** - Prevent memory leaks and manage resources efficiently
+- **Concurrent Call Handling** - Manage multiple simultaneous calls without degrading performance
+- **Network Optimization** - Ensure reliable connections and efficient data transfer
+- **Performance Monitoring** - Track and improve your application's performance over time
+
+### Core Performance Features
+
+VueSip provides these performance optimizations out of the box:
+
+- **Small Bundle Size** - Optimized for minimal footprint with tree-shaking support (under 150 KB minified)
+- **Memory Efficient** - Automatic cleanup and resource management prevent memory leaks
+- **Concurrent Calls** - Handle up to 4 simultaneous calls efficiently by default
+- **Network Optimized** - Smart reconnection and keep-alive strategies maintain stable connections
+- **Performance Monitoring** - Built-in statistics and metrics collection help you track performance
+
+---
 
 ## Bundle Size Optimization
 
-### Tree-Shaking Support
+**Why Bundle Size Matters:** Every kilobyte of JavaScript must be downloaded, parsed, and executed before your application becomes interactive. Smaller bundles mean faster load times, especially on mobile networks or for users with slower connections.
 
-VueSip is built with ES modules and supports tree-shaking out of the box. Import only what you need:
+### Understanding Tree-Shaking
+
+📝 **What is Tree-Shaking?** Tree-shaking is the process of removing unused code from your final bundle. Think of it like shaking a tree to remove dead leaves - only the "live" code you actually use ends up in your application.
+
+VueSip is built with ES modules (modern JavaScript module format) and supports tree-shaking out of the box. This means you only pay for what you use.
 
 ```typescript
-// Good - Import only what you need
+// ✅ BEST PRACTICE: Import only what you need
+// This allows your bundler to eliminate unused code
 import { useSipClient, useCallSession } from 'vuesip'
 
-// Avoid - Importing everything
+// ❌ AVOID: Importing everything prevents tree-shaking
+// Your bundle will include ALL of VueSip, even unused parts
 import * as VueSip from 'vuesip'
 ```
 
-### External Dependencies
+💡 **Tip:** Modern bundlers like Vite, Webpack 5+, and Rollup automatically perform tree-shaking when using ES module imports.
 
-VueSip externalizes peer dependencies to reduce bundle size:
+### Managing External Dependencies
+
+VueSip externalizes peer dependencies to avoid duplication and reduce bundle size:
 
 ```typescript
-// package.json
+// package.json configuration
 {
   "peerDependencies": {
-    "vue": "^3.4.0"
+    "vue": "^3.4.0"  // Your app provides Vue, not VueSip
   },
   "dependencies": {
-    "jssip": "^3.10.0",
-    "webrtc-adapter": "^9.0.0"
+    "jssip": "^3.10.0",          // SIP protocol implementation
+    "webrtc-adapter": "^9.0.0"   // WebRTC compatibility layer
   }
 }
 ```
 
-When building your application, ensure these dependencies are marked as external in your build configuration.
+📝 **Note:** When building your application, ensure peer dependencies are marked as external in your build configuration to prevent them from being bundled multiple times.
 
-### Module Formats
+### Module Formats Explained
 
-VueSip provides multiple module formats for different use cases:
+VueSip provides multiple module formats to support different build tools and environments:
 
 ```json
 {
   "exports": {
     ".": {
-      "import": "./dist/vuesip.js",      // ES Module (tree-shakable)
-      "require": "./dist/vuesip.cjs",    // CommonJS
-      "types": "./dist/index.d.ts"       // TypeScript definitions
+      "import": "./dist/vuesip.js",      // ES Module (modern, tree-shakable)
+      "require": "./dist/vuesip.cjs",    // CommonJS (legacy Node.js)
+      "types": "./dist/index.d.ts"       // TypeScript type definitions
     }
   }
 }
 ```
 
-**Recommendation**: Use the ES module format (`import`) for optimal tree-shaking.
+✅ **Recommendation:** Always use the ES module format (`import`) for optimal tree-shaking and smaller bundles.
 
-### Build Optimization
+### Build Optimization Strategy
 
-VueSip uses Vite with the following optimizations:
+📝 **What is Minification?** Minification removes whitespace, shortens variable names, and applies other transformations to reduce file size without changing functionality.
+
+VueSip uses Vite with carefully tuned optimization settings:
 
 ```typescript
-// vite.config.ts
+// vite.config.ts - VueSip's build configuration
 export default defineConfig({
   build: {
-    // Minification with Terser
+    // Use Terser for minification (more aggressive than esbuild)
     minify: 'terser',
     terserOptions: {
       compress: {
-        drop_console: false,    // Keep console logs for debugging
-        drop_debugger: true,    // Remove debugger statements
+        drop_console: false,    // Keep console.log for debugging
+        drop_debugger: true,    // Remove debugger statements in production
       },
     },
-    // Target modern browsers
+    // Target modern browsers for smaller output
+    // ES2020 = modern JavaScript features without polyfills
     target: 'es2020',
-    // Generate source maps
+    // Generate source maps for debugging production issues
     sourcemap: true,
   }
 })
@@ -89,30 +113,34 @@ export default defineConfig({
 
 ### Bundle Size Targets
 
-VueSip maintains strict bundle size targets:
+VueSip maintains strict size limits to ensure it stays lightweight:
 
 ```typescript
 export const PERFORMANCE = {
-  /** Maximum bundle size (minified) */
+  /** Maximum bundle size (minified) - raw JavaScript file */
   MAX_BUNDLE_SIZE: 150 * 1024,        // 150 KB
 
-  /** Maximum bundle size (gzipped) */
+  /** Maximum bundle size (gzipped) - what users actually download */
   MAX_BUNDLE_SIZE_GZIPPED: 50 * 1024, // 50 KB
 }
 ```
 
+💡 **Context:** Gzipped size matters most because web servers compress files before sending them. 50 KB gzipped is roughly equivalent to a small image - very reasonable for a full-featured VoIP library.
+
 ### Lazy Loading Composables
 
-For large applications, consider lazy loading composables:
+For large applications with many features, you can load VueSip functionality on-demand rather than upfront:
 
 ```vue
 <script setup lang="ts">
 import { defineAsyncComponent } from 'vue'
 
-// Lazy load heavy composables
+// Only load conference functionality when needed
+// This splits it into a separate chunk that loads on-demand
 const loadConference = () => import('vuesip').then(m => m.useConference)
 
 async function startConference() {
+  // Conference code is downloaded only when this function runs
   const { useConference } = await import('vuesip')
   const conference = useConference(sipClient)
   await conference.createConference()
@@ -120,230 +148,283 @@ async function startConference() {
 </script>
 ```
 
+💡 **When to Use Lazy Loading:**
+- Your app has features not all users need (e.g., conferencing)
+- You want to minimize initial page load time
+- You're building a large application with multiple sections
+
+⚠️ **Trade-off:** Lazy loading reduces initial bundle size but adds a slight delay when loading features on-demand.
+
 ### Code Splitting Strategy
 
-Split your SIP functionality into chunks:
+Split your SIP functionality across route boundaries so users only download what they need:
 
 ```typescript
-// routes.ts
+// routes.ts - Vue Router configuration
 const routes = [
   {
     path: '/call',
-    component: () => import('./views/CallView.vue'),  // Lazy load call features
+    // Call view loads only when user navigates to /call
+    component: () => import('./views/CallView.vue'),
   },
   {
     path: '/conference',
-    component: () => import('./views/ConferenceView.vue'),  // Lazy load conference
+    // Conference view loads only when user navigates to /conference
+    component: () => import('./views/ConferenceView.vue'),
   },
 ]
 ```
 
+✅ **Best Practice:** This is one of the most effective ways to reduce initial bundle size. A user making simple calls never downloads conference code.
+
+---
+
 ## Memory Management
 
-### Automatic Cleanup
+**Why Memory Management Matters:** Memory leaks cause applications to slow down over time and can crash browsers in long-running sessions. VoIP applications are particularly susceptible because they manage media streams, peer connections, and event listeners that must be properly cleaned up.
 
-VueSip composables automatically clean up resources when components unmount:
+### Automatic Cleanup with Composables
+
+The easiest way to avoid memory leaks is to use VueSip's composables, which automatically handle cleanup:
 
 ```vue
 <script setup lang="ts">
 import { useSipClient } from 'vuesip'
 
+// Create SIP client
 const sipClient = useSipClient(config)
 
-// Cleanup happens automatically on component unmount
-// No manual cleanup needed!
+// When this component unmounts, VueSip automatically:
+// - Stops all media streams
+// - Closes WebSocket connections
+// - Removes all event listeners
+// - Clears all timers and intervals
+// You don't need to do anything!
 </script>
 ```
 
+✅ **Best Practice:** Always prefer composables over direct class instantiation. They integrate with Vue's lifecycle and handle cleanup automatically.
+
 ### Manual Resource Management
 
-For manual control, use the cleanup methods:
+When using VueSip's classes directly (advanced usage), you're responsible for cleanup:
 
 ```typescript
 import { SipClient, EventBus, MediaManager } from 'vuesip'
 
-// Create instances
+// Step 1: Create instances
 const eventBus = new EventBus()
 const sipClient = new SipClient(config, eventBus)
 const mediaManager = new MediaManager({ eventBus })
 
-// Use instances...
+// Step 2: Use instances for your application...
 
-// Clean up when done
-sipClient.stop()              // Stop SIP client
-mediaManager.destroy()        // Clean up media resources
-eventBus.removeAllListeners() // Remove event listeners
+// Step 3: Clean up when done (e.g., on component unmount)
+sipClient.stop()              // Disconnect from SIP server
+mediaManager.destroy()        // Release media resources (camera, mic)
+eventBus.removeAllListeners() // Prevent memory leaks from listeners
 ```
+
+⚠️ **Warning:** Forgetting any of these cleanup calls will cause memory leaks in long-running applications.
 
 ### Media Stream Cleanup
 
-Always clean up media streams to prevent memory leaks:
+Media streams (camera/microphone access) are a common source of memory leaks:
 
 ```typescript
 import { useMediaDevices } from 'vuesip'
 
 const { localStream, stopLocalStream } = useMediaDevices()
 
-// When done with the stream
+// ✅ Method 1: Use the built-in cleanup (recommended)
 async function cleanup() {
-  await stopLocalStream()
+  await stopLocalStream()  // Stops all tracks and releases devices
 }
 
-// Or manually stop all tracks
+// ✅ Method 2: Manual cleanup (if needed)
 function manualCleanup() {
   if (localStream.value) {
+    // Stop each track individually
     localStream.value.getTracks().forEach(track => {
-      track.stop()
+      track.stop()  // Releases camera/mic for other applications
     })
   }
 }
 ```
 
+💡 **Why This Matters:** If you don't stop media tracks, the camera/microphone indicator stays on in the browser, and the devices remain locked to your application.
+
 ### Event Listener Management
 
-Properly manage event listeners to prevent memory leaks:
+Event listeners that aren't removed continue to execute even after components unmount, causing memory leaks:
 
 ```typescript
 import { EventBus } from 'vuesip'
 
 const eventBus = new EventBus()
 
-// Add listener
+// Add a listener
 const handler = (event) => console.log(event)
 eventBus.on('call:incoming', handler)
 
-// Remove specific listener
+// Remove specific listener (if you saved the reference)
 eventBus.off('call:incoming', handler)
 
-// Remove all listeners for an event
+// Remove all listeners for a specific event
 eventBus.removeAllListeners('call:incoming')
 
-// Remove ALL listeners (cleanup)
+// Remove ALL listeners (cleanup before destroying)
 eventBus.removeAllListeners()
 ```
 
+✅ **Best Practice:** If you add event listeners manually, always remove them in Vue's `onUnmounted` hook.
+
 ### Call Session Cleanup
 
-Call sessions automatically clean up when terminated:
+Call sessions automatically clean up all associated resources when terminated:
 
 ```typescript
 import { useCallSession } from 'vuesip'
 
 const { currentCall, hangup } = useCallSession()
 
-// Hang up cleans up:
-// - Media streams
-// - RTCPeerConnection
-// - Event listeners
-// - Timers
+// When you hang up, VueSip automatically cleans up:
+// ✓ Media streams (camera/mic)
+// ✓ RTCPeerConnection (WebRTC connection)
+// ✓ Event listeners
+// ✓ Timers and intervals
 await hangup()
 ```
 
-### Timer and Interval Management
+📝 **Note:** This automatic cleanup is another reason to prefer composables over direct class usage.
 
-VueSip automatically manages all timers and intervals:
+### Understanding Timer Management
+
+Timers and intervals that aren't cleared continue running and consuming memory:
 
 ```typescript
-// MediaManager cleanup
+// Example: MediaManager's cleanup process
 destroy(): void {
-  // Stop intervals
-  this.stopStatsCollection()      // Clears stats interval
-  this.stopQualityAdjustment()    // Clears quality interval
-  this.stopDeviceChangeMonitoring() // Removes device listeners
+  // Step 1: Stop all intervals
+  this.stopStatsCollection()      // Clears statistics collection interval
+  this.stopQualityAdjustment()    // Clears quality adjustment interval
+  this.stopDeviceChangeMonitoring() // Removes device change listeners
 
-  // Close peer connection
-  this.closePeerConnection()
+  // Step 2: Close network connections
+  this.closePeerConnection()      // Closes WebRTC peer connection
 
-  // Stop local stream
-  this.stopLocalStream()
+  // Step 3: Stop media streams
+  this.stopLocalStream()          // Stops camera/microphone
 
-  // Clear state
-  this.devices = []
-  this.remoteStream = undefined
+  // Step 4: Clear state
+  this.devices = []               // Release device references
+  this.remoteStream = undefined   // Release remote stream reference
 }
 ```
 
+💡 **Learning Point:** Good cleanup follows a pattern: stop active processes → close connections → stop streams → clear references.
+
 ### Memory Limits
 
-VueSip enforces memory limits for calls:
+VueSip enforces memory limits to prevent runaway memory usage:
 
 ```typescript
 export const PERFORMANCE = {
-  /** Maximum memory per call in bytes */
-  MAX_MEMORY_PER_CALL: 50 * 1024 * 1024, // 50 MB
+  /** Maximum memory per call in bytes (50 MB) */
+  MAX_MEMORY_PER_CALL: 50 * 1024 * 1024,
 
-  /** Default maximum call history entries */
+  /** Maximum number of call history entries to store */
   DEFAULT_MAX_HISTORY_ENTRIES: 1000,
 }
 ```
 
-Configure these limits based on your needs:
+You can configure these limits based on your application's needs:
 
 ```typescript
 import { callStore } from 'vuesip'
 
-// Set custom limits
-callStore.setMaxHistoryEntries(500)  // Limit history to 500 entries
+// Reduce history to 500 entries to save memory
+// Useful for applications with many calls
+callStore.setMaxHistoryEntries(500)
 ```
+
+💡 **When to Adjust:** Lower the history limit if you're building a call center application with hundreds of calls per day.
 
 ### Monitoring Memory Usage
 
-Monitor memory usage in development:
+During development, monitor memory usage to catch leaks early:
 
 ```typescript
 // Check memory usage (Chrome DevTools)
+// Note: Only available in Chrome and Edge
 if (performance.memory) {
-  console.log('Used JS Heap:', performance.memory.usedJSHeapSize)
-  console.log('Total JS Heap:', performance.memory.totalJSHeapSize)
-  console.log('Heap Limit:', performance.memory.jsHeapSizeLimit)
+  const usedMB = performance.memory.usedJSHeapSize / 1024 / 1024
+  const totalMB = performance.memory.totalJSHeapSize / 1024 / 1024
+  const limitMB = performance.memory.jsHeapSizeLimit / 1024 / 1024
+
+  console.log(`Used: ${usedMB.toFixed(2)} MB`)
+  console.log(`Total: ${totalMB.toFixed(2)} MB`)
+  console.log(`Limit: ${limitMB.toFixed(2)} MB`)
 }
 ```
 
+⚠️ **Warning:** If memory usage continuously grows after making and ending calls, you have a memory leak.
+
+---
+
 ## Concurrent Call Handling
+
+**Why This Matters:** Supporting multiple simultaneous calls is essential for many VoIP applications (call centers, conferencing, call forwarding). However, each call consumes CPU, memory, and network bandwidth. Proper management ensures your application remains responsive.
 
 ### Maximum Concurrent Calls
 
-Configure the maximum number of concurrent calls:
+VueSip limits concurrent calls by default to maintain performance:
 
 ```typescript
 import { callStore } from 'vuesip'
 
-// Default is 4 concurrent calls
+// Default limit: 4 concurrent calls
+// This balances functionality with performance
 const DEFAULT_MAX_CONCURRENT_CALLS = 4
 
-// Check if at limit
+// Check if at limit before making new calls
 if (callStore.isAtMaxCalls) {
-  console.log('Maximum concurrent calls reached')
+  console.log('Cannot make call: at maximum concurrent calls')
+  // Show user message or queue the call
 }
 
-// Get current count
-console.log('Active calls:', callStore.activeCallCount)
+// Get current active call count
+console.log(`Active calls: ${callStore.activeCallCount}`)
 ```
+
+💡 **Why 4 Calls?** Most browsers can handle 4 simultaneous WebRTC connections efficiently. Beyond that, you risk audio/video quality degradation.
 
 ### Call Queue Management
 
-VueSip manages incoming calls in a queue:
+When at capacity, queue incoming calls rather than rejecting them:
 
 ```typescript
 import { useCallSession } from 'vuesip'
 
 const { incomingCalls, answerCall } = useCallSession()
 
-// Handle queued incoming calls
+// Monitor the incoming call queue
 watch(incomingCalls, (calls) => {
   if (calls.length > 0) {
-    console.log(`${calls.length} incoming calls waiting`)
+    console.log(`${calls.length} calls waiting in queue`)
 
-    // Answer first call in queue
+    // Answer first call in queue (FIFO approach)
     const firstCall = calls[0]
     answerCall(firstCall.id)
   }
 })
 ```
 
-### Conference Calls
+✅ **Best Practice:** Implement a queue system for call centers where multiple calls arrive simultaneously.
 
-Handle multiple participants efficiently with conference calls:
+### Conference Calls for Multiple Participants
+
+For many participants, use conference calls instead of multiple individual calls:
 
 ```typescript
 import { useConference } from 'vuesip'
@@ -351,117 +432,149 @@ import { useConference } from 'vuesip'
 const sipClient = useSipClient(config)
 const conference = useConference(sipClient)
 
-// Create conference
+// Create a conference (more efficient than multiple peer-to-peer calls)
 const conferenceId = await conference.createConference({
-  maxParticipants: 10,  // Limit participants
-  locked: false,
-  recording: false,
+  maxParticipants: 10,  // Set reasonable limits
+  locked: false,        // Allow new participants
+  recording: false,     // Disable if not needed (saves bandwidth)
 })
 
-// Add participants
+// Add participants to the conference
 await conference.addParticipant('sip:user1@example.com')
 await conference.addParticipant('sip:user2@example.com')
 
 // Monitor participant count
 watch(() => conference.participantCount.value, (count) => {
   console.log(`Conference has ${count} participants`)
+
+  // Warn if approaching limit
+  if (count >= 8) {
+    console.warn('Conference approaching participant limit')
+  }
 })
 ```
 
+💡 **Why Conferences Are Better:** One conference with 10 people uses fewer resources than 10 separate peer-to-peer calls.
+
 ### Call State Management
 
-Efficiently manage call state with the call store:
+Efficiently access and manage call state:
 
 ```typescript
 import { callStore } from 'vuesip'
 
-// Access active calls
+// Access active calls (Map structure for O(1) lookup)
 const activeCalls = callStore.activeCalls        // Map<string, CallSession>
-const callsArray = callStore.activeCallsArray    // CallSession[]
+const callsArray = callStore.activeCallsArray    // CallSession[] for iteration
 
-// Get specific call
+// Get a specific call by ID
 const call = callStore.getCall('call-id-123')
+if (call) {
+  console.log(`Call status: ${call.status}`)
+}
 
-// Get established (active) calls only
+// Get only established (active) calls
+// Excludes calls that are ringing or connecting
 const establishedCalls = callStore.establishedCalls
 
-// Remove terminated calls
+// Clean up terminated calls to free memory
 callStore.removeCall('call-id-123')
 ```
 
-### Performance Considerations
+### Performance Considerations for Multiple Calls
 
-When handling multiple concurrent calls:
+**Guidelines for Concurrent Calls:**
 
-1. **Limit Active Calls**: Set a reasonable maximum (default: 4)
-2. **Use Call Queuing**: Queue incoming calls instead of rejecting
-3. **Monitor Resources**: Check CPU and memory usage
-4. **Clean Up Terminated Calls**: Remove calls from store when ended
-5. **Optimize Media**: Consider audio-only for multiple calls
+1. **Limit Active Calls** - Set a reasonable maximum based on your use case (default: 4)
+   ```typescript
+   // Before making a call
+   if (callStore.activeCallCount >= 4) {
+     showError('Maximum calls reached. Please end a call first.')
+     return
+   }
+   ```
+
+2. **Use Call Queuing** - Queue incoming calls instead of rejecting them outright
+3. **Monitor Resources** - Check CPU and memory usage with Chrome DevTools
+4. **Clean Up Terminated Calls** - Remove ended calls from the store promptly
+5. **Optimize Media Settings** - Consider audio-only for multiple simultaneous calls
 
 ```typescript
-// Example: Reject calls when at capacity
+// Example: Intelligent call rejection
 import { useCallSession } from 'vuesip'
 
 const { onIncomingCall } = useCallSession()
 
 onIncomingCall((call) => {
   if (callStore.activeCallCount >= 4) {
-    // Reject call with 486 Busy
+    // Send 486 Busy Here response
     call.reject()
+    console.log('Rejected call: at capacity')
   } else {
-    // Add to queue
+    // Accept call (add to queue or answer immediately)
     callStore.addIncomingCall(call.id)
   }
 })
 ```
 
+⚠️ **Warning:** Each active call consumes approximately 50 MB of memory and 5-15% CPU. Monitor your application's resource usage.
+
+---
+
 ## Network Optimization
+
+**Why Network Optimization Matters:** VoIP is extremely sensitive to network conditions. Poor network optimization leads to dropped calls, audio cutting out, and frustrated users. VueSip provides sophisticated network management to ensure stable, reliable connections.
 
 ### Connection Management
 
-VueSip uses smart connection management with the TransportManager:
+VueSip's TransportManager handles WebSocket connections with built-in resilience:
 
 ```typescript
 const transportConfig = {
+  // WebSocket server URL (secure WebSocket)
   url: 'wss://sip.example.com:7443',
 
-  // Connection timeout (default: 10s)
-  connectionTimeout: 10000,
+  // How long to wait for connection before timing out
+  connectionTimeout: 10000,  // 10 seconds
 
-  // Max reconnection attempts (default: 5)
+  // How many times to retry connecting after failure
   maxReconnectionAttempts: 5,
 
-  // Keep-alive interval (default: 30s)
+  // Send keep-alive packets every 30 seconds
+  // Prevents firewalls/proxies from closing idle connections
   keepAliveInterval: 30000,
 
-  // Keep-alive type: 'crlf' or 'options'
+  // Type of keep-alive: 'crlf' (lightweight) or 'options' (SIP OPTIONS)
   keepAliveType: 'crlf',
 
-  // Enable auto-reconnect (default: true)
+  // Automatically reconnect if connection drops
   autoReconnect: true,
 }
 ```
 
-### Exponential Backoff
+💡 **Real-World Scenario:** A user's phone switches from WiFi to cellular data. With `autoReconnect: true`, VueSip automatically reconnects without user intervention.
 
-Reconnection uses exponential backoff to prevent server overload:
+### Understanding Exponential Backoff
+
+📝 **What is Exponential Backoff?** When reconnection fails, VueSip waits longer before each retry. This prevents overwhelming a struggling server with connection attempts.
 
 ```typescript
-// Reconnection delays
+// Reconnection delay pattern
 const RECONNECTION_DELAYS = [2000, 4000, 8000, 16000, 32000] // milliseconds
 
-// Delay increases with each attempt:
-// Attempt 1: 2s
-// Attempt 2: 4s
-// Attempt 3: 8s
-// Attempt 4: 16s
-// Attempt 5: 32s
+// How it works:
+// Attempt 1: Wait 2 seconds before retry
+// Attempt 2: Wait 4 seconds before retry
+// Attempt 3: Wait 8 seconds before retry
+// Attempt 4: Wait 16 seconds before retry
+// Attempt 5: Wait 32 seconds before retry (final attempt)
 ```
+
+💡 **Why This Helps:** If 1000 users lose connection simultaneously, exponential backoff staggers reconnection attempts, preventing server overload.
 
 ### Keep-Alive Strategies
 
-Two keep-alive strategies are supported:
+Keep-alive packets prevent firewalls and proxies from closing idle connections:
 
 #### CRLF Keep-Alive (Recommended)
 
@@ -471,198 +584,238 @@ import { useSipClient } from 'vuesip'
 const sipClient = useSipClient({
   uri: 'wss://sip.example.com:7443',
   wsOptions: {
-    keepAliveType: 'crlf',        // Send CRLF pings
+    keepAliveType: 'crlf',        // Send CRLF (carriage return + line feed)
     keepAliveInterval: 30000,     // Every 30 seconds
   }
 })
 ```
 
-#### OPTIONS Keep-Alive
+✅ **Why CRLF?** It's extremely lightweight (2 bytes) and keeps the connection alive without SIP protocol overhead.
+
+#### OPTIONS Keep-Alive (Alternative)
 
 ```typescript
 const sipClient = useSipClient({
   uri: 'wss://sip.example.com:7443',
   wsOptions: {
-    keepAliveType: 'options',     // Send SIP OPTIONS
+    keepAliveType: 'options',     // Send SIP OPTIONS request
     keepAliveInterval: 30000,
   }
 })
 ```
 
+📝 **When to Use OPTIONS:** Some SIP servers require proper SIP messages for keep-alive. Check your server's requirements.
+
 ### ICE Optimization
 
-Optimize ICE candidate gathering:
+📝 **What is ICE?** Interactive Connectivity Establishment (ICE) is the process of finding the best path for audio/video between two peers, especially through firewalls and NAT.
 
 ```typescript
 const rtcConfiguration = {
   iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },  // Public STUN
+    // STUN server: helps discover your public IP address
+    { urls: 'stun:stun.l.google.com:19302' },
+
+    // TURN server: relays traffic when direct connection fails
+    // Required for users behind strict firewalls
     {
-      urls: 'turn:turn.example.com:3478',      // TURN for NAT traversal
+      urls: 'turn:turn.example.com:3478',
       username: 'user',
       credential: 'pass',
     },
   ],
 
   // ICE transport policy
-  iceTransportPolicy: 'all',  // 'all' or 'relay'
+  // 'all': Try direct connection first, use TURN as fallback
+  // 'relay': Force all traffic through TURN (more privacy, higher latency)
+  iceTransportPolicy: 'all',
 
-  // Bundle policy (recommended: 'max-bundle')
+  // Bundle policy: 'max-bundle' reduces ICE candidates
+  // All media goes through one network connection (more efficient)
   bundlePolicy: 'max-bundle',
 
-  // RTCP Mux policy
+  // RTCP Mux: Combine RTP and RTCP on same port (saves network resources)
   rtcpMuxPolicy: 'require',
 }
 ```
 
+💡 **Cost Consideration:** TURN servers relay all your traffic and can be expensive. Use STUN when possible; TURN as fallback.
+
 ### ICE Gathering Timeout
 
-VueSip uses a timeout to prevent hanging:
+VueSip prevents indefinite waiting during ICE candidate gathering:
 
 ```typescript
 export const ICE_GATHERING_TIMEOUT = 5000  // 5 seconds
 
-// If ICE gathering takes longer, proceed anyway
-// This prevents indefinite waiting
+// If ICE gathering takes longer than 5 seconds, proceed anyway
+// This prevents calls from hanging indefinitely
 ```
+
+⚠️ **What This Means:** If optimal ICE candidates aren't ready after 5 seconds, VueSip proceeds with whatever candidates are available. This trades optimal quality for reliability.
 
 ### SDP Optimization
 
-Optimize SDP for better performance:
+📝 **What is SDP?** Session Description Protocol describes media capabilities (codecs, formats) negotiated between peers.
 
 ```typescript
 import { useCallSession } from 'vuesip'
 
 const { makeCall } = useCallSession()
 
-// Make call with optimized options
+// Make call with optimized audio settings
 await makeCall('sip:user@example.com', {
   mediaConstraints: {
     audio: {
-      echoCancellation: true,
-      noiseSuppression: true,
-      autoGainControl: true,
-      sampleRate: 48000,
-      channelCount: 1,  // Mono saves bandwidth
+      echoCancellation: true,     // Remove echo (essential for VoIP)
+      noiseSuppression: true,     // Reduce background noise
+      autoGainControl: true,      // Normalize volume levels
+      sampleRate: 48000,          // High quality audio (48 kHz)
+      channelCount: 1,            // Mono saves ~50% bandwidth vs stereo
     },
-    video: false,  // Audio-only for better performance
+    video: false,  // Audio-only uses ~10x less bandwidth than video
   },
 })
 ```
 
+✅ **Best Practice:** Use audio-only calls when video isn't necessary. This significantly improves performance and reliability.
+
 ### Bandwidth Management
 
-Control bandwidth usage:
+Understanding codec efficiency helps you optimize bandwidth usage:
 
 ```typescript
 // Audio codec preferences (ordered by efficiency)
 const AUDIO_CODECS = [
-  'opus',   // Best quality, adaptive bitrate
-  'G722',   // Wideband
-  'PCMU',   // G.711 µ-law
-  'PCMA',   // G.711 A-law
+  'opus',   // BEST: Adaptive bitrate, excellent quality, 6-510 Kbps
+  'G722',   // GOOD: Wideband audio, 64 Kbps
+  'PCMU',   // OK: G.711 µ-law, 64 Kbps
+  'PCMA',   // OK: G.711 A-law, 64 Kbps
 ]
 
 // Video codec preferences
 const VIDEO_CODECS = [
-  'VP8',    // Required by WebRTC
-  'VP9',    // Better compression than VP8
-  'H264',   // Widely supported
+  'VP8',    // Required by WebRTC, good quality
+  'VP9',    // Better compression than VP8 (~30% savings)
+  'H264',   // Widely supported, hardware acceleration
 ]
 ```
 
+💡 **Opus Codec:** Opus is the best choice for VoIP. It dynamically adjusts quality based on network conditions, using less bandwidth when needed.
+
 ### Network Quality Monitoring
 
-Monitor network quality with statistics:
+Monitor real-time network statistics to detect and respond to quality issues:
 
 ```typescript
 import { useCallSession } from 'vuesip'
 
 const { currentCall, statistics } = useCallSession()
 
-// Monitor statistics every second
+// Statistics update every second
 watch(statistics, (stats) => {
   if (stats) {
-    console.log('Audio stats:', {
-      packetsLost: stats.audio.packetsLost,
-      packetsSent: stats.audio.packetsSent,
-      jitter: stats.audio.jitter,
-      roundTripTime: stats.network.roundTripTime,
-    })
+    const audioQuality = {
+      packetsLost: stats.audio.packetsLost,      // How many packets didn't arrive
+      packetsSent: stats.audio.packetsSent,      // Total packets sent
+      jitter: stats.audio.jitter,                // Variation in packet arrival (ms)
+      roundTripTime: stats.network.roundTripTime, // Latency (ms)
+    }
 
-    // Adjust quality based on network conditions
+    console.log('Audio quality:', audioQuality)
+
+    // Alert on poor quality
     if (stats.audio.packetsLost > 100) {
-      console.warn('High packet loss detected')
+      console.warn('High packet loss detected - poor call quality likely')
+      // Could trigger automatic quality adjustment
+    }
+
+    // Calculate packet loss percentage
+    const lossPercent = (stats.audio.packetsLost / stats.audio.packetsSent) * 100
+    if (lossPercent > 5) {
+      console.warn(`${lossPercent.toFixed(2)}% packet loss`)
     }
   }
 })
 ```
 
+📝 **Understanding Metrics:**
+- **Packet Loss:** Acceptable <1%, noticeable >5%, unusable >10%
+- **Jitter:** Acceptable <30ms, noticeable >50ms
+- **Round Trip Time:** Good <100ms, acceptable <300ms, poor >500ms
+
+---
+
 ## Performance Monitoring
+
+**Why Monitor Performance:** You can't improve what you don't measure. Performance monitoring helps you identify bottlenecks, catch regressions, and ensure optimal user experience.
 
 ### Statistics Collection
 
-Enable statistics collection for performance monitoring:
+VueSip automatically collects detailed performance statistics:
 
 ```typescript
 import { MediaManager } from 'vuesip'
 
 const mediaManager = new MediaManager({
   eventBus,
-  autoQualityAdjustment: true,  // Enable automatic quality adjustment
+  // Enable automatic quality adjustment based on network conditions
+  autoQualityAdjustment: true,
 })
 
-// Statistics are collected every 1000ms
+// Statistics collected every second
 export const STATS_COLLECTION_INTERVAL = 1000
 ```
 
+💡 **Automatic Quality Adjustment:** When enabled, VueSip reduces quality (e.g., bitrate) when network conditions degrade, maintaining a stable call.
+
 ### Available Metrics
 
-VueSip collects comprehensive metrics:
+VueSip provides comprehensive metrics for monitoring:
 
 ```typescript
 interface MediaStatistics {
   audio: {
-    packetsLost: number
-    packetsSent: number
-    packetsReceived: number
-    bytesSent: number
-    bytesReceived: number
-    jitter: number
-    codecName?: string
-    bitrate?: number
+    packetsLost: number        // Packets that didn't arrive
+    packetsSent: number        // Total packets sent
+    packetsReceived: number    // Total packets received
+    bytesSent: number          // Total bytes sent
+    bytesReceived: number      // Total bytes received
+    jitter: number             // Packet arrival time variation (ms)
+    codecName?: string         // Codec being used (e.g., 'opus')
+    bitrate?: number           // Current bitrate (bits per second)
   }
 
   video: {
-    packetsLost: number
-    framesSent: number
-    framesReceived: number
-    framesDropped: number
-    codecName?: string
-    bitrate?: number
+    packetsLost: number        // Video packets lost
+    framesSent: number         // Video frames sent
+    framesReceived: number     // Video frames received
+    framesDropped: number      // Frames dropped (performance issue)
+    codecName?: string         // Video codec (e.g., 'VP8')
+    bitrate?: number           // Video bitrate
   }
 
   network: {
-    roundTripTime: number
-    availableOutgoingBitrate?: number
-    availableIncomingBitrate?: number
-    currentRoundTripTime?: number
+    roundTripTime: number            // Latency in milliseconds
+    availableOutgoingBitrate?: number // Estimated upload bandwidth
+    availableIncomingBitrate?: number // Estimated download bandwidth
+    currentRoundTripTime?: number     // Current RTT
   }
 
-  timestamp: Date
+  timestamp: Date  // When these stats were collected
 }
 ```
 
-### Custom Monitoring
+### Custom Performance Monitoring
 
-Implement custom performance monitoring:
+Implement custom monitoring for specific metrics:
 
 ```typescript
 import { EventBus } from 'vuesip'
 
 const eventBus = new EventBus()
 
-// Monitor call setup time
+// Monitor call setup time (how long to establish connection)
 let callStartTime: number
 
 eventBus.on('call:outgoing', () => {
@@ -673,59 +826,74 @@ eventBus.on('call:accepted', () => {
   const setupTime = Date.now() - callStartTime
   console.log(`Call setup time: ${setupTime}ms`)
 
-  // Target: < 2 seconds
+  // Target: < 2 seconds for good UX
   if (setupTime > 2000) {
     console.warn('Call setup time exceeded target')
+    // Could send to analytics service
   }
 })
 
-// Monitor event propagation time
+// Monitor event system performance
 eventBus.on('*', (event) => {
+  // Check how long it took for event to propagate
   const propagationTime = Date.now() - event.timestamp.getTime()
+
+  // Events should propagate nearly instantly
   if (propagationTime > 10) {
-    console.warn(`Slow event propagation: ${propagationTime}ms`)
+    console.warn(`Slow event propagation: ${propagationTime}ms for ${event.type}`)
+    // Indicates potential performance issues
   }
 })
 ```
 
 ### Performance Targets
 
-VueSip defines performance targets:
+VueSip defines target metrics for optimal performance:
 
 ```typescript
 export const PERFORMANCE = {
-  /** Target call setup time in milliseconds */
-  TARGET_CALL_SETUP_TIME: 2000,           // 2 seconds
+  /** Target call setup time: 2 seconds */
+  // From makeCall() to hearing audio
+  TARGET_CALL_SETUP_TIME: 2000,
 
-  /** Maximum state update latency in milliseconds */
-  MAX_STATE_UPDATE_LATENCY: 50,           // 50ms
+  /** Maximum state update latency: 50ms */
+  // Reactive state changes should be nearly instant
+  MAX_STATE_UPDATE_LATENCY: 50,
 
-  /** Maximum event propagation time in milliseconds */
-  MAX_EVENT_PROPAGATION_TIME: 10,         // 10ms
+  /** Maximum event propagation time: 10ms */
+  // Events should dispatch and handle quickly
+  MAX_EVENT_PROPAGATION_TIME: 10,
 
-  /** Target CPU usage during call (percentage) */
-  TARGET_CPU_USAGE: 15,                   // 15%
+  /** Target CPU usage during call: 15% */
+  // One active call should use minimal CPU
+  TARGET_CPU_USAGE: 15,
 }
 ```
 
+💡 **Use These as Benchmarks:** If your application exceeds these targets, investigate potential performance issues.
+
+---
+
 ## Performance Benchmarking
+
+**Why Benchmark:** Benchmarking provides objective data about your application's performance, helps catch regressions during development, and guides optimization efforts.
 
 ### Call Setup Benchmark
 
-Measure call setup performance:
+Measure how long it takes to establish calls:
 
 ```typescript
 async function benchmarkCallSetup() {
-  const iterations = 10
+  const iterations = 10  // Run 10 calls for statistical significance
   const times: number[] = []
 
   for (let i = 0; i < iterations; i++) {
     const start = performance.now()
 
-    // Make call
+    // Initiate call
     await makeCall('sip:test@example.com')
 
-    // Wait for acceptance
+    // Wait for call to be accepted
     await new Promise(resolve => {
       eventBus.once('call:accepted', resolve)
     })
@@ -733,34 +901,45 @@ async function benchmarkCallSetup() {
     const end = performance.now()
     times.push(end - start)
 
-    // Hang up
+    // Clean up
     await hangup()
 
-    // Wait between iterations
+    // Wait between iterations to ensure clean state
     await new Promise(resolve => setTimeout(resolve, 1000))
   }
 
+  // Calculate statistics
   const average = times.reduce((a, b) => a + b) / times.length
+  const min = Math.min(...times)
+  const max = Math.max(...times)
+
   console.log(`Average call setup time: ${average.toFixed(2)}ms`)
-  console.log(`Min: ${Math.min(...times).toFixed(2)}ms`)
-  console.log(`Max: ${Math.max(...times).toFixed(2)}ms`)
+  console.log(`Min: ${min.toFixed(2)}ms`)
+  console.log(`Max: ${max.toFixed(2)}ms`)
+
+  // Check against target
+  if (average > 2000) {
+    console.warn('⚠️ Call setup time exceeds 2-second target')
+  } else {
+    console.log('✅ Call setup time within target')
+  }
 }
 ```
 
 ### Memory Benchmark
 
-Monitor memory usage during calls:
+Monitor memory usage to detect memory leaks:
 
 ```typescript
 async function benchmarkMemory() {
   const measurements: number[] = []
 
-  // Measure baseline
+  // Measure baseline memory (before any calls)
   if (performance.memory) {
     measurements.push(performance.memory.usedJSHeapSize)
   }
 
-  // Make multiple calls
+  // Make multiple calls and measure memory after each
   for (let i = 0; i < 5; i++) {
     await makeCall(`sip:user${i}@example.com`)
 
@@ -769,7 +948,7 @@ async function benchmarkMemory() {
     }
   }
 
-  // Calculate memory per call
+  // Calculate memory usage per call
   const baseline = measurements[0]
   const final = measurements[measurements.length - 1]
   const memoryPerCall = (final - baseline) / 5
@@ -777,69 +956,87 @@ async function benchmarkMemory() {
   console.log(`Baseline: ${(baseline / 1024 / 1024).toFixed(2)} MB`)
   console.log(`Final: ${(final / 1024 / 1024).toFixed(2)} MB`)
   console.log(`Memory per call: ${(memoryPerCall / 1024 / 1024).toFixed(2)} MB`)
+
+  // Check against target (50 MB per call)
+  if (memoryPerCall > 50 * 1024 * 1024) {
+    console.warn('⚠️ Memory per call exceeds 50 MB target')
+  } else {
+    console.log('✅ Memory usage within target')
+  }
 }
 ```
 
+⚠️ **Note:** `performance.memory` is only available in Chrome and Edge, not Firefox or Safari.
+
 ### Bundle Size Analysis
 
-Analyze your bundle size:
+Analyze your bundle to identify optimization opportunities:
 
 ```bash
-# Build with bundle analysis
+# Build your application
 npm run build
 
-# Check output
+# Check output file sizes
 ls -lh dist/
 
-# Analyze bundle composition (using vite-bundle-visualizer)
+# Example output:
+# vuesip.js       145 KB (minified)
+# vuesip.js.gz     48 KB (gzipped)
+
+# Analyze bundle composition with visualizer
 npx vite-bundle-visualizer
 ```
 
-### Performance Testing Script
+💡 **What to Look For:**
+- Unexpectedly large dependencies
+- Duplicate packages
+- Opportunities for code splitting
 
-Create a comprehensive performance test:
+### Comprehensive Performance Test Suite
+
+Create a reusable test suite for regular performance testing:
 
 ```typescript
 // performance-test.ts
 import { useSipClient, useCallSession, callStore } from 'vuesip'
 
 async function runPerformanceTests() {
-  console.log('Starting VueSip Performance Tests...\n')
+  console.log('🚀 Starting VueSip Performance Tests...\n')
 
-  // 1. Connection test
-  console.log('1. Testing connection speed...')
+  // Test 1: Connection Speed
+  console.log('1️⃣ Testing connection speed...')
   const connectionStart = performance.now()
   await sipClient.connect()
   const connectionTime = performance.now() - connectionStart
-  console.log(`   Connection time: ${connectionTime.toFixed(2)}ms\n`)
+  console.log(`   ✓ Connection time: ${connectionTime.toFixed(2)}ms\n`)
 
-  // 2. Registration test
-  console.log('2. Testing registration speed...')
+  // Test 2: Registration Speed
+  console.log('2️⃣ Testing registration speed...')
   const regStart = performance.now()
   await sipClient.register()
   const regTime = performance.now() - regStart
-  console.log(`   Registration time: ${regTime.toFixed(2)}ms\n`)
+  console.log(`   ✓ Registration time: ${regTime.toFixed(2)}ms\n`)
 
-  // 3. Call setup test
-  console.log('3. Testing call setup...')
+  // Test 3: Call Setup Performance
+  console.log('3️⃣ Testing call setup performance...')
   await benchmarkCallSetup()
   console.log()
 
-  // 4. Concurrent calls test
-  console.log('4. Testing concurrent calls...')
+  // Test 4: Concurrent Calls
+  console.log('4️⃣ Testing concurrent calls...')
   const calls = []
   for (let i = 0; i < 4; i++) {
     calls.push(makeCall(`sip:test${i}@example.com`))
   }
   await Promise.all(calls)
-  console.log(`   Active calls: ${callStore.activeCallCount}`)
-  console.log(`   Memory usage: ${getMemoryUsage()}\n`)
+  console.log(`   ✓ Active calls: ${callStore.activeCallCount}`)
+  console.log(`   ✓ Memory usage: ${getMemoryUsage()}\n`)
 
-  // 5. Memory leak test
-  console.log('5. Testing for memory leaks...')
+  // Test 5: Memory Leak Detection
+  console.log('5️⃣ Testing for memory leaks...')
   await testMemoryLeaks()
 
-  console.log('\nPerformance tests complete!')
+  console.log('\n✅ Performance tests complete!')
 }
 
 function getMemoryUsage(): string {
@@ -847,13 +1044,14 @@ function getMemoryUsage(): string {
     const used = performance.memory.usedJSHeapSize
     return `${(used / 1024 / 1024).toFixed(2)} MB`
   }
-  return 'N/A'
+  return 'N/A (not supported in this browser)'
 }
 
 async function testMemoryLeaks() {
   const iterations = 10
   const measurements: number[] = []
 
+  // Make and end calls repeatedly
   for (let i = 0; i < iterations; i++) {
     await makeCall('sip:test@example.com')
     await hangup()
@@ -863,113 +1061,197 @@ async function testMemoryLeaks() {
     }
   }
 
-  // Check for memory growth
+  // Check for memory growth over iterations
   const first = measurements[0]
   const last = measurements[measurements.length - 1]
-  const growth = ((last - first) / first * 100).toFixed(2)
+  const growth = ((last - first) / first * 100)
 
-  console.log(`   Memory growth: ${growth}%`)
-  if (parseFloat(growth) > 10) {
-    console.warn('   WARNING: Potential memory leak detected!')
+  console.log(`   Memory growth: ${growth.toFixed(2)}%`)
+
+  // More than 10% growth indicates potential leak
+  if (growth > 10) {
+    console.warn('   ⚠️ WARNING: Potential memory leak detected!')
   } else {
-    console.log('   ✓ No memory leaks detected')
+    console.log('   ✅ No memory leaks detected')
   }
 }
 
-// Run tests
+// Run the test suite
 runPerformanceTests().catch(console.error)
 ```
 
+💡 **Best Practice:** Run this test suite regularly (e.g., in CI/CD pipeline) to catch performance regressions early.
+
+---
+
 ## Best Practices
 
-### General Performance Tips
+### General Performance Guidelines
 
-1. **Use Tree-Shaking**: Import only what you need
-2. **Clean Up Resources**: Always clean up when done
-3. **Limit Concurrent Calls**: Set reasonable limits (default: 4)
-4. **Monitor Statistics**: Track metrics in production
-5. **Use Audio-Only**: Video requires significantly more resources
-6. **Optimize ICE**: Use appropriate STUN/TURN servers
-7. **Enable Compression**: Use efficient codecs (Opus for audio)
-8. **Lazy Load**: Load features on demand
-9. **Cache Configuration**: Reuse SIP client instances
-10. **Profile Regularly**: Use Chrome DevTools Performance tab
+**Core Principles:**
 
-### Production Checklist
+1. **✅ Use Tree-Shaking** - Import only what you need to minimize bundle size
+2. **✅ Clean Up Resources** - Always clean up media streams, connections, and listeners
+3. **✅ Limit Concurrent Calls** - Set reasonable limits (default: 4) based on your use case
+4. **✅ Monitor Statistics** - Track performance metrics in production
+5. **✅ Prefer Audio-Only** - Video requires ~10x more resources than audio
+6. **✅ Optimize ICE** - Use appropriate STUN/TURN servers for your network topology
+7. **✅ Use Efficient Codecs** - Opus for audio, VP8/VP9 for video
+8. **✅ Lazy Load Features** - Load features on-demand to reduce initial bundle size
+9. **✅ Cache Configuration** - Reuse SIP client instances instead of recreating
+10. **✅ Profile Regularly** - Use Chrome DevTools Performance tab to identify bottlenecks
 
-- [ ] Bundle size under 150 KB (50 KB gzipped)
-- [ ] Tree-shaking enabled
-- [ ] Proper cleanup in all components
-- [ ] Memory usage monitored
-- [ ] Concurrent call limits configured
-- [ ] Network reconnection tested
-- [ ] Statistics collection enabled
-- [ ] Performance benchmarks run
-- [ ] Memory leak tests passed
-- [ ] Production builds optimized
+### Production Readiness Checklist
 
-### Common Pitfalls
+Before deploying to production, verify:
 
-**1. Forgetting to Clean Up**
+- [ ] **Bundle size under 150 KB** (50 KB gzipped)
+- [ ] **Tree-shaking enabled** in build configuration
+- [ ] **Proper cleanup** in all components (no memory leaks)
+- [ ] **Memory usage monitored** with performance benchmarks
+- [ ] **Concurrent call limits** configured appropriately
+- [ ] **Network reconnection** tested with simulated failures
+- [ ] **Statistics collection** enabled for monitoring
+- [ ] **Performance benchmarks** run and passing
+- [ ] **Memory leak tests** passed
+- [ ] **Production builds** optimized and minified
+
+### Common Pitfalls to Avoid
+
+#### ❌ Pitfall 1: Forgetting to Clean Up
+
 ```typescript
-// ❌ Bad: No cleanup
+// ❌ BAD: No cleanup (memory leak)
 const { connect } = useSipClient(config)
 await connect()
+// Component unmounts but connection stays open
 
-// ✅ Good: Automatic cleanup with composable
-// Or manual cleanup when using classes
-sipClient.stop()
+// ✅ GOOD: Automatic cleanup with composable
+// Composables automatically clean up on unmount
+
+// ✅ GOOD: Manual cleanup when using classes
+onUnmounted(() => {
+  sipClient.stop()
+})
 ```
 
-**2. Too Many Concurrent Calls**
+#### ❌ Pitfall 2: Too Many Concurrent Calls
+
 ```typescript
-// ❌ Bad: No limits
-for (let i = 0; i < 20; i++) {
+// ❌ BAD: No limits, could make 20+ calls
+for (let i = 0; i < users.length; i++) {
   await makeCall(`sip:user${i}@example.com`)
 }
 
-// ✅ Good: Respect limits
+// ✅ GOOD: Respect limits
 if (!callStore.isAtMaxCalls) {
   await makeCall(targetUri)
+} else {
+  console.log('At maximum calls, queueing...')
+  queueCall(targetUri)
 }
 ```
 
-**3. Not Monitoring Performance**
+#### ❌ Pitfall 3: Not Monitoring Performance
+
 ```typescript
-// ❌ Bad: No monitoring
+// ❌ BAD: No performance tracking
 await makeCall(uri)
 
-// ✅ Good: Monitor performance
+// ✅ GOOD: Monitor call setup time
 const start = performance.now()
 await makeCall(uri)
-console.log(`Call setup: ${performance.now() - start}ms`)
+const setupTime = performance.now() - start
+console.log(`Call setup: ${setupTime}ms`)
+
+// Track in analytics
+analytics.track('call_setup_time', { duration: setupTime })
 ```
 
-**4. Inefficient State Updates**
+#### ❌ Pitfall 4: Inefficient State Updates
+
 ```typescript
-// ❌ Bad: Direct mutations
+// ❌ BAD: Direct mutation (bypasses reactivity)
 activeCalls.value.push(newCall)
 
-// ✅ Good: Use store methods
+// ✅ GOOD: Use store methods (proper reactivity)
 callStore.addCall(newCall)
+```
+
+#### ❌ Pitfall 5: Importing Entire Library
+
+```typescript
+// ❌ BAD: Imports everything (no tree-shaking)
+import * as VueSip from 'vuesip'
+const client = VueSip.useSipClient(config)
+
+// ✅ GOOD: Named imports (tree-shakable)
+import { useSipClient } from 'vuesip'
+const client = useSipClient(config)
 ```
 
 ### Performance Optimization Workflow
 
-1. **Measure**: Use Chrome DevTools to identify bottlenecks
-2. **Analyze**: Check bundle size, memory usage, network
-3. **Optimize**: Apply relevant optimizations
-4. **Test**: Verify improvements with benchmarks
-5. **Monitor**: Track metrics in production
-6. **Iterate**: Continuously improve
+**Follow this iterative process:**
+
+1. **📊 Measure** - Use Chrome DevTools to identify bottlenecks
+   - Performance tab for CPU usage
+   - Memory tab for memory leaks
+   - Network tab for bandwidth usage
+
+2. **🔍 Analyze** - Understand what's causing issues
+   - Bundle size too large?
+   - Memory usage growing?
+   - Network quality poor?
+
+3. **⚡ Optimize** - Apply relevant optimizations
+   - Implement tree-shaking
+   - Add lazy loading
+   - Fix memory leaks
+
+4. **✅ Test** - Verify improvements with benchmarks
+   - Run performance test suite
+   - Compare before/after metrics
+
+5. **📈 Monitor** - Track metrics in production
+   - Set up error tracking
+   - Monitor performance metrics
+   - Alert on regressions
+
+6. **🔄 Iterate** - Continuously improve
+   - Review metrics regularly
+   - Optimize new bottlenecks
+   - Update based on user feedback
+
+---
 
 ## Conclusion
 
-VueSip is optimized for performance out of the box, but understanding these optimization techniques will help you build faster, more efficient VoIP applications. Regular monitoring and testing ensure your application maintains optimal performance as it grows.
+VueSip is optimized for performance out of the box, providing you with a solid foundation for building high-quality VoIP applications. By understanding and applying these optimization techniques, you can ensure your application:
 
-For more information, see:
+- **Loads quickly** with minimal bundle size
+- **Runs efficiently** without memory leaks
+- **Handles multiple calls** smoothly
+- **Maintains stable connections** even on unreliable networks
+- **Provides excellent user experience** with low latency and high quality
 
-- [Getting Started](./getting-started.md)
-- [Making Calls](./making-calls.md)
-- [Device Management](./device-management.md)
-- [API Reference](/api/)
+### Key Takeaways
+
+💡 **Use composables** - They handle cleanup automatically and integrate with Vue's lifecycle
+
+💡 **Monitor performance** - You can't improve what you don't measure
+
+💡 **Start simple** - Don't over-optimize prematurely. Profile first, then optimize what matters
+
+💡 **Test regularly** - Run performance benchmarks in your CI/CD pipeline
+
+### Next Steps
+
+Now that you understand performance optimization, explore these related topics:
+
+- [Getting Started](./getting-started.md) - Set up your first VueSip application
+- [Making Calls](./making-calls.md) - Learn call management patterns
+- [Device Management](./device-management.md) - Optimize media device handling
+- [API Reference](/api/) - Detailed API documentation
+
+**Remember:** Performance optimization is an ongoing process. Regular monitoring and testing ensure your application maintains optimal performance as it grows and evolves.
