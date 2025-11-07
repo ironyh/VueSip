@@ -4,13 +4,14 @@
  * @packageDocumentation
  */
 
-import JsSIP, { type UA, type UAConfiguration, type Socket } from 'jssip'
+import JsSIP, { type UA, type Socket } from 'jssip'
+import type { UAConfiguration } from 'jssip/lib/UA'
 import type { EventBus } from './EventBus'
 import type { SipClientConfig, ValidationResult } from '@/types/config.types'
-import type {
+import {
   RegistrationState,
   ConnectionState,
-  AuthenticationCredentials,
+  type AuthenticationCredentials,
 } from '@/types/sip.types'
 import { createLogger } from '@/utils/logger'
 import { validateSipConfig } from '@/utils/validators'
@@ -58,7 +59,6 @@ export class SipClient {
   private config: SipClientConfig
   private eventBus: EventBus
   private state: SipClientState
-  private registrator: any = null
   private isStarting = false
   private isStopping = false
 
@@ -66,8 +66,8 @@ export class SipClient {
     this.config = config
     this.eventBus = eventBus
     this.state = {
-      connectionState: 'disconnected',
-      registrationState: 'unregistered',
+      connectionState: ConnectionState.Disconnected,
+      registrationState: RegistrationState.Unregistered,
     }
 
     // Enable JsSIP debug mode if configured
@@ -170,7 +170,7 @@ export class SipClient {
 
       // Start UA (connect to WebSocket)
       logger.info('Starting SIP client')
-      this.updateConnectionState('connecting')
+      this.updateConnectionState(ConnectionState.Connecting)
       this.ua.start()
 
       // Wait for connection
@@ -184,7 +184,7 @@ export class SipClient {
       }
     } catch (error) {
       logger.error('Failed to start SIP client:', error)
-      this.updateConnectionState('connection_failed')
+      this.updateConnectionState(ConnectionState.ConnectionFailed)
       throw error
     } finally {
       this.isStarting = false
@@ -220,10 +220,9 @@ export class SipClient {
 
       // Clear UA instance
       this.ua = null
-      this.registrator = null
 
-      this.updateConnectionState('disconnected')
-      this.updateRegistrationState('unregistered')
+      this.updateConnectionState(ConnectionState.Disconnected)
+      this.updateRegistrationState(RegistrationState.Unregistered)
 
       logger.info('SIP client stopped successfully')
     } catch (error) {
@@ -252,7 +251,7 @@ export class SipClient {
     }
 
     logger.info('Registering with SIP server')
-    this.updateRegistrationState('registering')
+    this.updateRegistrationState(RegistrationState.Registering)
 
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
@@ -262,7 +261,7 @@ export class SipClient {
       const onSuccess = () => {
         clearTimeout(timeout)
         logger.info('Registration successful')
-        this.updateRegistrationState('registered')
+        this.updateRegistrationState(RegistrationState.Registered)
         this.state.registeredUri = this.config.sipUri
         this.state.lastRegistrationTime = new Date()
         this.state.registrationExpiry = this.config.registrationOptions?.expires ?? 600
@@ -272,16 +271,16 @@ export class SipClient {
       const onFailure = (cause: any) => {
         clearTimeout(timeout)
         logger.error('Registration failed:', cause)
-        this.updateRegistrationState('registration_failed')
+        this.updateRegistrationState(RegistrationState.RegistrationFailed)
         reject(new Error(`Registration failed: ${cause}`))
       }
 
       // Register using JsSIP
-      this.ua.register()
+      this.ua!.register()
 
       // Listen for registration events
-      this.ua.once('registered', onSuccess)
-      this.ua.once('registrationFailed', onFailure)
+      this.ua!.once('registered', onSuccess)
+      this.ua!.once('registrationFailed', onFailure)
     })
   }
 
@@ -299,7 +298,7 @@ export class SipClient {
     }
 
     logger.info('Unregistering from SIP server')
-    this.updateRegistrationState('unregistering')
+    this.updateRegistrationState(RegistrationState.Unregistering)
 
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
@@ -309,7 +308,7 @@ export class SipClient {
       const onSuccess = () => {
         clearTimeout(timeout)
         logger.info('Unregistration successful')
-        this.updateRegistrationState('unregistered')
+        this.updateRegistrationState(RegistrationState.Unregistered)
         this.state.registeredUri = undefined
         this.state.lastRegistrationTime = undefined
         this.state.registrationExpiry = undefined
@@ -395,7 +394,7 @@ export class SipClient {
     // Connection events
     this.ua.on('connected', (e: any) => {
       logger.debug('UA connected')
-      this.updateConnectionState('connected')
+      this.updateConnectionState(ConnectionState.Connected)
       this.eventBus.emitSync('sip:connected', {
         timestamp: new Date(),
         transport: e.socket?.url,
@@ -404,7 +403,7 @@ export class SipClient {
 
     this.ua.on('disconnected', (e: any) => {
       logger.debug('UA disconnected:', e)
-      this.updateConnectionState('disconnected')
+      this.updateConnectionState(ConnectionState.Disconnected)
       this.eventBus.emitSync('sip:disconnected', {
         timestamp: new Date(),
         error: e.error,
@@ -413,13 +412,13 @@ export class SipClient {
 
     this.ua.on('connecting', (_e: any) => {
       logger.debug('UA connecting')
-      this.updateConnectionState('connecting')
+      this.updateConnectionState(ConnectionState.Connecting)
     })
 
     // Registration events
     this.ua.on('registered', (e: any) => {
       logger.info('UA registered')
-      this.updateRegistrationState('registered')
+      this.updateRegistrationState(RegistrationState.Registered)
       this.state.registeredUri = this.config.sipUri
       this.state.lastRegistrationTime = new Date()
       this.eventBus.emitSync('sip:registered', {
@@ -431,7 +430,7 @@ export class SipClient {
 
     this.ua.on('unregistered', (e: any) => {
       logger.info('UA unregistered')
-      this.updateRegistrationState('unregistered')
+      this.updateRegistrationState(RegistrationState.Unregistered)
       this.state.registeredUri = undefined
       this.eventBus.emitSync('sip:unregistered', {
         timestamp: new Date(),
@@ -441,7 +440,7 @@ export class SipClient {
 
     this.ua.on('registrationFailed', (e: any) => {
       logger.error('UA registration failed:', e)
-      this.updateRegistrationState('registration_failed')
+      this.updateRegistrationState(RegistrationState.RegistrationFailed)
       this.eventBus.emitSync('sip:registration_failed', {
         timestamp: new Date(),
         cause: e.cause,
@@ -662,7 +661,6 @@ export class SipClient {
       this.ua.stop()
       this.ua = null
     }
-    this.registrator = null
   }
 }
 
