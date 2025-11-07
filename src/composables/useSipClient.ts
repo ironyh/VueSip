@@ -13,7 +13,7 @@ import { EventBus } from '@/core/EventBus'
 import { configStore } from '@/stores/configStore'
 import { registrationStore } from '@/stores/registrationStore'
 import type { SipClientConfig, ValidationResult } from '@/types/config.types'
-import type { ConnectionState, RegistrationState } from '@/types/sip.types'
+import { ConnectionState, RegistrationState } from '@/types/sip.types'
 import { createLogger } from '@/utils/logger'
 
 const logger = createLogger('useSipClient')
