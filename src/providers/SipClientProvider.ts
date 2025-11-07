@@ -44,7 +44,7 @@ import {
 import { SipClient } from '@/core/SipClient'
 import { EventBus } from '@/core/EventBus'
 import type { SipClientConfig } from '@/types/config.types'
-import type { ConnectionState, RegistrationState } from '@/types/sip.types'
+import { ConnectionState, RegistrationState } from '@/types/sip.types'
 import { createLogger } from '@/utils/logger'
 import { validateSipConfig } from '@/utils/validators'
 
@@ -225,8 +225,8 @@ export const SipClientProvider = defineComponent({
     const client = ref<SipClient | null>(null)
 
     // Reactive state
-    const connectionState = ref<ConnectionState>('disconnected')
-    const registrationState = ref<RegistrationState>('unregistered')
+    const connectionState = ref<ConnectionState>(ConnectionState.Disconnected)
+    const registrationState = ref<RegistrationState>(RegistrationState.Unregistered)
     const isReady = ref(false)
     const error = ref<Error | null>(null)
 
@@ -278,7 +278,7 @@ export const SipClientProvider = defineComponent({
       // Connection events
       const connectedId = eventBus.value.on('sip:connected', () => {
         logger.info('SIP client connected')
-        connectionState.value = 'connected'
+        connectionState.value = ConnectionState.Connected
         emit('connected')
 
         // Auto-register if enabled
@@ -301,8 +301,8 @@ export const SipClientProvider = defineComponent({
         'sip:disconnected',
         (data?: SipEventDisconnectedData) => {
           logger.info('SIP client disconnected', data)
-          connectionState.value = 'disconnected'
-          registrationState.value = 'unregistered'
+          connectionState.value = ConnectionState.Disconnected
+          registrationState.value = RegistrationState.Unregistered
           isReady.value = false
 
           const errorObj = data?.error ? new Error(data.error) : undefined
@@ -313,14 +313,14 @@ export const SipClientProvider = defineComponent({
 
       const connectingId = eventBus.value.on('sip:connecting', () => {
         logger.debug('SIP client connecting')
-        connectionState.value = 'connecting'
+        connectionState.value = ConnectionState.Connecting
       })
       eventListenerIds.value.push(connectingId)
 
       // Registration events
       const registeredId = eventBus.value.on('sip:registered', (data: SipEventRegisteredData) => {
         logger.info('SIP client registered', data)
-        registrationState.value = 'registered'
+        registrationState.value = RegistrationState.Registered
         isReady.value = true
         emit('registered', data.uri)
         emit('ready')
@@ -329,14 +329,14 @@ export const SipClientProvider = defineComponent({
 
       const unregisteredId = eventBus.value.on('sip:unregistered', () => {
         logger.info('SIP client unregistered')
-        registrationState.value = 'unregistered'
+        registrationState.value = RegistrationState.Unregistered
         emit('unregistered')
       })
       eventListenerIds.value.push(unregisteredId)
 
       const registeringId = eventBus.value.on('sip:registering', () => {
         logger.debug('SIP client registering')
-        registrationState.value = 'registering'
+        registrationState.value = RegistrationState.Registering
       })
       eventListenerIds.value.push(registeringId)
 
@@ -344,7 +344,7 @@ export const SipClientProvider = defineComponent({
         'sip:registration_failed',
         (data: SipEventRegistrationFailedData) => {
           logger.error('SIP registration failed', data)
-          registrationState.value = 'unregistered'
+          registrationState.value = RegistrationState.Unregistered
           const errorObj = new Error(`Registration failed: ${data.cause}`)
           error.value = errorObj
           emit('error', errorObj)
@@ -433,8 +433,8 @@ export const SipClientProvider = defineComponent({
       client.value = null
       isReady.value = false
       error.value = null
-      connectionState.value = 'disconnected'
-      registrationState.value = 'unregistered'
+      connectionState.value = ConnectionState.Disconnected
+      registrationState.value = RegistrationState.Unregistered
     }
 
     /**
@@ -455,8 +455,8 @@ export const SipClientProvider = defineComponent({
       }
 
       // Reset state
-      connectionState.value = 'disconnected'
-      registrationState.value = 'unregistered'
+      connectionState.value = ConnectionState.Disconnected
+      registrationState.value = RegistrationState.Unregistered
       isReady.value = false
       error.value = null
 
