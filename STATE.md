@@ -2083,106 +2083,400 @@ Phase 10.1 (Unit Tests) has been **substantially completed** with comprehensive 
 
 ## Phase 11: Documentation
 
-### 11.1 Code Documentation
+**Note:** Tasks in Phase 11 are organized to minimize conflicts. Each task operates on different files/directories, allowing multiple contributors to work in parallel.
 
-- [ ] Add JSDoc/TSDoc comments
-  - Document all public APIs
-  - Add parameter descriptions
-  - Add return value descriptions
-  - Add usage examples in code
-  - Add @since and @deprecated tags
+### 11.1 Composables Documentation (Independent Tasks)
 
-- [ ] Add inline comments
-  - Document complex logic
-  - Explain algorithm choices
-  - Document browser quirks
-  - Note performance considerations
+Each task documents a single composable with JSDoc/TSDoc comments:
 
-### 11.2 API Documentation
+- [ ] Document useSipClient composable
+  - **Files:** `src/composables/useSipClient.ts`
+  - Add JSDoc comments to all exported functions and types
+  - Add parameter descriptions and return value docs
+  - Add usage examples in JSDoc
+  - Add @since, @example, and @throws tags
 
-- [ ] Generate API documentation with TypeDoc
-  - Configure TypeDoc
-  - Generate HTML documentation
-  - Customize documentation theme
-  - Deploy to documentation site
+- [ ] Document useSipRegistration composable
+  - **Files:** `src/composables/useSipRegistration.ts`
+  - Add JSDoc comments to all exported functions and types
+  - Add parameter descriptions and return value docs
+  - Add usage examples in JSDoc
+  - Add @since, @example, and @throws tags
 
-- [ ] Create API reference manually
-  - Document all composables
-  - Document all types
-  - Document all providers
-  - Document plugin system
-  - Document event system
+- [ ] Document useCallSession composable
+  - **Files:** `src/composables/useCallSession.ts`
+  - Add JSDoc comments to all exported functions and types
+  - Add parameter descriptions and return value docs
+  - Add usage examples in JSDoc
+  - Add @since, @example, and @throws tags
 
-### 11.3 User Guides
+- [ ] Document useMediaDevices composable
+  - **Files:** `src/composables/useMediaDevices.ts`
+  - Add JSDoc comments to all exported functions and types
+  - Add parameter descriptions and return value docs
+  - Add usage examples in JSDoc
+  - Add @since, @example, and @throws tags
+
+- [ ] Document useCallControls composable
+  - **Files:** `src/composables/useCallControls.ts`
+  - Add JSDoc comments to all exported functions and types
+  - Add parameter descriptions and return value docs
+  - Add usage examples in JSDoc
+  - Add @since, @example, and @throws tags
+
+- [ ] Document useCallHistory composable
+  - **Files:** `src/composables/useCallHistory.ts`
+  - Add JSDoc comments to all exported functions and types
+  - Add parameter descriptions and return value docs
+  - Add usage examples in JSDoc
+  - Add @since, @example, and @throws tags
+
+- [ ] Document useDTMF composable
+  - **Files:** `src/composables/useDTMF.ts`
+  - Add JSDoc comments to all exported functions and types
+  - Add parameter descriptions and return value docs
+  - Add usage examples in JSDoc
+  - Add @since, @example, and @throws tags
+
+- [ ] Document usePresence composable
+  - **Files:** `src/composables/usePresence.ts`
+  - Add JSDoc comments to all exported functions and types
+  - Add parameter descriptions and return value docs
+  - Add usage examples in JSDoc
+  - Add @since, @example, and @throws tags
+
+- [ ] Document useMessaging composable
+  - **Files:** `src/composables/useMessaging.ts`
+  - Add JSDoc comments to all exported functions and types
+  - Add parameter descriptions and return value docs
+  - Add usage examples in JSDoc
+  - Add @since, @example, and @throws tags
+
+- [ ] Document useConference composable
+  - **Files:** `src/composables/useConference.ts`
+  - Add JSDoc comments to all exported functions and types
+  - Add parameter descriptions and return value docs
+  - Add usage examples in JSDoc
+  - Add @since, @example, and @throws tags
+
+### 11.2 Core Classes Documentation (Independent Tasks)
+
+- [ ] Document EventBus class
+  - **Files:** `src/core/EventBus.ts`
+  - Add comprehensive JSDoc comments
+  - Document event patterns and best practices
+  - Add usage examples
+
+- [ ] Document SipClient class
+  - **Files:** `src/core/SipClient.ts`
+  - Add comprehensive JSDoc comments
+  - Document SIP flows and state transitions
+  - Add usage examples
+
+- [ ] Document CallSession class
+  - **Files:** `src/core/CallSession.ts`
+  - Add comprehensive JSDoc comments
+  - Document call lifecycle and state machine
+  - Add usage examples
+
+- [ ] Document MediaManager class
+  - **Files:** `src/core/MediaManager.ts`
+  - Add comprehensive JSDoc comments
+  - Document WebRTC flows and device handling
+  - Add usage examples
+
+- [ ] Document TransportManager class
+  - **Files:** `src/core/TransportManager.ts`
+  - Add comprehensive JSDoc comments
+  - Document reconnection logic and WebSocket handling
+  - Add usage examples
+
+### 11.3 Provider Components Documentation (Independent Tasks)
+
+- [ ] Document SipClientProvider component
+  - **Files:** `src/providers/SipClientProvider.ts`
+  - Add comprehensive JSDoc comments
+  - Document props, events, and provide/inject pattern
+  - Add usage examples
+
+- [ ] Document ConfigProvider component
+  - **Files:** `src/providers/ConfigProvider.ts`
+  - Add comprehensive JSDoc comments
+  - Document configuration merging and validation
+  - Add usage examples
+
+- [ ] Document MediaProvider component
+  - **Files:** `src/providers/MediaProvider.ts`
+  - Add comprehensive JSDoc comments
+  - Document device management and permissions
+  - Add usage examples
+
+### 11.4 Plugin System Documentation (Independent Tasks)
+
+- [ ] Document PluginManager
+  - **Files:** `src/plugins/PluginManager.ts`
+  - Add comprehensive JSDoc comments
+  - Document plugin lifecycle and registration
+  - Add usage examples
+
+- [ ] Document HookManager
+  - **Files:** `src/plugins/HookManager.ts`
+  - Add comprehensive JSDoc comments
+  - Document hook priorities and execution
+  - Add usage examples
+
+- [ ] Document AnalyticsPlugin
+  - **Files:** `src/plugins/AnalyticsPlugin.ts`
+  - Add comprehensive JSDoc comments
+  - Document configuration options and event tracking
+  - Add usage examples
+
+- [ ] Document RecordingPlugin
+  - **Files:** `src/plugins/RecordingPlugin.ts`
+  - Add comprehensive JSDoc comments
+  - Document recording options and storage
+  - Add usage examples
+
+### 11.5 User Guides (Independent Tasks)
+
+Each guide is a separate markdown file in `docs/guide/`:
 
 - [ ] Write Getting Started guide
+  - **Files:** `docs/guide/getting-started.md`
   - Installation instructions
   - Basic setup example
   - First call example
   - Configuration overview
   - Common use cases
 
-- [ ] Write feature guides
-  - Making calls guide
-  - Receiving calls guide
-  - Call controls guide (hold, mute, transfer)
-  - Device management guide
-  - Call history guide
-  - Presence and messaging guide
-  - Error handling guide
-  - Security best practices
-  - Performance optimization guide
+- [ ] Write Making Calls guide
+  - **Files:** `docs/guide/making-calls.md`
+  - Outgoing call setup
+  - Call options and media constraints
+  - Handling call events
+  - Error handling
 
-- [ ] Create example applications
-  - Basic audio call app
-  - Video call application
-  - Multi-line phone app
-  - Conference call app
-  - Call center example
+- [ ] Write Receiving Calls guide
+  - **Files:** `docs/guide/receiving-calls.md`
+  - Incoming call detection
+  - Auto-answer configuration
+  - Answer/reject options
+  - Call queuing
 
-### 11.4 Developer Documentation
+- [ ] Write Call Controls guide
+  - **Files:** `docs/guide/call-controls.md`
+  - Hold/unhold functionality
+  - Mute/unmute controls
+  - DTMF tone sending
+  - Call transfer (blind and attended)
 
-- [ ] Write architecture documentation
+- [ ] Write Device Management guide
+  - **Files:** `docs/guide/device-management.md`
+  - Enumerating devices
+  - Device selection
+  - Permission handling
+  - Device testing
+
+- [ ] Write Call History guide
+  - **Files:** `docs/guide/call-history.md`
+  - Tracking call history
+  - Filtering and searching
+  - Export functionality
+  - Persistence
+
+- [ ] Write Presence and Messaging guide
+  - **Files:** `docs/guide/presence-messaging.md`
+  - SIP presence (SUBSCRIBE/NOTIFY)
+  - Sending/receiving messages
+  - Composing indicators
+  - Status management
+
+- [ ] Write Error Handling guide
+  - **Files:** `docs/guide/error-handling.md`
+  - Error types and patterns
+  - Recovery strategies
+  - Logging and debugging
+  - Common issues and solutions
+
+- [ ] Write Security Best Practices guide
+  - **Files:** `docs/guide/security.md`
+  - Credential storage
+  - Transport security (WSS/TLS)
+  - Media encryption (DTLS-SRTP)
+  - Input validation
+
+- [ ] Write Performance Optimization guide
+  - **Files:** `docs/guide/performance.md`
+  - Bundle size optimization
+  - Memory management
+  - Concurrent call handling
+  - Network optimization
+
+### 11.6 Example Applications (Independent Tasks)
+
+Each example is a separate directory in `examples/`:
+
+- [ ] Create Basic Audio Call example
+  - **Files:** `examples/basic-audio-call/`
+  - Simple one-to-one audio call
+  - Minimal UI with call controls
+  - README with setup instructions
+
+- [ ] Create Video Call example
+  - **Files:** `examples/video-call/`
+  - One-to-one video call
+  - Camera selection and preview
+  - README with setup instructions
+
+- [ ] Create Multi-Line Phone example
+  - **Files:** `examples/multi-line-phone/`
+  - Multiple concurrent calls
+  - Call switching and holding
+  - README with setup instructions
+
+- [ ] Create Conference Call example
+  - **Files:** `examples/conference-call/`
+  - Multi-party conference
+  - Participant management
+  - README with setup instructions
+
+- [ ] Create Call Center example
+  - **Files:** `examples/call-center/`
+  - Call queue management
+  - Agent dashboard
+  - Call history and analytics
+  - README with setup instructions
+
+### 11.7 API Reference Pages (Independent Tasks)
+
+Each section is a separate markdown file in `docs/api/`:
+
+- [ ] Create Composables API reference
+  - **Files:** `docs/api/composables.md`
+  - Document all composable APIs
+  - Include type signatures
+  - Link to source code
+
+- [ ] Create Types API reference
+  - **Files:** `docs/api/types.md`
+  - Document all exported types
+  - Include interface definitions
+  - Show inheritance relationships
+
+- [ ] Create Providers API reference
+  - **Files:** `docs/api/providers.md`
+  - Document provider components
+  - Document props and events
+  - Show usage patterns
+
+- [ ] Create Plugin System API reference
+  - **Files:** `docs/api/plugins.md`
+  - Document plugin interface
+  - Document hook system
+  - Show plugin examples
+
+- [ ] Create Event System API reference
+  - **Files:** `docs/api/events.md`
+  - Document all event types
+  - Document EventBus API
+  - Show event patterns
+
+- [ ] Create Utilities API reference
+  - **Files:** `docs/api/utilities.md`
+  - Document utility functions
+  - Document validators and formatters
+  - Include usage examples
+
+### 11.8 Developer Documentation (Independent Tasks)
+
+- [ ] Write Architecture documentation
+  - **Files:** `docs/developer/architecture.md`
   - Create system architecture diagram
   - Document component relationships
   - Create data flow diagrams
   - Document state management flow
 
-- [ ] Write contributing guide
+- [ ] Write Contributing guide
+  - **Files:** `CONTRIBUTING.md`
   - Code style guidelines
   - Testing requirements
   - Pull request process
-  - Issue reporting template
   - Development setup instructions
 
-- [ ] Create changelog
+- [ ] Create Issue Templates
+  - **Files:** `.github/ISSUE_TEMPLATE/`
+  - Bug report template
+  - Feature request template
+  - Question template
+
+- [ ] Create Pull Request Template
+  - **Files:** `.github/pull_request_template.md`
+  - PR description format
+  - Checklist for contributors
+  - Link to contributing guide
+
+- [ ] Create Changelog
+  - **Files:** `CHANGELOG.md`
   - Document version history
-  - List breaking changes
-  - List new features
-  - List bug fixes
-  - List deprecations
+  - Use conventional commits format
+  - List breaking changes, features, and fixes
 
-### 11.5 Documentation Website
+### 11.9 Documentation Website Setup (Sequential Tasks)
 
-- [ ] Setup VitePress site
+**Note:** These tasks should be done sequentially by one person to avoid conflicts:
+
+- [ ] Setup VitePress configuration
+  - **Files:** `docs/.vitepress/config.ts`
   - Configure VitePress
-  - Create site structure
-  - Design navigation
+  - Set up theme
+  - Configure navigation structure
   - Add search functionality
 
-- [ ] Create documentation pages
-  - Home page with overview
-  - Getting started page
-  - API reference section
-  - Guides section
-  - Examples section
-  - FAQ page
+- [ ] Create documentation home page
+  - **Files:** `docs/index.md`
+  - Project overview
+  - Key features
+  - Quick start
+  - Links to guides
 
-- [ ] Add interactive playground
+- [ ] Create API reference index
+  - **Files:** `docs/api/index.md`
+  - Overview of API sections
+  - Navigation to API docs
+  - Quick reference table
+
+- [ ] Create guides index
+  - **Files:** `docs/guide/index.md`
+  - Overview of guides
+  - Learning path recommendation
+  - Links to all guides
+
+- [ ] Create examples index
+  - **Files:** `docs/examples/index.md`
+  - Overview of examples
+  - Links to example repos
+  - Setup instructions
+
+- [ ] Create FAQ page
+  - **Files:** `docs/faq.md`
+  - Common questions and answers
+  - Troubleshooting tips
+  - Links to relevant guides
+
+- [ ] Setup interactive playground (optional)
+  - **Files:** `docs/.vitepress/theme/components/Playground.vue`
   - Embed live code examples
   - Support code editing
   - Show real-time results
-  - Include common scenarios
+
+### 11.10 TypeDoc Configuration (Single Task)
+
+- [ ] Configure TypeDoc for API generation
+  - **Files:** `typedoc.json`, `docs/.vitepress/config.ts`
+  - Configure TypeDoc
+  - Set up output directory
+  - Configure theme
+  - Integrate with VitePress
 
 ---
 
