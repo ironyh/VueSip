@@ -124,6 +124,14 @@ export class SipClient {
   }
 
   /**
+   * Get current configuration
+   * @returns The SIP client configuration
+   */
+  getConfig(): Readonly<SipClientConfig> {
+    return { ...this.config }
+  }
+
+  /**
    * Validate configuration
    */
   validateConfig(): ValidationResult {
