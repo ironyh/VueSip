@@ -94,6 +94,83 @@
  * }
  * ```
  *
+ * **State Machine Diagrams:**
+ *
+ * *Connection State Machine:*
+ * ```
+ * ┌──────────────┐
+ * │              │  connect()
+ * │ Disconnected │─────────────────┐
+ * │              │                 │
+ * └──────────────┘                 ▼
+ *        ▲                  ┌────────────┐
+ *        │                  │            │
+ *        │                  │ Connecting │
+ *        │                  │            │
+ *        │                  └────────────┘
+ *        │                    │         │
+ *        │         success    │         │  failure
+ *        │                    ▼         │
+ *        │              ┌───────────┐   │
+ *        │              │           │   │
+ *        └──────────────│ Connected │◄──┘
+ *          disconnect() │           │
+ *          or error     └───────────┘
+ * ```
+ *
+ * *Registration State Machine (requires Connected):*
+ * ```
+ * ┌──────────────┐
+ * │              │  register()
+ * │ Unregistered │─────────────────┐
+ * │              │                 │
+ * └──────────────┘                 ▼
+ *        ▲                  ┌─────────────┐
+ *        │                  │             │
+ *        │                  │ Registering │
+ *        │                  │             │
+ *        │                  └─────────────┘
+ *        │                    │          │
+ *        │         success    │          │  failure
+ *        │                    ▼          │
+ *        │              ┌────────────┐   │
+ *        │              │            │   │
+ *        └──────────────│ Registered │◄──┘
+ *          unregister() │            │
+ *          disconnect() └────────────┘
+ *          or error
+ * ```
+ *
+ * **isReady Determination:**
+ *
+ * The `isReady` state indicates when the SIP client is fully operational:
+ *
+ * ```
+ * isReady = connectionState === 'connected' AND (
+ *   autoRegister === false OR
+ *   registrationState === 'registered'
+ * )
+ * ```
+ *
+ * *Truth Table:*
+ * ```
+ * ┌───────────┬──────────────┬────────────┬─────────┐
+ * │ Connected │ AutoRegister │ Registered │ isReady │
+ * ├───────────┼──────────────┼────────────┼─────────┤
+ * │    No     │     Any      │    Any     │  false  │
+ * │    Yes    │    false     │    Any     │  true   │
+ * │    Yes    │    true      │     No     │  false  │
+ * │    Yes    │    true      │    Yes     │  true   │
+ * └───────────┴──────────────┴────────────┴─────────┘
+ * ```
+ *
+ * **State Transitions:**
+ * - Connection and registration are independent state machines
+ * - Registration requires connection (can only register when connected)
+ * - Disconnection automatically triggers unregistration
+ * - Failed registration doesn't affect connection state
+ * ```
+ *
  * @see {@link https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API MDN: WebSocket API}
  * @see {@link https://developer.mozilla.org/en-US/docs/Web/API/WebRTC_API MDN: WebRTC API}
  * @see {@link https://tools.ietf.org/html/rfc3261 RFC 3261: SIP Protocol}

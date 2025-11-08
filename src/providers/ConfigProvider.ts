@@ -26,8 +26,49 @@
  * **Configuration Hierarchy and Merging:**
  * - **Replace Mode** (`autoMerge=false`, default): Props completely replace existing configuration
  * - **Merge Mode** (`autoMerge=true`): Props are deep-merged with existing configuration
- * - Runtime updates via methods: Always merge with existing configuration
+ * - Runtime updates via methods: Depends on method used (set* vs update*)
  * - Precedence: Runtime updates > Prop updates > Initial prop values > Store defaults
+ *
+ * **Configuration Update Modes Comparison:**
+ *
+ * *Prop-Based Updates (via autoMerge prop):*
+ * ```
+ * ┌────────────────┬──────────────────────┬─────────────────────────┐
+ * │ Aspect         │ Replace Mode         │ Merge Mode              │
+ * │                │ (autoMerge=false)    │ (autoMerge=true)        │
+ * ├────────────────┼──────────────────────┼─────────────────────────┤
+ * │ Behavior       │ Replaces entire      │ Deep merges with        │
+ * │                │ configuration        │ existing config         │
+ * ├────────────────┼──────────────────────┼─────────────────────────┤
+ * │ Unspecified    │ Lost/cleared         │ Preserved from existing │
+ * │ Fields         │                      │                         │
+ * ├────────────────┼──────────────────────┼─────────────────────────┤
+ * │ Use Case       │ Full config updates  │ Partial updates         │
+ * │                │ Complete resets      │ Incremental changes     │
+ * ├────────────────┼──────────────────────┼─────────────────────────┤
+ * │ Example        │ Switching servers    │ Updating single field   │
+ * │                │ User logout          │ Toggling options        │
+ * └────────────────┴──────────────────────┴─────────────────────────┘
+ * ```
+ *
+ * *Method-Based Updates (via context methods):*
+ * ```
+ * ┌─────────────────────┬──────────┬────────────────┬────────────┐
+ * │ Method              │ Behavior │ Preserves      │ Validation │
+ * │                     │          │ Unmentioned    │            │
+ * ├─────────────────────┼──────────┼────────────────┼────────────┤
+ * │ setSipConfig()      │ Replace  │ No (clears)    │ Optional   │
+ * │ updateSipConfig()   │ Merge    │ Yes (deep)     │ Optional   │
+ * │ setMediaConfig()    │ Replace  │ No (clears)    │ Optional   │
+ * │ updateMediaConfig() │ Merge    │ Yes (deep)     │ Optional   │
+ * │ setUserPreferences()│ Replace  │ No (clears)    │ None       │
+ * │ updateUser...()     │ Merge    │ Yes (deep)     │ None       │
+ * └─────────────────────┴──────────┴────────────────┴────────────┘
+ * ```
+ *
+ * **Important:** Method-based updates (set*/update*) are independent of the
+ * `autoMerge` prop. Use `set*()` for full replacement, `update*()` for merging,
+ * regardless of `autoMerge` setting.
  *
  * **Validation Approach:**
  * - **On Mount**: Validates if `validateOnMount=true` (default)
