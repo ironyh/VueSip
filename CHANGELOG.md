@@ -10,6 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Comprehensive changelog with full version history
 - Developer documentation structure
+- **SIP Adapter Architecture** - Foundation for multi-library support (JsSIP, SIP.js, custom)
+  * `ISipAdapter` interface - Adapter contract for SIP libraries
+  * `ICallSession` interface - Standardized call session interface
+  * `AdapterFactory` - Factory pattern for runtime library selection
+  * Comprehensive adapter documentation (`/src/adapters/README.md`)
+  * Implementation roadmap (`/ADAPTER_ROADMAP.md`)
+  * Support for custom adapter implementations
 
 ## [1.0.0] - 2025-11-08
 

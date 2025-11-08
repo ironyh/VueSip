@@ -45,9 +45,11 @@ VueSip is a headless Vue.js component library that provides comprehensive SIP (S
 
 - **Vue.js 3.4+**: Core framework using Composition API
 - **TypeScript 5.0+**: Type safety and developer experience
-- **JsSIP 3.10+**: SIP protocol implementation
+- **JsSIP 3.10+**: SIP protocol implementation (via adapter pattern)
 - **WebRTC**: Native browser APIs for media handling
 - **Vite 5.0+**: Build tool and development server
+
+> **Note on SIP Library Support:** VueSip is designed to support multiple SIP libraries (JsSIP, SIP.js, etc.) through an adapter pattern. Currently, JsSIP is the implemented adapter. See [Adapter Architecture](../../src/adapters/README.md) and [Adapter Roadmap](../../ADAPTER_ROADMAP.md) for details on multi-library support.
 
 ---
 
@@ -189,21 +191,24 @@ graph TB
 The **Protocol Layer** handles low-level communication protocols and browser APIs.
 
 **Responsibilities:**
-- SIP protocol implementation via JsSIP
+- SIP protocol implementation via SIP libraries (JsSIP, SIP.js, etc.)
 - WebRTC peer connection management
 - WebSocket transport for SIP signaling
 - ICE candidate gathering via STUN/TURN servers
 - Media stream acquisition and management
 
 **Key Components:**
-- `JsSIP UA`: User Agent for SIP communication
+- `ISipAdapter`: Adapter interface for SIP library abstraction
+- `JsSIP UA`: User Agent for SIP communication (via JsSipAdapter)
 - `RTCPeerConnection`: WebRTC connection object
 - `MediaStream API`: Browser media access
 - `WebSocket`: Signaling transport
 - `STUN/TURN`: NAT traversal
 
 **Isolation:**
-This layer is completely isolated from Vue and application logic. It could theoretically be extracted and used in other contexts.
+This layer is completely isolated from Vue and application logic through the adapter pattern. Different SIP libraries can be used by implementing the `ISipAdapter` interface. See [Adapter Architecture](../../src/adapters/README.md) for details.
+
+> **SIP Library Adapters:** VueSip uses an adapter pattern to support multiple SIP libraries. Currently implemented: JsSIP. Planned: SIP.js. See [Adapter Roadmap](../../ADAPTER_ROADMAP.md).
 
 ### Layer 2: Business Logic Layer
 
@@ -1280,9 +1285,9 @@ const credentials = await decrypt(encrypted, userKey)
 - Learning curve for Vue 2 developers
 - No Options API compatibility
 
-### 3. JsSIP as SIP Library
+### 3. JsSIP as SIP Library (Current Default)
 
-**Decision:** Use JsSIP as primary SIP implementation
+**Decision:** Use JsSIP as primary SIP implementation with adapter pattern for library flexibility
 
 **Rationale:**
 - Mature and battle-tested
@@ -1292,8 +1297,11 @@ const credentials = await decrypt(encrypted, userKey)
 - Browser-native implementation
 
 **Alternatives Considered:**
-- SIP.js (more complex, larger bundle)
+- SIP.js (more complex, larger bundle) - **Supported via adapter pattern**
 - Custom implementation (too much effort)
+
+**Future Support:**
+VueSip uses an adapter pattern (see [Adapter Architecture](../../src/adapters/README.md)) that allows runtime selection of SIP libraries. JsSIP is currently the default and only implemented adapter, but SIP.js support is planned. This provides library flexibility without changing application code.
 
 ### 4. Event-Driven Architecture
 
@@ -1508,6 +1516,8 @@ The four-layer architecture (Protocol → Business Logic → Composable → Inte
 
 ## Additional Resources
 
+- **Adapter Architecture**: `/src/adapters/README.md` - Multi-library SIP support design
+- **Adapter Roadmap**: `/ADAPTER_ROADMAP.md` - Implementation plan for SIP library adapters
 - **Technical Specifications**: `/TECHNICAL_SPECIFICATIONS.md`
 - **Contributing Guide**: `/CONTRIBUTING.md` - Developer guidelines and workflow
 - **API Documentation**: `/docs/api/`
