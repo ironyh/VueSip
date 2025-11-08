@@ -14,6 +14,11 @@ import type { MediaDevice } from '../types/media.types'
 import { MediaDeviceKind, PermissionStatus } from '../types/media.types'
 import { createLogger } from '../utils/logger'
 import { throwIfAborted } from '../utils/abortController'
+import {
+  ErrorSeverity,
+  logErrorWithContext,
+  createOperationTimer,
+} from '../utils/errorContext'
 
 const log = createLogger('useMediaDevices')
 
@@ -301,6 +306,8 @@ export function useMediaDevices(
       return allDevices.value
     }
 
+    const timer = createOperationTimer()
+
     try {
       isEnumerating.value = true
       lastError.value = null
@@ -344,7 +351,28 @@ export function useMediaDevices(
     } catch (error) {
       const err = error instanceof Error ? error : new Error('Device enumeration failed')
       lastError.value = err
-      log.error('Failed to enumerate devices:', err)
+
+      logErrorWithContext(
+        log,
+        'Failed to enumerate devices',
+        err,
+        'enumerateDevices',
+        'useMediaDevices',
+        ErrorSeverity.MEDIUM,
+        {
+          context: {
+            hasMediaManager: !!mediaManager?.value,
+          },
+          state: {
+            isEnumerating: isEnumerating.value,
+            currentDeviceCount: allDevices.value.length,
+            audioInputs: audioInputDevices.value.length,
+            audioOutputs: audioOutputDevices.value.length,
+            videoInputs: videoInputDevices.value.length,
+          },
+          duration: timer.elapsed(),
+        }
+      )
       throw err
     } finally {
       isEnumerating.value = false

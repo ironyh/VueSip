@@ -24,6 +24,11 @@ import type {
 import { createLogger } from '../utils/logger'
 import { validateSipUri } from '../utils/validators'
 import { throwIfAborted, isAbortError } from '../utils/abortController'
+import {
+  ErrorSeverity,
+  logErrorWithContext,
+  createOperationTimer,
+} from '../utils/errorContext'
 
 const log = createLogger('useCallSession')
 
@@ -352,6 +357,7 @@ export function useCallSession(
     isOperationInProgress.value = true
     let mediaAcquired = false
     let localStreamBeforeCall: MediaStream | null = null
+    const timer = createOperationTimer()
 
     try {
       log.info(`Making call to ${target}`)
@@ -399,9 +405,35 @@ export function useCallSession(
     } catch (error) {
       // Handle abort errors gracefully
       if (isAbortError(error)) {
-        log.info('Call initiation aborted by user')
+        log.info('Call initiation aborted by user', {
+          target,
+          duration: timer.elapsed(),
+          mediaAcquired,
+        })
       } else {
-        log.error('Failed to make call:', error)
+        logErrorWithContext(
+          log,
+          'Failed to make call',
+          error,
+          'makeCall',
+          'useCallSession',
+          ErrorSeverity.HIGH,
+          {
+            context: {
+              target,
+              audio: options.audio ?? true,
+              video: options.video ?? false,
+              hasMediaManager: !!mediaManager?.value,
+            },
+            state: {
+              sipClientConnected: !!sipClient.value,
+              mediaAcquired,
+              hasExistingSession: !!session.value,
+              isOperationInProgress: isOperationInProgress.value,
+            },
+            duration: timer.elapsed(),
+          }
+        )
       }
 
       // Critical fix: Cleanup media if acquired but call failed or aborted
@@ -447,6 +479,7 @@ export function useCallSession(
     isOperationInProgress.value = true
     let mediaAcquired = false
     let localStreamBeforeAnswer: MediaStream | null = null
+    const timer = createOperationTimer()
 
     try {
       log.info(`Answering call: ${session.value.id}`)
@@ -478,7 +511,28 @@ export function useCallSession(
         })
       }
 
-      log.error('Failed to answer call:', error)
+      logErrorWithContext(
+        log,
+        'Failed to answer call',
+        error,
+        'answer',
+        'useCallSession',
+        ErrorSeverity.HIGH,
+        {
+          context: {
+            sessionId: session.value?.id,
+            audio: options.audio ?? true,
+            video: options.video ?? false,
+            hasMediaManager: !!mediaManager?.value,
+          },
+          state: {
+            mediaAcquired,
+            sessionState: session.value?.state,
+            isOperationInProgress: isOperationInProgress.value,
+          },
+          duration: timer.elapsed(),
+        }
+      )
       throw error
     } finally {
       // Always reset operation guard
@@ -499,6 +553,8 @@ export function useCallSession(
       throw new Error(error)
     }
 
+    const timer = createOperationTimer()
+
     try {
       log.info(`Rejecting call: ${session.value.id} with code ${statusCode}`)
 
@@ -507,7 +563,24 @@ export function useCallSession(
 
       log.info('Call rejected')
     } catch (error) {
-      log.error('Failed to reject call:', error)
+      logErrorWithContext(
+        log,
+        'Failed to reject call',
+        error,
+        'reject',
+        'useCallSession',
+        ErrorSeverity.MEDIUM,
+        {
+          context: {
+            sessionId: session.value?.id,
+            statusCode,
+          },
+          state: {
+            sessionState: session.value?.state,
+          },
+          duration: timer.elapsed(),
+        }
+      )
       throw error
     }
   }
@@ -533,6 +606,7 @@ export function useCallSession(
     }
 
     isOperationInProgress.value = true
+    const timer = createOperationTimer()
 
     try {
       log.info(`Hanging up call: ${session.value.id}`)
@@ -542,7 +616,25 @@ export function useCallSession(
 
       log.info('Call hung up')
     } catch (error) {
-      log.error('Failed to hang up call:', error)
+      logErrorWithContext(
+        log,
+        'Failed to hang up call',
+        error,
+        'hangup',
+        'useCallSession',
+        ErrorSeverity.MEDIUM,
+        {
+          context: {
+            sessionId: session.value?.id,
+          },
+          state: {
+            sessionState: session.value?.state,
+            isOnHold: session.value?.isOnHold,
+            isMuted: session.value?.isMuted,
+          },
+          duration: timer.elapsed(),
+        }
+      )
       throw error
     } finally {
       // Always reset operation guard and stop duration tracking
