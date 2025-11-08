@@ -108,6 +108,7 @@ enum SipResponseCode {
   Trying = 100,
   Ringing = 180,
   CallIsBeingForwarded = 181,
+  Queued = 182,
   SessionProgress = 183,
 
   // 2xx - Success
@@ -115,25 +116,56 @@ enum SipResponseCode {
   Accepted = 202,
 
   // 3xx - Redirection
+  MultipleChoices = 300,
   MovedPermanently = 301,
   MovedTemporarily = 302,
+  UseProxy = 305,
+  AlternativeService = 380,
 
   // 4xx - Client Error
   BadRequest = 400,
   Unauthorized = 401,
+  PaymentRequired = 402,
   Forbidden = 403,
   NotFound = 404,
+  MethodNotAllowed = 405,
+  NotAcceptable = 406,
+  ProxyAuthenticationRequired = 407,
   RequestTimeout = 408,
+  Gone = 410,
+  RequestEntityTooLarge = 413,
+  RequestURITooLong = 414,
+  UnsupportedMediaType = 415,
+  UnsupportedURIScheme = 416,
+  BadExtension = 420,
+  ExtensionRequired = 421,
+  IntervalTooBrief = 423,
   TemporarilyUnavailable = 480,
+  CallTransactionDoesNotExist = 481,
+  LoopDetected = 482,
+  TooManyHops = 483,
+  AddressIncomplete = 484,
+  Ambiguous = 485,
   BusyHere = 486,
+  RequestTerminated = 487,
+  NotAcceptableHere = 488,
+  RequestPending = 491,
+  Undecipherable = 493,
 
   // 5xx - Server Error
   ServerInternalError = 500,
+  NotImplemented = 501,
+  BadGateway = 502,
   ServiceUnavailable = 503,
+  ServerTimeout = 504,
+  VersionNotSupported = 505,
+  MessageTooLarge = 513,
 
   // 6xx - Global Failure
   BusyEverywhere = 600,
-  Decline = 603
+  Decline = 603,
+  DoesNotExistAnywhere = 604,
+  NotAcceptableAnywhere = 606
 }
 ```
 
@@ -748,7 +780,30 @@ const EventNames = {
   TRANSFER_FAILED: 'transfer:failed',
   TRANSFER_COMPLETED: 'transfer:completed',
 
-  // More events...
+  // Presence events
+  PRESENCE_UPDATED: 'presence:updated',
+  PRESENCE_SUBSCRIBED: 'presence:subscribed',
+  PRESENCE_UNSUBSCRIBED: 'presence:unsubscribed',
+
+  // Messaging events
+  MESSAGE_RECEIVED: 'message:received',
+  MESSAGE_SENT: 'message:sent',
+  MESSAGE_FAILED: 'message:failed',
+
+  // Conference events
+  CONFERENCE_CREATED: 'conference:created',
+  CONFERENCE_JOINED: 'conference:joined',
+  CONFERENCE_LEFT: 'conference:left',
+  CONFERENCE_PARTICIPANT_JOINED: 'conference:participant:joined',
+  CONFERENCE_PARTICIPANT_LEFT: 'conference:participant:left',
+  CONFERENCE_ENDED: 'conference:ended',
+
+  // DTMF events
+  DTMF_SENT: 'dtmf:sent',
+  DTMF_RECEIVED: 'dtmf:received',
+
+  // Error events
+  ERROR: 'error'
 } as const
 ```
 
@@ -785,6 +840,315 @@ interface EventEmitter {
     event: K,
     timeout?: number
   ): Promise<EventMap[K]>
+}
+```
+
+### Detailed Event Interfaces
+
+#### SIP Event Types
+
+**`SipConnectedEvent`**
+
+```typescript
+interface SipConnectedEvent extends BaseEvent {
+  type: 'sip:connected'
+  transport?: string
+}
+```
+
+**`SipDisconnectedEvent`**
+
+```typescript
+interface SipDisconnectedEvent extends BaseEvent {
+  type: 'sip:disconnected'
+  error?: any
+}
+```
+
+**`SipRegisteredEvent`**
+
+```typescript
+interface SipRegisteredEvent extends BaseEvent {
+  type: 'sip:registered'
+  uri: string
+  expires?: string | number
+}
+```
+
+**`SipUnregisteredEvent`**
+
+```typescript
+interface SipUnregisteredEvent extends BaseEvent {
+  type: 'sip:unregistered'
+  cause?: string
+}
+```
+
+**`SipRegistrationFailedEvent`**
+
+```typescript
+interface SipRegistrationFailedEvent extends BaseEvent {
+  type: 'sip:registration_failed'
+  cause?: string
+  response?: any
+}
+```
+
+**`SipRegistrationExpiringEvent`**
+
+```typescript
+interface SipRegistrationExpiringEvent extends BaseEvent {
+  type: 'sip:registration_expiring'
+}
+```
+
+**`SipNewSessionEvent`**
+
+```typescript
+interface SipNewSessionEvent extends BaseEvent {
+  type: 'sip:new_session'
+  session: any
+  originator: 'local' | 'remote'
+  request?: any
+  callId: string
+}
+```
+
+**`SipNewMessageEvent`**
+
+```typescript
+interface SipNewMessageEvent extends BaseEvent {
+  type: 'sip:new_message'
+  message: any
+  originator: 'local' | 'remote'
+  request?: any
+  from: string
+  content: string
+  contentType?: string
+}
+```
+
+**`SipGenericEvent`**
+
+```typescript
+interface SipGenericEvent extends BaseEvent {
+  type: 'sip:event'
+  event: any
+  request: any
+}
+```
+
+#### Conference Event Types
+
+**`ConferenceCreatedEvent`**
+
+```typescript
+interface ConferenceCreatedEvent extends BaseEvent {
+  type: 'sip:conference:created'
+  conferenceId: string
+  conference: ConferenceStateInterface
+}
+```
+
+**`ConferenceJoinedEvent`**
+
+```typescript
+interface ConferenceJoinedEvent extends BaseEvent {
+  type: 'sip:conference:joined'
+  conferenceId: string
+  conference: ConferenceStateInterface
+}
+```
+
+**`ConferenceEndedEvent`**
+
+```typescript
+interface ConferenceEndedEvent extends BaseEvent {
+  type: 'sip:conference:ended'
+  conferenceId: string
+  conference: ConferenceStateInterface
+}
+```
+
+**`ConferenceParticipantJoinedEvent`**
+
+```typescript
+interface ConferenceParticipantJoinedEvent extends BaseEvent {
+  type: 'sip:conference:participant:joined'
+  conferenceId: string
+  participant: Participant
+}
+```
+
+**`ConferenceParticipantLeftEvent`**
+
+```typescript
+interface ConferenceParticipantLeftEvent extends BaseEvent {
+  type: 'sip:conference:participant:left'
+  conferenceId: string
+  participant: Participant
+}
+```
+
+**`ConferenceParticipantInvitedEvent`**
+
+```typescript
+interface ConferenceParticipantInvitedEvent extends BaseEvent {
+  type: 'sip:conference:participant:invited'
+  conferenceId: string
+  participant: Participant
+}
+```
+
+**`ConferenceParticipantRemovedEvent`**
+
+```typescript
+interface ConferenceParticipantRemovedEvent extends BaseEvent {
+  type: 'sip:conference:participant:removed'
+  conferenceId: string
+  participant: Participant
+}
+```
+
+**`ConferenceParticipantMutedEvent`**
+
+```typescript
+interface ConferenceParticipantMutedEvent extends BaseEvent {
+  type: 'sip:conference:participant:muted'
+  conferenceId: string
+  participant: Participant
+}
+```
+
+**`ConferenceParticipantUnmutedEvent`**
+
+```typescript
+interface ConferenceParticipantUnmutedEvent extends BaseEvent {
+  type: 'sip:conference:participant:unmuted'
+  conferenceId: string
+  participant: Participant
+}
+```
+
+**`ConferenceRecordingStartedEvent`**
+
+```typescript
+interface ConferenceRecordingStartedEvent extends BaseEvent {
+  type: 'sip:conference:recording:started'
+  conferenceId: string
+}
+```
+
+**`ConferenceRecordingStoppedEvent`**
+
+```typescript
+interface ConferenceRecordingStoppedEvent extends BaseEvent {
+  type: 'sip:conference:recording:stopped'
+  conferenceId: string
+}
+```
+
+#### Audio Event Types
+
+**`AudioMutedEvent`**
+
+```typescript
+interface AudioMutedEvent extends BaseEvent {
+  type: 'sip:audio:muted'
+}
+```
+
+**`AudioUnmutedEvent`**
+
+```typescript
+interface AudioUnmutedEvent extends BaseEvent {
+  type: 'sip:audio:unmuted'
+}
+```
+
+#### Presence Event Types
+
+**`PresencePublishEvent`**
+
+```typescript
+interface PresencePublishEvent extends BaseEvent {
+  type: 'sip:presence:publish'
+  presence: PresencePublishOptions
+  body: string
+  extraHeaders?: string[]
+}
+```
+
+**`PresenceSubscribeEvent`**
+
+```typescript
+interface PresenceSubscribeEvent extends BaseEvent {
+  type: 'sip:presence:subscribe'
+  uri: string
+  options?: PresenceSubscriptionOptions
+}
+```
+
+**`PresenceUnsubscribeEvent`**
+
+```typescript
+interface PresenceUnsubscribeEvent extends BaseEvent {
+  type: 'sip:presence:unsubscribe'
+  uri: string
+}
+```
+
+#### Transfer Event Types
+
+**`CallTransferInitiatedEvent`**
+
+```typescript
+interface CallTransferInitiatedEvent extends BaseEvent {
+  type: 'call:transfer_initiated'
+  target: string
+  transferType: 'blind' | 'attended'
+  replaceCallId?: string
+}
+```
+
+**`CallTransferAcceptedEvent`**
+
+```typescript
+interface CallTransferAcceptedEvent extends BaseEvent {
+  type: 'call:transfer_accepted'
+  target: string
+}
+```
+
+**`CallTransferFailedEvent`**
+
+```typescript
+interface CallTransferFailedEvent extends BaseEvent {
+  type: 'call:transfer_failed'
+  target: string
+  error?: string
+}
+```
+
+**`CallTransferCompletedEvent`**
+
+```typescript
+interface CallTransferCompletedEvent extends BaseEvent {
+  type: 'call:transfer_completed'
+  target: string
+}
+```
+
+#### Error Event Type
+
+**`ErrorEvent`**
+
+```typescript
+interface ErrorEvent extends BaseEvent {
+  type: typeof EventNames.ERROR
+  error: Error
+  context?: string
+  severity?: 'low' | 'medium' | 'high' | 'critical'
 }
 ```
 
@@ -1304,6 +1668,94 @@ const STORAGE_KEYS = {
 } as const
 ```
 
+### `StorageKey`
+
+Type alias for storage keys.
+
+```typescript
+type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS]
+```
+
+### `StoredSipCredentials`
+
+Stored SIP credentials (encrypted).
+
+```typescript
+interface StoredSipCredentials {
+  username: string
+  password: string
+  authorizationUsername?: string
+  ha1?: string
+}
+```
+
+### `StoredSipConfig`
+
+Stored SIP configuration (encrypted).
+
+```typescript
+interface StoredSipConfig {
+  uri: string
+  credentials: StoredSipCredentials
+  displayName?: string
+  contactUri?: string
+  instanceId?: string
+}
+```
+
+### `StoredMediaConfig`
+
+Stored media configuration.
+
+```typescript
+interface StoredMediaConfig {
+  audio?: MediaTrackConstraints
+  video?: MediaTrackConstraints | boolean
+  iceServers?: RTCIceServer[]
+}
+```
+
+### `StoredUserPreferences`
+
+Stored user preferences.
+
+```typescript
+interface StoredUserPreferences {
+  autoAnswer?: boolean
+  autoAnswerDelay?: number
+  enableAudio?: boolean
+  enableVideo?: boolean
+  enableCallHistory?: boolean
+  callHistoryMaxEntries?: number
+  debug?: boolean
+}
+```
+
+### `StoredDeviceSelection`
+
+Stored device selection.
+
+```typescript
+interface StoredDeviceSelection {
+  audioInput?: string
+  audioOutput?: string
+  videoInput?: string
+}
+```
+
+### `StoredDevicePermissions`
+
+Stored device permissions.
+
+```typescript
+interface StoredDevicePermissions {
+  microphone: 'granted' | 'denied' | 'prompt' | 'not-requested'
+  camera: 'granted' | 'denied' | 'prompt' | 'not-requested'
+  speaker: 'granted' | 'denied' | 'prompt' | 'not-requested'
+  lastUpdated: number
+}
+```
+
 ---
 
 ## Provider Types
@@ -1562,6 +2014,255 @@ enum PluginState {
   Failed = 'failed'
 }
 ```
+
+### `HookName`
+
+Hook name type (string or constant).
+
+```typescript
+type HookName = (typeof HOOK_NAMES)[keyof typeof HOOK_NAMES] | string
+```
+
+### `HookOptions`
+
+Hook registration options.
+
+```typescript
+interface HookOptions {
+  priority?: HookPriority | number
+  once?: boolean
+  condition?: (context: PluginContext, data?: any) => boolean
+}
+```
+
+### `HookRegistration<TData, TReturn>`
+
+Hook registration details.
+
+```typescript
+interface HookRegistration<TData = any, TReturn = any> {
+  name: HookName
+  handler: HookHandler<TData, TReturn>
+  options: Required<HookOptions>
+  pluginName: string
+  id: string
+}
+```
+
+### `PluginConfig`
+
+Base plugin configuration.
+
+```typescript
+interface PluginConfig {
+  enabled?: boolean
+  [key: string]: any
+}
+```
+
+### `PluginEntry<TConfig>`
+
+Plugin registry entry.
+
+```typescript
+interface PluginEntry<TConfig extends PluginConfig = PluginConfig> {
+  plugin: Plugin<TConfig>
+  config: TConfig
+  state: PluginState
+  installedAt?: Date
+  error?: Error
+  hookIds: string[]
+}
+```
+
+### `PluginManager`
+
+Plugin manager interface.
+
+```typescript
+interface PluginManager {
+  register<TConfig extends PluginConfig = PluginConfig>(
+    plugin: Plugin<TConfig>,
+    config?: TConfig
+  ): Promise<void>
+
+  unregister(pluginName: string): Promise<void>
+
+  get(pluginName: string): PluginEntry | undefined
+
+  has(pluginName: string): boolean
+
+  getAll(): Map<string, PluginEntry>
+
+  updateConfig<TConfig extends PluginConfig = PluginConfig>(
+    pluginName: string,
+    config: TConfig
+  ): Promise<void>
+
+  destroy(): Promise<void>
+}
+```
+
+### `AnalyticsEvent`
+
+Analytics event interface.
+
+```typescript
+interface AnalyticsEvent {
+  type: string
+  timestamp: Date
+  data?: Record<string, any>
+  sessionId?: string
+  userId?: string
+}
+```
+
+### `AnalyticsPluginConfig`
+
+Analytics plugin configuration.
+
+```typescript
+interface AnalyticsPluginConfig extends PluginConfig {
+  endpoint?: string
+  batchEvents?: boolean
+  batchSize?: number
+  sendInterval?: number
+  includeUserInfo?: boolean
+  transformEvent?: (event: AnalyticsEvent) => AnalyticsEvent
+  trackEvents?: string[]
+  ignoreEvents?: string[]
+  maxQueueSize?: number
+  requestTimeout?: number
+  maxPayloadSize?: number
+  validateEventData?: boolean
+}
+```
+
+### `RecordingPluginConfig`
+
+Recording plugin configuration.
+
+```typescript
+interface RecordingPluginConfig extends PluginConfig {
+  autoStart?: boolean
+  recordingOptions?: RecordingOptions
+  storeInIndexedDB?: boolean
+  dbName?: string
+  maxRecordings?: number
+  autoDeleteOld?: boolean
+  onRecordingStart?: (data: RecordingData) => void
+  onRecordingStop?: (data: RecordingData) => void
+  onRecordingError?: (error: Error) => void
+}
+```
+
+---
+
+## JsSIP Types
+
+Internal JsSIP library event types (for advanced usage).
+
+**Source:** `../../src/types/jssip.types.ts`
+
+### `JsSIPConnectedEvent`
+
+JsSIP WebSocket connection established.
+
+```typescript
+interface JsSIPConnectedEvent {
+  type: 'connected'
+  socket: any
+}
+```
+
+### `JsSIPDisconnectedEvent`
+
+JsSIP WebSocket connection closed.
+
+```typescript
+interface JsSIPDisconnectedEvent {
+  type: 'disconnected'
+  error?: boolean
+  code?: number
+  reason?: string
+}
+```
+
+### `JsSIPRegisteredEvent`
+
+JsSIP registration succeeded.
+
+```typescript
+interface JsSIPRegisteredEvent {
+  type: 'registered'
+  response: any
+}
+```
+
+### `JsSIPUnregisteredEvent`
+
+JsSIP unregistration completed.
+
+```typescript
+interface JsSIPUnregisteredEvent {
+  type: 'unregistered'
+  response?: any
+  cause?: string
+}
+```
+
+### `JsSIPRegistrationFailedEvent`
+
+JsSIP registration failed.
+
+```typescript
+interface JsSIPRegistrationFailedEvent {
+  type: 'registrationFailed'
+  response?: any
+  cause?: string
+}
+```
+
+### `JsSIPNewRTCSessionEvent`
+
+JsSIP new RTC session created.
+
+```typescript
+interface JsSIPNewRTCSessionEvent {
+  type: 'newRTCSession'
+  session: any
+  originator: 'local' | 'remote'
+  request: any
+}
+```
+
+### `JsSIPEvent`
+
+Generic JsSIP event.
+
+```typescript
+interface JsSIPEvent {
+  type: string
+  [key: string]: any
+}
+```
+
+### `AnyJsSIPEvent`
+
+Union type of all JsSIP events.
+
+```typescript
+type AnyJsSIPEvent =
+  | JsSIPConnectedEvent
+  | JsSIPDisconnectedEvent
+  | JsSIPRegisteredEvent
+  | JsSIPUnregisteredEvent
+  | JsSIPRegistrationFailedEvent
+  | JsSIPNewRTCSessionEvent
+  | JsSIPEvent
+```
+
+**Note:** These types are primarily for internal use and low-level SIP operations. Most applications should use the higher-level VueSip event types instead.
 
 ---
 
