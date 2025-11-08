@@ -171,6 +171,100 @@
  * - Failed registration doesn't affect connection state
  * ```
  *
+ * **Complete Initialization Timeline:**
+ *
+ * This timeline shows the complete lifecycle from component mount to ready state,
+ * including conditional paths based on autoConnect and autoRegister props.
+ *
+ * ```
+ * Timeline: Component Mount → Ready State
+ *
+ * t=0ms: Component Mounts
+ *   |
+ *   ├─── autoConnect=false ────────────────────────────┐
+ *   |    (Manual Connection Control)                   |
+ *   |    • connectionState: 'disconnected'             |
+ *   |    • registrationState: 'unregistered'           |
+ *   |    • isReady: false                              |
+ *   |    • Wait for user to call connect()             |
+ *   |    └─> User Action Required                      |
+ *   |                                                   |
+ *   └─── autoConnect=true ──────────────────────────┐  |
+ *        |                                          |  |
+ *        v                                          |  |
+ *   t=10ms: connect() Called Automatically         |  |
+ *        • connectionState: 'connecting'            |  |
+ *        • emit: 'connecting' event                 |  |
+ *        • WebSocket handshake starts               |  |
+ *        |                                          |  |
+ *        v                                          |  |
+ *   t=150ms: WebSocket Connected ✓                 |  |
+ *        • connectionState: 'connected'             |  |
+ *        • emit: 'connected' event                  |  |
+ *        |                                          |  |
+ *        ├─── autoRegister=false ────────────────┐  |  |
+ *        |    (Manual Registration)              |  |  |
+ *        |    • registrationState: 'unregistered'|  |  |
+ *        |    • isReady: true ✓                  |  |  |
+ *        |    • emit: 'ready' event              |  |  |
+ *        |    └─> READY FOR USE                  |  |  |
+ *        |        (Can make outbound calls only) |  |  |
+ *        |                                       |  |  |
+ *        └─── autoRegister=true ─────────────┐   |  |  |
+ *             |                              |   |  |  |
+ *             v                              |   |  |  |
+ *        t=170ms: register() Called          |   |  |  |
+ *             • registrationState: 'registering' |  |  |
+ *             • emit: 'registering' event    |   |  |  |
+ *             • SIP REGISTER sent to server  |   |  |  |
+ *             |                              |   |  |  |
+ *             ├─ Server Accepts ────────┐    |   |  |  |
+ *             |                         |    |   |  |  |
+ *             v                         |    |   |  |  |
+ *        t=220ms: Registered ✓          |    |   |  |  |
+ *             • registrationState: 'registered' |  |  |
+ *             • emit: 'registered' event|    |   |  |  |
+ *             • isReady: true ✓         |    |   |  |  |
+ *             • emit: 'ready' event     |    |   |  |  |
+ *             └─> READY FOR USE         |    |   |  |  |
+ *                 (Can send/receive calls)   |   |  |  |
+ *                                       |    |   |  |  |
+ *             Server Rejects ───────────┘    |   |  |  |
+ *             |                              |   |  |  |
+ *             v                              |   |  |  |
+ *        Registration Failed ✗               |   |  |  |
+ *             • registrationState: 'unregistered'|  |
+ *             • emit: 'registration_failed'  |   |  |  |
+ *             • emit: 'error' event          |   |  |  |
+ *             • isReady: false               |   |  |  |
+ *             • Connection still active      |   |  |  |
+ *             └─> Can retry registration     |   |  |  |
+ *                                            |   |  |  |
+ * Manual Flow (autoConnect=false): ─────────┘   |  |  |
+ *   User calls connect() at any time             |  |  |
+ *   → Follows same flow as autoConnect=true ─────┘  |  |
+ *                                                    |  |
+ * Error Scenarios: ────────────────────────────────┘  |
+ *   • Connection timeout → emit: 'error', 'disconnected'|
+ *   • WebSocket error → emit: 'error', 'disconnected'   |
+ *   • Network loss → emit: 'disconnected' (may auto-reconnect)
+ * ```
+ *
+ * **Event Emission Order (autoConnect + autoRegister):**
+ * 1. Component mounts (t=0ms)
+ * 2. `connecting` event (t=10ms)
+ * 3. `connected` event (t=150ms)
+ * 4. `registering` event (t=170ms)
+ * 5. `registered` event (t=220ms)
+ * 6. `ready` event (t=220ms)
+ *
+ * **Key Timing Notes:**
+ * - Times shown are approximate and vary by network conditions
+ * - WebSocket connection typically takes 100-200ms
+ * - SIP registration typically takes 50-100ms
+ * - Total time to ready: ~200-300ms in good conditions
+ * - Retry logic may extend these times on failures
+ *
  * @see {@link https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API MDN: WebSocket API}
  * @see {@link https://developer.mozilla.org/en-US/docs/Web/API/WebRTC_API MDN: WebRTC API}
  * @see {@link https://tools.ietf.org/html/rfc3261 RFC 3261: SIP Protocol}

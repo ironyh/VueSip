@@ -70,6 +70,94 @@
  * `autoMerge` prop. Use `set*()` for full replacement, `update*()` for merging,
  * regardless of `autoMerge` setting.
  *
+ * **Configuration Update Decision Tree:**
+ *
+ * Use this flowchart to determine which update mode will be applied when you
+ * update configuration. Understanding this prevents common data loss bugs.
+ *
+ * ```
+ *                  Configuration Update Needed
+ *                           |
+ *                           v
+ *                  ┌─────────────────┐
+ *                  │ Update Source?  │
+ *                  └─────────────────┘
+ *                    /             \
+ *                   /               \
+ *            Prop Change         Method Call
+ *                 |                   |
+ *                 v                   v
+ *        ┌────────────────┐   ┌──────────────────┐
+ *        │ autoMerge prop?│   │ Which method?    │
+ *        └────────────────┘   └──────────────────┘
+ *           /         \          /            \
+ *        false       true    set*()        update*()
+ *          |           |        |              |
+ *          v           v        v              v
+ *      REPLACE      MERGE    REPLACE         MERGE
+ *          |           |        |              |
+ *          └─────┬─────┘        └──────┬───────┘
+ *                |                     |
+ *                v                     v
+ *        ┌──────────────┐      ┌──────────────┐
+ *        │ Apply Update │      │ Apply Update │
+ *        └──────────────┘      └──────────────┘
+ *
+ * ┌─────────────────────────────────────────────────────────────┐
+ * │ REPLACE Mode                 │ MERGE Mode                   │
+ * ├──────────────────────────────┼──────────────────────────────┤
+ * │ • New config completely      │ • Deep merge with existing   │
+ * │   replaces old               │ • Preserve unmentioned       │
+ * │ • Unmentioned fields LOST    │   fields                     │
+ * │ • Clean slate                │ • Override only conflicts    │
+ * │                              │ • Keep other fields intact   │
+ * │ Example:                     │ Example:                     │
+ * │ Old: {uri: 'A', sipUri: 'B'} │ Old: {uri: 'A', sipUri: 'B'} │
+ * │ New: {uri: 'C'}              │ New: {uri: 'C'}              │
+ * │ Result: {uri: 'C'} ⚠️        │ Result: {uri:'C',sipUri:'B'}✓│
+ * │         sipUri LOST!         │         sipUri preserved!    │
+ * └──────────────────────────────┴──────────────────────────────┘
+ * ```
+ *
+ * **Decision Examples:**
+ *
+ * ```typescript
+ * // Example 1: Prop change with autoMerge=false
+ * // Flow: Prop Change → autoMerge=false → REPLACE
+ * <ConfigProvider :sip-config="newConfig" :auto-merge="false">
+ * // Result: New config completely replaces old
+ *
+ * // Example 2: Prop change with autoMerge=true
+ * // Flow: Prop Change → autoMerge=true → MERGE
+ * <ConfigProvider :sip-config="newConfig" :auto-merge="true">
+ * // Result: New config merges with old (preserves unmentioned fields)
+ *
+ * // Example 3: Using setSipConfig() method
+ * // Flow: Method Call → setSipConfig() → REPLACE (always)
+ * config.setSipConfig({ uri: 'wss://new.server.com' })
+ * // Result: Only uri field set, all other fields cleared!
+ *
+ * // Example 4: Using updateSipConfig() method
+ * // Flow: Method Call → updateSipConfig() → MERGE (always)
+ * config.updateSipConfig({ uri: 'wss://new.server.com' })
+ * // Result: uri updated, all other fields preserved ✓
+ * ```
+ *
+ * **Common Mistake - Data Loss:**
+ * ```typescript
+ * // ❌ WRONG - This loses password and other fields!
+ * const updateServer = () => {
+ *   config.setSipConfig({ uri: newServerUri })
+ *   // sipUri, password, displayName, etc. are now undefined!
+ * }
+ *
+ * // ✅ CORRECT - This preserves other fields
+ * const updateServer = () => {
+ *   config.updateSipConfig({ uri: newServerUri })
+ *   // sipUri, password, displayName, etc. are preserved
+ * }
+ * ```
+ *
  * **Validation Approach:**
  * - **On Mount**: Validates if `validateOnMount=true` (default)
  * - **On Updates**: Validates when using set/update methods with `validate=true`

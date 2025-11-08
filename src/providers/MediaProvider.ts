@@ -70,6 +70,69 @@
  * }
  * ```
  *
+ * **Permission Request and Device Enumeration Flow:**
+ *
+ * This sequence diagram shows the critical relationship between permissions and device
+ * label visibility - the most common source of confusion in WebRTC development.
+ *
+ * ```
+ * User           Browser       MediaProvider    getUserMedia API   enumerateDevices API
+ *  |                |                |                  |                    |
+ *  | Loads Page     |                |                  |                    |
+ *  |--------------->|                |                  |                    |
+ *  |                |  Mount Event   |                  |                    |
+ *  |                |--------------->|                  |                    |
+ *  |                |                |                  |                    |
+ *  |                |                | autoEnumerate=true (no permissions)   |
+ *  |                |                |------------------------------------->|
+ *  |                |                |        Returns device list           |
+ *  |                |                |        (EMPTY LABELS - no perms!)    |
+ *  |                |                |<-------------------------------------|
+ *  |                |                |                  |                    |
+ *  |                |                | Devices: [{deviceId: "abc123",       |
+ *  |                |                |           label: "", ...}]  ⚠️       |
+ *  |                |                |                  |                    |
+ *  |                |                | autoRequestPermissions=true          |
+ *  |                |                |----------------->|                    |
+ *  |                | Permission     |                  |                    |
+ *  |                | Prompt Shown   |                  |                    |
+ *  |                |<---------------|                  |                    |
+ *  |  Click "Allow" |                |                  |                    |
+ *  |--------------->|                |                  |                    |
+ *  |                |  Granted ✓     |                  |                    |
+ *  |                |--------------->|<-----------------|                    |
+ *  |                |                |                  |                    |
+ *  |                |                | emit: permissionsGranted              |
+ *  |                |                |                  |                    |
+ *  |                |                | Re-enumerate devices                  |
+ *  |                |                |------------------------------------->|
+ *  |                |                |        Returns device list           |
+ *  |                |                |        (WITH LABELS - perms granted!)|
+ *  |                |                |<-------------------------------------|
+ *  |                |                |                  |                    |
+ *  |                |                | Devices: [{deviceId: "abc123",       |
+ *  |                |                |           label: "Built-in Mic"}] ✓  |
+ *  |                |                |                  |                    |
+ *  |                |                | autoSelectDefaults=true              |
+ *  |                |                | → Select default devices             |
+ *  |                |                |                  |                    |
+ *  |                |                | emit: ready                          |
+ *  |                |                |                  |                    |
+ * ```
+ *
+ * **Key Points:**
+ * - **Before Permissions**: Device enumeration returns empty labels ("")
+ * - **After Permissions**: Device enumeration returns actual labels ("Built-in Microphone")
+ * - **Permission Prompt**: Only shown on secure origin (HTTPS or localhost)
+ * - **Re-enumeration**: Automatically triggered after permissions granted
+ * - **Auto-selection**: Happens after successful re-enumeration (if enabled)
+ *
+ * **Common Pitfalls:**
+ * - Trying to display device labels before requesting permissions → Shows empty strings
+ * - Not re-enumerating after permission grant → Continues showing empty labels
+ * - Requesting permissions on insecure origin (HTTP) → Fails silently
+ * ```
+ *
  * @see {@link https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices MDN: MediaDevices}
  * @see {@link https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia MDN: getUserMedia}
  * @see {@link https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/enumerateDevices MDN: enumerateDevices}
