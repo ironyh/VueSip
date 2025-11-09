@@ -190,20 +190,39 @@ VueSip includes example components built with PrimeVue to demonstrate usage:
 </template>
 ```
 
-## Running the Example
+## Interactive Playground
+
+VueSip includes an interactive playground where you can explore and experiment with all the composables:
 
 ```bash
 # Install dependencies
 npm install
 
-# Run development server
+# Run development server with playground
 npm run dev
-
-# Build library
-npm run build
 ```
 
-Visit `http://localhost:5173` to see the example application.
+Visit `http://localhost:5173` to access the interactive playground with:
+
+- 🎯 **Live Demos** - Try out features in real-time
+- 💻 **Code Examples** - View implementation snippets
+- 📚 **Setup Guides** - Learn how to integrate each feature
+- 🎮 **Multiple Examples** - Basic calls, DTMF, audio devices, and more
+
+See the [playground README](playground/README.md) for more details.
+
+## Building the Library
+
+```bash
+# Build library for distribution
+npm run build
+
+# Run tests
+npm run test
+
+# Type checking
+npm run typecheck
+```
 
 ## Use Cases
 

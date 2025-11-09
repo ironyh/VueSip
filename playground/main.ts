@@ -1,5 +1,6 @@
 import { createApp } from 'vue'
-import TestApp from './TestApp.vue'
+import PlaygroundApp from './PlaygroundApp.vue'
+import './style.css'
 
-const app = createApp(TestApp)
+const app = createApp(PlaygroundApp)
 app.mount('#app')
