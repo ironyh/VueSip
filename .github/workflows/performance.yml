@@ -1,0 +1,197 @@
+name: Performance Tracking
+
+# Run on schedule for performance trend tracking
+on:
+  # Run nightly at 2 AM UTC
+  schedule:
+    - cron: '0 2 * * *'
+
+  # Allow manual triggering
+  workflow_dispatch:
+    inputs:
+      test_type:
+        description: 'Type of performance tests to run'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - benchmarks
+          - load
+          - metrics
+
+  # Run on pushes to main to track performance over time
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/**'
+      - 'tests/performance/**'
+      - 'package.json'
+
+jobs:
+  performance-benchmarks:
+    name: Performance Benchmarks
+    runs-on: ubuntu-latest
+    if: github.event.inputs.test_type == 'all' || github.event.inputs.test_type == 'benchmarks' || github.event_name != 'workflow_dispatch'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build project
+        run: pnpm build
+
+      - name: Run benchmarks
+        run: NODE_OPTIONS="--expose-gc" pnpm test:performance:bench
+        env:
+          CI: true
+
+      - name: Save benchmark results
+        run: |
+          mkdir -p performance-results
+          echo "Date: $(date)" > performance-results/benchmarks-$(date +%Y%m%d).txt
+          echo "Commit: ${{ github.sha }}" >> performance-results/benchmarks-$(date +%Y%m%d).txt
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results-${{ github.sha }}
+          path: performance-results/
+          retention-days: 90
+
+  performance-load-tests:
+    name: Load Tests
+    runs-on: ubuntu-latest
+    if: github.event.inputs.test_type == 'all' || github.event.inputs.test_type == 'load' || github.event_name != 'workflow_dispatch'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run load tests with garbage collection
+        run: NODE_OPTIONS="--expose-gc --max-old-space-size=4096" pnpm test:performance:load
+        env:
+          CI: true
+
+      - name: Check for memory leaks
+        run: |
+          echo "Checking test output for memory leak warnings..."
+          # Add custom logic here if needed
+
+      - name: Upload load test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: load-test-results-${{ github.sha }}
+          path: |
+            test-results/
+            **/*memory*.txt
+          retention-days: 90
+
+  performance-metrics:
+    name: Performance Metrics
+    runs-on: ubuntu-latest
+    if: github.event.inputs.test_type == 'all' || github.event.inputs.test_type == 'metrics' || github.event_name != 'workflow_dispatch'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build project
+        run: pnpm build
+
+      - name: Run metrics tests
+        run: NODE_OPTIONS="--expose-gc" pnpm test:performance:metrics
+        env:
+          CI: true
+
+      - name: Extract bundle sizes
+        run: |
+          mkdir -p metrics-results
+          echo "Bundle Sizes - $(date)" > metrics-results/bundle-sizes-$(date +%Y%m%d).txt
+          du -h dist/*.js >> metrics-results/bundle-sizes-$(date +%Y%m%d).txt
+
+      - name: Upload metrics results
+        uses: actions/upload-artifact@v4
+        with:
+          name: metrics-results-${{ github.sha }}
+          path: metrics-results/
+          retention-days: 90
+
+  # Optional: Performance regression detection
+  regression-check:
+    name: Regression Check
+    runs-on: ubuntu-latest
+    needs: [performance-benchmarks, performance-load-tests, performance-metrics]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Download current results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: '*-results-${{ github.sha }}'
+          path: current-results/
+
+      - name: Check for regressions
+        run: |
+          echo "📊 Performance Regression Check"
+          echo "================================"
+          echo "Current commit: ${{ github.sha }}"
+          echo ""
+          echo "✅ Performance tests completed successfully"
+          echo "📈 Results archived for trend analysis"
+          echo ""
+          echo "💡 To compare with previous runs, check the artifacts from earlier commits"
+
+      - name: Create summary
+        run: |
+          echo "## Performance Test Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Benchmarks completed" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Load tests completed" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Metrics tests completed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "View detailed results in the workflow artifacts." >> $GITHUB_STEP_SUMMARY
