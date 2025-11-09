@@ -20,6 +20,101 @@ Each layer protects a different aspect of your application, and together they cr
 
 ---
 
+## Quick Start: Secure Configuration
+
+**Want to get secure quickly?** Here's a minimal security setup that implements all essential protections. Copy this configuration and customize the values for your environment:
+
+```typescript
+import { useSipClient } from 'vuesip'
+import { LocalStorageAdapter } from 'vuesip/storage'
+
+// ✅ Production-ready secure configuration
+const { connect, register } = useSipClient({
+  // 1. Transport Security - Always use WSS (WebSocket Secure)
+  uri: 'wss://sip.example.com:7443',  // ✓ Encrypted WebSocket connection
+
+  // 2. Authentication - Use your SIP credentials
+  sipUri: 'sip:1000@example.com',      // Your SIP identity
+  password: 'your-secure-password',     // Or use HA1 hash (see Authentication section)
+
+  // 3. Credential Storage - Enable encryption for sensitive data
+  storage: new LocalStorageAdapter({
+    encrypt: true,                      // ✓ Encrypts stored credentials
+    encryptionKey: await generateKey()  // Generate secure key (see below)
+  }),
+
+  // 4. Media Security - DTLS-SRTP configuration
+  mediaConfig: {
+    iceServers: [
+      {
+        urls: 'turns:turn.example.com:5349',  // ✓ TURN over TLS
+        username: 'turnuser',
+        credential: 'turnpass'
+      }
+    ],
+    iceTransportPolicy: 'relay'  // ✓ Force traffic through TURN (highest security)
+  }
+})
+
+// Generate a secure encryption key (run once, store securely)
+async function generateKey(): Promise<string> {
+  const password = prompt('Enter a master password:') || ''
+  const encoder = new TextEncoder()
+  const salt = crypto.getRandomValues(new Uint8Array(16))
+
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(password),
+    'PBKDF2',
+    false,
+    ['deriveBits']
+  )
+
+  const keyBits = await crypto.subtle.deriveBits(
+    {
+      name: 'PBKDF2',
+      salt: salt,
+      iterations: 100000,
+      hash: 'SHA-256'
+    },
+    keyMaterial,
+    256
+  )
+
+  // Store salt and derived key securely
+  return btoa(String.fromCharCode(...new Uint8Array(keyBits)))
+}
+
+// Connect and register
+await connect()
+await register()
+```
+
+**What this configuration does:**
+
+✅ **Encrypts transport** - Uses WSS to protect SIP signaling
+✅ **Encrypts media** - DTLS-SRTP protects voice/video streams
+✅ **Encrypts storage** - AES-GCM protects stored credentials
+✅ **Uses secure TURN** - Forces media through TURN over TLS
+✅ **Derives strong keys** - PBKDF2 with 100,000 iterations
+
+💡 **Tip:** For even stronger security, use HA1 hash authentication instead of passwords (see [Authentication](#authentication) section).
+
+---
+
+## Table of Contents
+
+- [Transport Security (WSS/TLS)](#transport-security-wsstls)
+- [Media Encryption (DTLS-SRTP)](#media-encryption-dtls-srtp)
+- [Credential Storage](#credential-storage)
+- [Authentication](#authentication)
+- [Input Validation](#input-validation)
+- [Security Checklist](#security-checklist)
+- [Common Security Pitfalls](#common-security-pitfalls)
+- [Additional Resources](#additional-resources)
+
+---
+
 ## Transport Security (WSS/TLS)
 
 **What This Section Covers**

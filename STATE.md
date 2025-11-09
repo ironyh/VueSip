@@ -2622,12 +2622,13 @@ Each guide is a separate markdown file in `docs/guide/`:
   - Logging and debugging
   - Common issues and solutions
 
-- [ ] Write Security Best Practices guide
+- [x] Write Security Best Practices guide
   - **Files:** `docs/guide/security.md`
   - Credential storage
   - Transport security (WSS/TLS)
   - Media encryption (DTLS-SRTP)
   - Input validation
+  - **Status:** ✅ Complete (~1,320 lines, comprehensive coverage with quick start, table of contents, code examples, best practices, security checklist, and common pitfalls)
 
 - [ ] Write Performance Optimization guide
   - **Files:** `docs/guide/performance.md`

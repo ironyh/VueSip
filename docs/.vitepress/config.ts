@@ -21,15 +21,26 @@ export default defineConfig({
           items: [
             { text: 'What is VueSip?', link: '/guide/' },
             { text: 'Getting Started', link: '/guide/getting-started' },
-            { text: 'Installation', link: '/guide/installation' },
           ],
         },
         {
-          text: 'Core Concepts',
+          text: 'User Guides',
           items: [
-            { text: 'SIP Client', link: '/guide/sip-client' },
-            { text: 'Call Management', link: '/guide/call-management' },
-            { text: 'Media Devices', link: '/guide/media-devices' },
+            { text: 'Making Calls', link: '/guide/making-calls' },
+            { text: 'Receiving Calls', link: '/guide/receiving-calls' },
+            { text: 'Call Controls', link: '/guide/call-controls' },
+            { text: 'Device Management', link: '/guide/device-management' },
+            { text: 'Call History', link: '/guide/call-history' },
+            { text: 'Presence & Messaging', link: '/guide/presence-messaging' },
+            { text: 'Video Calling', link: '/guide/video-calling' },
+          ],
+        },
+        {
+          text: 'Advanced Topics',
+          items: [
+            { text: 'Error Handling', link: '/guide/error-handling' },
+            { text: 'Security Best Practices', link: '/guide/security' },
+            { text: 'Performance Optimization', link: '/guide/performance' },
           ],
         },
       ],
