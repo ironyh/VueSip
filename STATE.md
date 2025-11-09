@@ -1,7 +1,7 @@
 # VueSip - Development State Tracker
 
 Version: 1.0.0
-Last Updated: 2025-11-06
+Last Updated: 2025-11-08
 
 This document tracks the implementation progress of VueSip, a headless Vue.js component library for SIP/VoIP applications. Each task is designed to be completed sequentially, building upon previous work.
 
@@ -2720,33 +2720,51 @@ Each section is a separate markdown file in `docs/api/`:
 
 ### 11.8 Developer Documentation (Independent Tasks)
 
-- [ ] Write Architecture documentation
+- [x] Write Architecture documentation
   - **Files:** `docs/developer/architecture.md`
   - Create system architecture diagram
   - Document component relationships
   - Create data flow diagrams
   - Document state management flow
+  - **Status:** ✅ Complete (36 KB, 4,282 words, 11 Mermaid diagrams)
 
-- [ ] Write Contributing guide
+- [x] Write Contributing guide
   - **Files:** `CONTRIBUTING.md`
   - Code style guidelines
   - Testing requirements
   - Pull request process
   - Development setup instructions
+  - **Status:** ✅ Complete (1,468 lines, 3,500+ words, comprehensive developer guide)
 
-- [ ] Create Issue Templates
+- [x] Create Issue Templates
   - **Files:** `.github/ISSUE_TEMPLATE/`
   - Bug report template
   - Feature request template
   - Question template
+  - Configuration file (config.yml)
+  - **Status:** ✅ Complete (4 templates created)
 
-- [ ] Create Pull Request Template
+- [x] Create Pull Request Template
   - **Files:** `.github/pull_request_template.md`
   - PR description format
   - Checklist for contributors
   - Link to contributing guide
+  - **Status:** ✅ Complete (comprehensive PR template)
 
-- [ ] Create Changelog
+- [x] Create Changelog
+  - **Files:** `CHANGELOG.md`
+  - Document version history
+  - Follow Keep a Changelog format
+  - List breaking changes
+  - **Status:** ✅ Complete (164 lines, complete version history 0.1.0 → 1.0.0)
+
+- [x] Create Developer Documentation Index
+  - **Files:** `docs/developer/README.md`
+  - Overview of developer documentation
+  - Navigation to architecture and contributing guides
+  - **Status:** ✅ Complete
+
+**Summary:** Phase 11.8 complete. All developer documentation infrastructure established including architecture docs, contributing guide, GitHub templates (issues + PR), changelog, and developer docs index. Documentation is production-ready and supports external contributions
   - **Files:** `CHANGELOG.md`
   - Document version history
   - Use conventional commits format
@@ -2970,6 +2988,981 @@ Each section is a separate markdown file in `docs/api/`:
   - Monitor GitHub issues
   - Analyze usage patterns
   - Prioritize feature requests
+
+---
+
+## Phase 14: SIP Adapter Architecture (Multi-Library Support)
+
+**Goal:** Refactor VueSip to support multiple SIP libraries (JsSIP, SIP.js, custom) through an adapter pattern, enabling runtime library selection without changing application code.
+
+**Motivation:** Currently VueSip is tightly coupled to JsSIP (~3,000 lines of JsSIP-specific code). The adapter pattern will provide library flexibility, future-proofing, and easier testing.
+
+**Timeline:** 23-32 days (~4-6 weeks) across 5 phases
+**Reference:** See `/src/adapters/README.md` and `/ADAPTER_ROADMAP.md` for complete details
+
+### 14.1 Adapter Foundation (Phase 1) ✅ COMPLETE
+
+- [x] Design adapter architecture
+  - Define ISipAdapter interface contract
+  - Define ICallSession interface contract
+  - Define event mapping strategy
+  - Plan factory pattern implementation
+  - **Status:** ✅ Complete - Architecture designed and documented
+
+- [x] Create adapter type definitions
+  - **Files:** `src/adapters/types.ts`
+  - ISipAdapter interface (250+ lines)
+  - ICallSession interface (100+ lines)
+  - CallOptions, AnswerOptions, DTMFOptions interfaces
+  - CallStatistics interface
+  - AdapterEvents and CallSessionEvents types
+  - **Status:** ✅ Complete (450+ lines of TypeScript interfaces)
+
+- [x] Create adapter factory
+  - **Files:** `src/adapters/AdapterFactory.ts`
+  - Dynamic adapter creation based on config
+  - Runtime library detection (isLibraryAvailable)
+  - Support for custom adapters
+  - Dynamic imports for tree-shaking
+  - **Status:** ✅ Complete (120+ lines)
+
+- [x] Create adapter exports
+  - **Files:** `src/adapters/index.ts`
+  - Export all adapter interfaces and types
+  - Export AdapterFactory and convenience functions
+  - **Status:** ✅ Complete
+
+- [x] Write adapter documentation
+  - **Files:** `src/adapters/README.md`
+  - Architecture overview with diagrams
+  - Interface documentation
+  - Usage examples
+  - Event mapping tables
+  - Implementation guidelines
+  - Testing strategy
+  - **Status:** ✅ Complete (550+ lines)
+
+- [x] Create implementation roadmap
+  - **Files:** `ADAPTER_ROADMAP.md`
+  - 5-phase detailed implementation plan
+  - Task breakdowns for each phase
+  - Timeline estimates
+  - Success criteria
+  - Risk mitigation
+  - **Status:** ✅ Complete (600+ lines)
+
+- [x] Update architecture documentation
+  - **Files:** `docs/developer/architecture.md`
+  - Add adapter pattern to Technology Stack
+  - Update Protocol Layer description
+  - Enhance Key Design Decisions
+  - Add adapter resources
+  - **Status:** ✅ Complete
+
+- [x] Update changelog
+  - **Files:** `CHANGELOG.md`
+  - Add adapter foundation to [Unreleased]
+  - Document new interfaces and factory
+  - **Status:** ✅ Complete
+
+**Phase 1 Summary:** ✅ Foundation complete (2025-11-08). All adapter interfaces, factory, and documentation created. Ready for Phase 2 implementation.
+
+### 14.2 JsSIP Adapter Implementation (Phase 2) 🚧 NEXT
+
+**Goal:** Extract existing JsSIP code into adapter implementation with full feature parity
+
+**Estimated Duration:** 5-7 days
+
+#### 14.2.1 Create JsSIP Adapter Structure
+
+- [ ] Create JsSIP adapter directory
+  - **Files:** `src/adapters/jssip/` (new directory)
+  - Create directory structure
+  - Add index.ts for exports
+  - **Tasks:**
+    - `mkdir -p src/adapters/jssip`
+    - `touch src/adapters/jssip/index.ts`
+
+- [ ] Create JsSIP-specific types
+  - **Files:** `src/adapters/jssip/types.ts`
+  - Import JsSIP types
+  - Define JsSIP-specific configuration options
+  - Define JsSIP event mappings
+  - Create type guards for JsSIP objects
+  - **Dependencies:** None
+  - **Estimated Time:** 2 hours
+
+- [ ] Create JsSIP event mapper
+  - **Files:** `src/adapters/jssip/JsSipEventMapper.ts`
+  - Map JsSIP connection events → standard events
+  - Map JsSIP registration events → standard events
+  - Map JsSIP UA events → standard events
+  - Map JsSIP RTCSession events → standard session events
+  - Handle event payload transformation
+  - **Dependencies:** types.ts, src/adapters/types.ts
+  - **Estimated Time:** 4 hours
+  - **Key Mappings:**
+    - `connecting` → `connection:connecting`
+    - `connected` → `connection:connected`
+    - `disconnected` → `connection:disconnected`
+    - `registered` → `registration:registered`
+    - `newRTCSession` → `call:incoming` / `call:outgoing`
+
+#### 14.2.2 Implement JsSipAdapter Class
+
+- [ ] Create JsSipAdapter skeleton
+  - **Files:** `src/adapters/jssip/JsSipAdapter.ts`
+  - Implement ISipAdapter interface
+  - Add class properties (ua, eventMapper, config, state)
+  - Implement constructor
+  - Implement metadata properties (adapterName, libraryName, etc.)
+  - **Dependencies:** types.ts, JsSipEventMapper.ts
+  - **Estimated Time:** 2 hours
+
+- [ ] Extract UA initialization from SipClient
+  - **Reference:** `src/core/SipClient.ts` lines 190-420
+  - Implement `initialize(config: SipClientConfig)` method
+  - Create JsSIP.UA instance with configuration
+  - Setup WebSocketInterface
+  - Configure UA options (register, session_timers, etc.)
+  - **Dependencies:** JsSIP library
+  - **Estimated Time:** 4 hours
+  - **Key Code to Extract:**
+    - UA configuration (lines 216-395)
+    - WebSocket setup (lines 395-400)
+    - Initial state setup
+
+- [ ] Implement connection methods
+  - **Reference:** `src/core/SipClient.ts` lines 422-550
+  - Implement `connect(): Promise<void>`
+  - Implement `disconnect(): Promise<void>`
+  - Add connection state tracking
+  - Setup connection event listeners
+  - Map JsSIP events to standard events
+  - **Dependencies:** JsSipEventMapper
+  - **Estimated Time:** 3 hours
+  - **Methods to Extract:**
+    - `start()` → `connect()`
+    - `stop()` → `disconnect()`
+    - Event handlers for `connected`, `disconnected`, `connecting`
+
+- [ ] Implement registration methods
+  - **Reference:** `src/core/SipClient.ts` lines 552-680
+  - Implement `register(): Promise<void>`
+  - Implement `unregister(): Promise<void>`
+  - Add registration state tracking
+  - Setup registration event listeners
+  - Handle authentication (Digest MD5, HA1)
+  - **Dependencies:** JsSipEventMapper
+  - **Estimated Time:** 3 hours
+  - **Methods to Extract:**
+    - `register()` implementation
+    - `unregister()` implementation
+    - Event handlers for `registered`, `unregistered`, `registrationFailed`
+
+- [ ] Implement call methods
+  - **Reference:** `src/core/SipClient.ts` lines 682-890
+  - Implement `call(target, options): Promise<ICallSession>`
+  - Create JsSipCallSession wrapper for RTCSession
+  - Add active calls tracking (Map<string, JsSipCallSession>)
+  - Implement `getActiveCalls(): ICallSession[]`
+  - Implement `getCallSession(callId): ICallSession | null`
+  - Setup newRTCSession event listener
+  - **Dependencies:** JsSipCallSession (to be created)
+  - **Estimated Time:** 5 hours
+  - **Methods to Extract:**
+    - `call()` implementation
+    - `newRTCSession` event handler
+    - Call tracking logic
+
+- [ ] Implement messaging methods
+  - **Reference:** `src/core/SipClient.ts` lines 892-1050
+  - Implement `sendMessage(target, content, contentType)`
+  - Setup MESSAGE event listener
+  - Emit `message:received` events
+  - **Dependencies:** JsSipEventMapper
+  - **Estimated Time:** 2 hours
+  - **Methods to Extract:**
+    - `sendMessage()` implementation
+    - `newMessage` event handler
+
+- [ ] Implement presence methods
+  - **Reference:** `src/core/SipClient.ts` lines 1052-1350
+  - Implement `subscribe(target, event, expires)`
+  - Implement `unsubscribe(target, event)`
+  - Implement `publish(event, state)`
+  - Setup SUBSCRIBE/NOTIFY event listeners
+  - Track subscriptions
+  - **Dependencies:** JsSipEventMapper
+  - **Estimated Time:** 4 hours
+  - **Methods to Extract:**
+    - SUBSCRIBE/NOTIFY handling (lines 1052-1200)
+    - PUBLISH handling (lines 1202-1350)
+
+- [ ] Implement DTMF methods
+  - **Reference:** `src/core/SipClient.ts` lines 1352-1450
+  - Implement `sendDTMF(callId, tone)`
+  - Find call session and delegate to session
+  - Validate DTMF tones
+  - **Dependencies:** JsSipCallSession
+  - **Estimated Time:** 1 hour
+
+- [ ] Implement cleanup and destroy
+  - Implement `destroy(): Promise<void>`
+  - Cleanup all event listeners
+  - Terminate all active calls
+  - Stop UA
+  - Clear internal state
+  - **Estimated Time:** 2 hours
+
+#### 14.2.3 Implement JsSipCallSession Class
+
+- [ ] Create JsSipCallSession skeleton
+  - **Files:** `src/adapters/jssip/JsSipCallSession.ts`
+  - Implement ICallSession interface
+  - Add class properties (rtcSession, id, direction, state, etc.)
+  - Implement constructor
+  - Implement readonly properties (id, direction, remoteUri, etc.)
+  - **Dependencies:** types.ts, src/adapters/types.ts
+  - **Estimated Time:** 3 hours
+
+- [ ] Extract RTCSession wrapping
+  - **Reference:** `src/core/CallSession.ts` lines 1-500
+  - Wrap JsSIP RTCSession instance
+  - Track call metadata (id, direction, timestamps)
+  - Setup RTCSession event listeners
+  - Map RTCSession events to standard events
+  - **Dependencies:** JsSipEventMapper
+  - **Estimated Time:** 4 hours
+  - **Key Properties to Extract:**
+    - Call ID generation
+    - Direction tracking
+    - State management
+    - Timestamp tracking
+
+- [ ] Implement answer/reject methods
+  - **Reference:** `src/core/CallSession.ts` lines 502-650
+  - Implement `answer(options): Promise<void>`
+  - Implement `reject(statusCode): Promise<void>`
+  - Handle media constraints for answer
+  - Setup media streams
+  - **Dependencies:** Media management code
+  - **Estimated Time:** 3 hours
+
+- [ ] Implement terminate method
+  - **Reference:** `src/core/CallSession.ts` lines 652-750
+  - Implement `terminate(): Promise<void>`
+  - Cleanup media streams
+  - Cleanup event listeners
+  - Update call state
+  - **Estimated Time:** 2 hours
+
+- [ ] Implement hold/unhold methods
+  - **Reference:** `src/core/CallSession.ts` lines 752-880
+  - Implement `hold(): Promise<void>`
+  - Implement `unhold(): Promise<void>`
+  - Track hold state
+  - Emit hold/unhold events
+  - **Dependencies:** RTCSession hold/unhold
+  - **Estimated Time:** 2 hours
+
+- [ ] Implement mute/unmute methods
+  - **Reference:** `src/core/CallSession.ts` lines 882-1010
+  - Implement `mute(): Promise<void>`
+  - Implement `unmute(): Promise<void>`
+  - Track mute state
+  - Emit muted/unmuted events
+  - Handle audio track manipulation
+  - **Estimated Time:** 2 hours
+
+- [ ] Implement DTMF sending
+  - **Reference:** `src/core/CallSession.ts` lines 1012-1090
+  - Implement `sendDTMF(tone, options): Promise<void>`
+  - Support RFC2833 (RTP) method
+  - Support SIP INFO method
+  - Validate DTMF tones
+  - Handle tone duration and gap
+  - **Estimated Time:** 2 hours
+
+- [ ] Implement transfer methods
+  - **Reference:** `src/core/CallSession.ts` (transfer code if exists)
+  - Implement `transfer(target): Promise<void>` (blind transfer)
+  - Implement `attendedTransfer(target): Promise<void>` (attended transfer)
+  - Use RTCSession.refer()
+  - **Estimated Time:** 3 hours
+
+- [ ] Implement renegotiate method
+  - Implement `renegotiate(options): Promise<void>`
+  - Support adding/removing video
+  - Use RTCSession renegotiation
+  - **Estimated Time:** 2 hours
+
+- [ ] Implement getStats method
+  - Implement `getStats(): Promise<CallStatistics>`
+  - Use RTCPeerConnection.getStats()
+  - Parse stats into CallStatistics format
+  - Calculate audio/video metrics
+  - Calculate connection metrics
+  - **Estimated Time:** 4 hours
+
+- [ ] Implement media stream management
+  - Track local and remote streams
+  - Emit `localStream` and `remoteStream` events
+  - Cleanup streams on call end
+  - **Estimated Time:** 2 hours
+
+#### 14.2.4 Testing
+
+- [ ] Write JsSipAdapter unit tests
+  - **Files:** `tests/unit/adapters/jssip/JsSipAdapter.test.ts`
+  - Test initialize()
+  - Test connect()/disconnect()
+  - Test register()/unregister()
+  - Test call() creation
+  - Test sendMessage()
+  - Test subscribe()/publish()
+  - Test event mapping
+  - Test error handling
+  - Mock JsSIP.UA
+  - **Target:** 20+ tests, 80%+ coverage
+  - **Estimated Time:** 6 hours
+
+- [ ] Write JsSipCallSession unit tests
+  - **Files:** `tests/unit/adapters/jssip/JsSipCallSession.test.ts`
+  - Test answer()/reject()
+  - Test terminate()
+  - Test hold()/unhold()
+  - Test mute()/unmute()
+  - Test sendDTMF()
+  - Test transfer methods
+  - Test getStats()
+  - Test event emission
+  - Mock RTCSession
+  - **Target:** 20+ tests, 80%+ coverage
+  - **Estimated Time:** 6 hours
+
+- [ ] Write JsSipEventMapper unit tests
+  - **Files:** `tests/unit/adapters/jssip/JsSipEventMapper.test.ts`
+  - Test connection event mapping
+  - Test registration event mapping
+  - Test call event mapping
+  - Test session event mapping
+  - Test payload transformation
+  - **Target:** 10+ tests, 90%+ coverage
+  - **Estimated Time:** 3 hours
+
+- [ ] Write integration tests
+  - **Files:** `tests/integration/adapters/JsSipAdapter.integration.test.ts`
+  - Test complete call workflow
+  - Test registration workflow
+  - Test messaging workflow
+  - Test presence workflow
+  - Test multi-call scenarios
+  - **Target:** 10+ tests
+  - **Estimated Time:** 5 hours
+
+#### 14.2.5 Documentation
+
+- [ ] Add JSDoc to JsSipAdapter
+  - Document all public methods
+  - Document all events
+  - Add usage examples
+  - Document error conditions
+  - **Estimated Time:** 3 hours
+
+- [ ] Add JSDoc to JsSipCallSession
+  - Document all public methods
+  - Document call lifecycle
+  - Add usage examples
+  - **Estimated Time:** 2 hours
+
+- [ ] Update adapter README
+  - Mark JsSIP adapter as complete
+  - Add JsSIP-specific notes
+  - Document JsSIP configuration options
+  - Add JsSIP usage examples
+  - **Files:** `src/adapters/README.md`
+  - **Estimated Time:** 2 hours
+
+- [ ] Create migration guide
+  - **Files:** `docs/migrations/adapter-migration.md`
+  - Guide for updating from direct JsSIP usage
+  - Breaking changes (if any)
+  - Code examples
+  - **Estimated Time:** 3 hours
+
+**Phase 2 Success Criteria:**
+- ✅ JsSipAdapter implements all ISipAdapter methods
+- ✅ JsSipCallSession implements all ICallSession methods
+- ✅ All existing tests pass
+- ✅ New tests achieve 80%+ coverage
+- ✅ No performance regression
+- ✅ Documentation complete
+
+### 14.3 Core Refactoring (Phase 3) 📋 PLANNED
+
+**Goal:** Update core classes to use adapter interfaces instead of JsSIP directly
+
+**Estimated Duration:** 5-7 days
+
+#### 14.3.1 Add Adapter Configuration
+
+- [ ] Update SipClientConfig type
+  - **Files:** `src/types/config.types.ts`
+  - Add optional `adapterConfig?: AdapterConfig`
+  - Maintain backward compatibility (default to JsSIP)
+  - Document adapter configuration options
+  - **Estimated Time:** 1 hour
+
+- [ ] Add adapter selection to SipClientProvider
+  - **Files:** `src/providers/SipClientProvider.ts`
+  - Add `adapterConfig` prop
+  - Use AdapterFactory in provider
+  - Pass adapter config to SipClient
+  - **Estimated Time:** 2 hours
+
+#### 14.3.2 Refactor SipClient
+
+- [ ] Add adapter property to SipClient
+  - **Files:** `src/core/SipClient.ts`
+  - Replace `ua: JsSIP.UA` with `adapter: ISipAdapter`
+  - Add adapter initialization in constructor
+  - **Estimated Time:** 1 hour
+
+- [ ] Replace UA methods with adapter methods
+  - Replace `this.ua.start()` → `this.adapter.connect()`
+  - Replace `this.ua.stop()` → `this.adapter.disconnect()`
+  - Replace `this.ua.register()` → `this.adapter.register()`
+  - Replace `this.ua.call()` → `this.adapter.call()`
+  - Update all method signatures
+  - **Estimated Time:** 6 hours
+
+- [ ] Update event listeners
+  - Replace JsSIP event listeners with adapter event listeners
+  - Use standard event names
+  - Update event payloads
+  - **Estimated Time:** 4 hours
+
+- [ ] Remove direct JsSIP imports
+  - Remove `import JsSIP from 'jssip'`
+  - Remove JsSIP type references
+  - Update to use adapter interfaces
+  - **Estimated Time:** 2 hours
+
+- [ ] Add backward compatibility layer
+  - Ensure existing API still works
+  - Default to JsSIP adapter if no config provided
+  - Deprecation warnings for old patterns (if needed)
+  - **Estimated Time:** 3 hours
+
+#### 14.3.3 Refactor CallSession
+
+- [ ] Replace RTCSession with ICallSession
+  - **Files:** `src/core/CallSession.ts`
+  - Change internal session reference to ICallSession
+  - Update all method delegations
+  - Remove JsSIP-specific code
+  - **Estimated Time:** 6 hours
+
+- [ ] Update event handlers
+  - Use standard session events
+  - Update event payload handling
+  - **Estimated Time:** 3 hours
+
+- [ ] Remove JsSIP dependencies
+  - Remove RTCSession type references
+  - Update to use ICallSession interface
+  - **Estimated Time:** 2 hours
+
+#### 14.3.4 Update Composables
+
+- [ ] Update useSipClient
+  - **Files:** `src/composables/useSipClient.ts`
+  - Accept adapter configuration
+  - Use adapter interface internally
+  - **Estimated Time:** 2 hours
+
+- [ ] Update useCallSession
+  - **Files:** `src/composables/useCallSession.ts`
+  - Use ICallSession interface
+  - Update event listeners
+  - **Estimated Time:** 2 hours
+
+- [ ] Update other composables
+  - Update useCallControls, useDTMF, etc.
+  - Ensure all use adapter interfaces
+  - **Estimated Time:** 3 hours
+
+#### 14.3.5 Testing
+
+- [ ] Regression tests
+  - **Files:** `tests/regression/adapter-refactoring.test.ts`
+  - Test that existing code still works
+  - Test backward compatibility
+  - Test default adapter selection
+  - **Target:** 15+ tests
+  - **Estimated Time:** 4 hours
+
+- [ ] Integration tests with adapters
+  - Test SipClient with JsSipAdapter
+  - Test complete workflows
+  - Test library switching
+  - **Estimated Time:** 4 hours
+
+- [ ] Update existing tests
+  - Update mocks to use adapter interfaces
+  - Fix broken tests from refactoring
+  - **Estimated Time:** 6 hours
+
+- [ ] E2E tests
+  - Test real usage with JsSIP adapter
+  - Test adapter configuration
+  - **Estimated Time:** 3 hours
+
+#### 14.3.6 Documentation
+
+- [ ] Update API documentation
+  - Document adapter configuration
+  - Update SipClient docs
+  - Update composable docs
+  - **Estimated Time:** 3 hours
+
+- [ ] Update user guides
+  - Add adapter configuration examples
+  - Update getting started guide
+  - **Files:** `docs/guide/getting-started.md`
+  - **Estimated Time:** 2 hours
+
+- [ ] Create v2.0 migration guide
+  - **Files:** `docs/migrations/v2.0-migration.md`
+  - Document API changes
+  - Provide migration examples
+  - List breaking changes (if any)
+  - **Estimated Time:** 3 hours
+
+**Phase 3 Success Criteria:**
+- ✅ Core uses adapter interfaces exclusively
+- ✅ No direct JsSIP imports in core/composables
+- ✅ All tests pass
+- ✅ Backward compatibility maintained
+- ✅ Documentation updated
+
+### 14.4 SIP.js Adapter Implementation (Phase 4) 📋 PLANNED
+
+**Goal:** Implement SIP.js adapter for library choice
+
+**Estimated Duration:** 7-10 days
+
+#### 14.4.1 Research SIP.js Integration
+
+- [ ] Study SIP.js API and architecture
+  - Read SIP.js documentation
+  - Understand UserAgent, Registerer, Inviter, Invitation classes
+  - Map SIP.js concepts to ISipAdapter interface
+  - Identify API differences from JsSIP
+  - **Estimated Time:** 8 hours
+
+- [ ] Create API mapping document
+  - **Files:** `src/adapters/sipjs/API_MAPPING.md`
+  - Map ISipAdapter methods to SIP.js APIs
+  - Map ICallSession methods to SIP.js Session APIs
+  - Document event mapping strategy
+  - List SIP.js-specific quirks
+  - **Estimated Time:** 4 hours
+
+#### 14.4.2 Create SIP.js Adapter Structure
+
+- [ ] Create SIP.js adapter directory
+  - **Files:** `src/adapters/sipjs/` (new directory)
+  - Create directory structure
+  - Add index.ts for exports
+  - **Tasks:** `mkdir -p src/adapters/sipjs`
+
+- [ ] Create SIP.js-specific types
+  - **Files:** `src/adapters/sipjs/types.ts`
+  - Import SIP.js types
+  - Define SIP.js configuration options
+  - Define event mappings
+  - **Estimated Time:** 3 hours
+
+- [ ] Create SIP.js event mapper
+  - **Files:** `src/adapters/sipjs/SipJsEventMapper.ts`
+  - Map SIP.js transport events → standard events
+  - Map SIP.js registerer events → standard events
+  - Map SIP.js inviter/invitation events → standard events
+  - Map SIP.js session events → standard session events
+  - **Estimated Time:** 5 hours
+
+#### 14.4.3 Implement SipJsAdapter Class
+
+- [ ] Create SipJsAdapter skeleton
+  - **Files:** `src/adapters/sipjs/SipJsAdapter.ts`
+  - Implement ISipAdapter interface
+  - Add class properties (userAgent, registerer, transport, etc.)
+  - Implement constructor
+  - Implement metadata properties
+  - **Estimated Time:** 3 hours
+
+- [ ] Implement initialization
+  - Implement `initialize(config)` method
+  - Create SIP.js UserAgent
+  - Configure transport
+  - Setup Registerer
+  - **Estimated Time:** 5 hours
+
+- [ ] Implement connection methods
+  - Implement `connect()` using transport.connect()
+  - Implement `disconnect()` using transport.disconnect()
+  - Setup transport event listeners
+  - Map transport events to standard events
+  - **Estimated Time:** 4 hours
+
+- [ ] Implement registration methods
+  - Implement `register()` using Registerer.register()
+  - Implement `unregister()` using Registerer.unregister()
+  - Setup registerer event listeners
+  - Handle authentication
+  - **Estimated Time:** 4 hours
+
+- [ ] Implement call methods
+  - Implement `call()` using Inviter
+  - Create SipJsCallSession wrapper
+  - Track active calls
+  - Setup invitation event listener
+  - Implement getActiveCalls() and getCallSession()
+  - **Estimated Time:** 6 hours
+
+- [ ] Implement messaging methods
+  - Implement `sendMessage()` using Message
+  - Setup message event listener
+  - **Estimated Time:** 3 hours
+
+- [ ] Implement presence methods
+  - Implement `subscribe()` using Subscriber
+  - Implement `publish()` using Publisher
+  - Handle NOTIFY events
+  - **Estimated Time:** 5 hours
+
+- [ ] Implement DTMF and cleanup
+  - Implement `sendDTMF()`
+  - Implement `destroy()`
+  - **Estimated Time:** 2 hours
+
+#### 14.4.4 Implement SipJsCallSession Class
+
+- [ ] Create SipJsCallSession skeleton
+  - **Files:** `src/adapters/sipjs/SipJsCallSession.ts`
+  - Implement ICallSession interface
+  - Wrap SIP.js Session (Inviter or Invitation)
+  - **Estimated Time:** 3 hours
+
+- [ ] Implement call control methods
+  - Implement answer(), reject(), terminate()
+  - Implement hold(), unhold()
+  - Implement mute(), unmute()
+  - Setup session event listeners
+  - **Estimated Time:** 6 hours
+
+- [ ] Implement advanced features
+  - Implement sendDTMF() using Session.sendDTMF()
+  - Implement transfer() using Session.refer()
+  - Implement attendedTransfer()
+  - Implement renegotiate()
+  - **Estimated Time:** 5 hours
+
+- [ ] Implement media and stats
+  - Implement media stream management
+  - Implement getStats() using SessionDescriptionHandler
+  - **Estimated Time:** 4 hours
+
+#### 14.4.5 Testing
+
+- [ ] Write SipJsAdapter unit tests
+  - **Files:** `tests/unit/adapters/sipjs/SipJsAdapter.test.ts`
+  - Test all ISipAdapter methods
+  - Mock SIP.js classes
+  - **Target:** 20+ tests, 80%+ coverage
+  - **Estimated Time:** 6 hours
+
+- [ ] Write SipJsCallSession unit tests
+  - **Files:** `tests/unit/adapters/sipjs/SipJsCallSession.test.ts`
+  - Test all ICallSession methods
+  - Mock SIP.js Session
+  - **Target:** 20+ tests, 80%+ coverage
+  - **Estimated Time:** 6 hours
+
+- [ ] Write integration tests
+  - Test complete workflows with SIP.js
+  - Test library switching (JsSIP ↔ SIP.js)
+  - **Target:** 10+ tests
+  - **Estimated Time:** 5 hours
+
+- [ ] Write E2E tests with real SIP.js
+  - Test with real SIP server
+  - Test cross-browser compatibility
+  - **Estimated Time:** 4 hours
+
+- [ ] Cross-adapter compatibility tests
+  - Test that both adapters behave consistently
+  - Test feature parity
+  - **Files:** `tests/integration/adapters/cross-adapter.test.ts`
+  - **Estimated Time:** 4 hours
+
+#### 14.4.6 Package Dependencies
+
+- [ ] Add SIP.js as optional peer dependency
+  - **Files:** `package.json`
+  - Add `"sip.js": "^0.21.0"` to peerDependenciesMeta as optional
+  - Update package.json exports
+  - **Estimated Time:** 1 hour
+
+- [ ] Configure dynamic imports
+  - Ensure tree-shaking works
+  - Test that only used library is bundled
+  - Measure bundle sizes
+  - **Estimated Time:** 3 hours
+
+- [ ] Update build configuration
+  - Configure Vite for optional dependencies
+  - Test builds with JsSIP only, SIP.js only, both
+  - **Estimated Time:** 2 hours
+
+#### 14.4.7 Documentation
+
+- [ ] Add JSDoc to SipJsAdapter and SipJsCallSession
+  - Document all public APIs
+  - Add SIP.js-specific notes
+  - **Estimated Time:** 3 hours
+
+- [ ] Create SIP.js configuration guide
+  - **Files:** `docs/adapters/sipjs-configuration.md`
+  - Document SIP.js-specific options
+  - Provide configuration examples
+  - **Estimated Time:** 3 hours
+
+- [ ] Create feature comparison guide
+  - **Files:** `docs/adapters/library-comparison.md`
+  - Compare JsSIP vs SIP.js
+  - Feature support matrix
+  - Performance comparison
+  - Recommendations for choosing
+  - **Estimated Time:** 4 hours
+
+- [ ] Update adapter README
+  - Mark SIP.js adapter as complete
+  - Update implementation status table
+  - **Estimated Time:** 1 hour
+
+**Phase 4 Success Criteria:**
+- ✅ SipJsAdapter fully functional
+- ✅ Feature parity between JsSIP and SIP.js adapters
+- ✅ Library choice documented
+- ✅ Examples for both libraries
+- ✅ Bundle size optimized
+
+### 14.5 Optimization and Polish (Phase 5) 📋 PLANNED
+
+**Goal:** Optimize bundle size, performance, and developer experience
+
+**Estimated Duration:** 5-7 days
+
+#### 14.5.1 Bundle Optimization
+
+- [ ] Implement full dynamic imports
+  - Make all adapter imports fully dynamic
+  - Ensure tree-shaking works correctly
+  - Test bundle sizes for each configuration
+  - **Target:** Only include used SIP library
+  - **Estimated Time:** 4 hours
+
+- [ ] Make SIP libraries optional peer dependencies
+  - Update package.json peerDependenciesMeta
+  - Both JsSIP and SIP.js should be optional
+  - Provide clear installation instructions
+  - **Estimated Time:** 2 hours
+
+- [ ] Measure and document bundle sizes
+  - JsSIP only: target < 200 KB
+  - SIP.js only: target < 250 KB
+  - Document bundle size breakdown
+  - **Files:** `docs/performance/bundle-sizes.md`
+  - **Estimated Time:** 3 hours
+
+#### 14.5.2 Performance Optimization
+
+- [ ] Profile adapter performance
+  - Benchmark adapter operations
+  - Compare JsSIP vs SIP.js performance
+  - Identify bottlenecks
+  - **Tools:** Chrome DevTools, Lighthouse
+  - **Estimated Time:** 4 hours
+
+- [ ] Optimize event mapping
+  - Reduce event mapping overhead
+  - Cache event mappings where possible
+  - Optimize event payload transformation
+  - **Estimated Time:** 3 hours
+
+- [ ] Optimize memory usage
+  - Profile memory usage
+  - Fix memory leaks (if any)
+  - Optimize call session storage
+  - **Estimated Time:** 3 hours
+
+- [ ] Create performance benchmarks
+  - **Files:** `tests/benchmarks/adapter-performance.bench.ts`
+  - Benchmark call setup time
+  - Benchmark event propagation
+  - Benchmark memory per call
+  - Compare adapters
+  - **Estimated Time:** 4 hours
+
+#### 14.5.3 Developer Experience
+
+- [ ] Create adapter selection wizard
+  - **Files:** `docs/guides/choosing-a-library.md`
+  - Interactive guide for choosing SIP library
+  - Decision tree based on requirements
+  - **Estimated Time:** 4 hours
+
+- [ ] Add runtime adapter detection
+  - Detect installed SIP libraries at runtime
+  - Auto-select adapter if only one available
+  - Provide helpful error messages
+  - **Estimated Time:** 3 hours
+
+- [ ] Improve error messages
+  - Add adapter-specific error context
+  - Provide troubleshooting hints
+  - Link to documentation
+  - **Estimated Time:** 3 hours
+
+- [ ] Create adapter debugging tools
+  - Add adapter debug mode
+  - Log adapter operations
+  - Expose adapter internals for debugging
+  - **Estimated Time:** 4 hours
+
+#### 14.5.4 Advanced Features
+
+- [ ] Explore adapter hot-swapping
+  - Research feasibility of switching adapters at runtime
+  - Implement if feasible
+  - Document limitations
+  - **Estimated Time:** 6 hours (if feasible)
+
+- [ ] Create adapter middleware system
+  - Allow intercepting adapter operations
+  - Enable custom behavior injection
+  - **Estimated Time:** 5 hours
+
+- [ ] Add adapter utilities
+  - Helper functions for common adapter tasks
+  - Adapter configuration validators
+  - **Estimated Time:** 3 hours
+
+#### 14.5.5 Quality Assurance
+
+- [ ] Complete test coverage
+  - Achieve 95%+ coverage for all adapters
+  - Fill gaps in test suite
+  - **Estimated Time:** 8 hours
+
+- [ ] Cross-browser testing
+  - Test on Chrome, Firefox, Safari, Edge
+  - Test on mobile browsers
+  - Document browser-specific issues
+  - **Estimated Time:** 6 hours
+
+- [ ] Real-world SIP server testing
+  - Test with Asterisk
+  - Test with FreeSWITCH
+  - Test with various SIP providers
+  - Document compatibility
+  - **Estimated Time:** 8 hours
+
+- [ ] Load testing
+  - Test with multiple concurrent calls
+  - Test memory usage under load
+  - Test performance under load
+  - **Tools:** Custom load testing scripts
+  - **Estimated Time:** 6 hours
+
+- [ ] Security audit
+  - Review adapter security
+  - Check for credential leaks
+  - Verify encryption
+  - **Estimated Time:** 4 hours
+
+#### 14.5.6 Documentation Completion
+
+- [ ] Complete API reference
+  - Full API docs for all adapters
+  - **Files:** `docs/api/adapters.md`
+  - **Estimated Time:** 4 hours
+
+- [ ] Create video tutorials
+  - Getting started with adapters
+  - Switching between libraries
+  - Custom adapter development
+  - **Estimated Time:** 8 hours (optional)
+
+- [ ] Update all examples
+  - Add adapter configuration to all examples
+  - Show both JsSIP and SIP.js versions
+  - **Estimated Time:** 6 hours
+
+- [ ] Create troubleshooting guide
+  - **Files:** `docs/troubleshooting/adapters.md`
+  - Common adapter issues
+  - Library-specific issues
+  - Performance troubleshooting
+  - **Estimated Time:** 4 hours
+
+**Phase 5 Success Criteria:**
+- ✅ Bundle sizes optimized (< 200 KB per library)
+- ✅ Performance benchmarked and documented
+- ✅ 95%+ test coverage
+- ✅ Cross-browser tested
+- ✅ Real-world server tested
+- ✅ Complete documentation
+
+### 14.6 Release Preparation
+
+- [ ] Update version to 2.0.0
+  - **Files:** `package.json`, `CHANGELOG.md`
+  - Follow semantic versioning
+  - Document breaking changes
+  - **Estimated Time:** 1 hour
+
+- [ ] Create release notes
+  - **Files:** `docs/releases/v2.0.0.md`
+  - Highlight adapter support
+  - Migration guide
+  - Feature list
+  - **Estimated Time:** 3 hours
+
+- [ ] Final testing
+  - Run full test suite
+  - Test all examples
+  - Test on all browsers
+  - **Estimated Time:** 4 hours
+
+- [ ] Update documentation website
+  - Deploy updated docs
+  - Update navigation
+  - Add adapter guides
+  - **Estimated Time:** 3 hours
+
+**Phase 14 Total Estimated Time:** 23-32 days (~4-6 weeks)
+
+**Success Metrics:**
+- ✅ Support for JsSIP and SIP.js
+- ✅ Consistent API across libraries
+- ✅ No breaking changes for existing JsSIP users
+- ✅ Bundle size < 200 KB (with tree-shaking)
+- ✅ 95%+ test coverage for adapters
+- ✅ Comprehensive documentation
 
 ---
 
