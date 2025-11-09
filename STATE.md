@@ -2580,7 +2580,7 @@ Each guide is a separate markdown file in `docs/guide/`:
   - Handling call events
   - Error handling
 
-- [ ] Write Receiving Calls guide
+- [x] Write Receiving Calls guide
   - **Files:** `docs/guide/receiving-calls.md`
   - Incoming call detection
   - Auto-answer configuration
