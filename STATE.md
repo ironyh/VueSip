@@ -2601,12 +2601,13 @@ Each guide is a separate markdown file in `docs/guide/`:
   - Permission handling
   - Device testing
 
-- [ ] Write Call History guide
+- [x] Write Call History guide
   - **Files:** `docs/guide/call-history.md`
   - Tracking call history
   - Filtering and searching
   - Export functionality
   - Persistence
+  - **Status:** ✅ Complete (2,135 lines, comprehensive coverage of all topics)
 
 - [ ] Write Presence and Messaging guide
   - **Files:** `docs/guide/presence-messaging.md`
