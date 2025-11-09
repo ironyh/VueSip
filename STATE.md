@@ -2565,7 +2565,7 @@ Each task documents a single composable with JSDoc/TSDoc comments:
 
 Each guide is a separate markdown file in `docs/guide/`:
 
-- [ ] Write Getting Started guide
+- [x] Write Getting Started guide
   - **Files:** `docs/guide/getting-started.md`
   - Installation instructions
   - Basic setup example
