@@ -1,0 +1,33 @@
+# Dockerfile for Asterisk SIP server for E2E testing
+# Based on Alpine Linux for minimal size
+
+FROM alpine:3.18
+
+# Install Asterisk and dependencies
+RUN apk add --no-cache \
+    asterisk \
+    asterisk-sample-config \
+    asterisk-pjsip \
+    asterisk-sounds-en \
+    asterisk-sounds-moh \
+    && rm -rf /var/cache/apk/*
+
+# Create necessary directories
+RUN mkdir -p /var/log/asterisk \
+    /var/spool/asterisk \
+    /var/run/asterisk
+
+# Copy configuration files
+COPY asterisk.conf /etc/asterisk/asterisk.conf
+COPY pjsip.conf /etc/asterisk/pjsip.conf
+COPY extensions.conf /etc/asterisk/extensions.conf
+COPY http.conf /etc/asterisk/http.conf
+
+# Expose ports
+# SIP over WebSocket
+EXPOSE 8088
+# RTP ports for media
+EXPOSE 10000-10100/udp
+
+# Run Asterisk in foreground
+CMD ["asterisk", "-f", "-vvv"]

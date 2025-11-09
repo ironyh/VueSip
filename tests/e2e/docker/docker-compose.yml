@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  asterisk:
+    build:
+      context: .
+      dockerfile: Dockerfile.asterisk
+    container_name: asterisk-test
+    ports:
+      - "8088:8088"     # WebSocket SIP
+      - "10000-10100:10000-10100/udp"  # RTP media
+    networks:
+      - sip-test-network
+    healthcheck:
+      test: ["CMD", "asterisk", "-rx", "core show version"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - ./logs:/var/log/asterisk
+
+networks:
+  sip-test-network:
+    driver: bridge

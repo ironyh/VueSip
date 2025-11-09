@@ -243,6 +243,42 @@ function mockWebSocketResponses(page: Page) {
             this.readyState = 1 // OPEN
             this.dispatchEvent(new Event('open'))
           }, delays.CONNECTION)
+
+          // Store instance globally for incoming call simulation
+          ;(window as any).__mockWebSocket = this
+        }
+
+        /**
+         * Simulate an incoming INVITE from remote party
+         */
+        simulateIncomingInvite(fromUri: string, toUri: string) {
+          if (this.readyState !== 1) return
+
+          const callId = `incoming-call-${Date.now()}`
+          const fromTag = `from-${Date.now()}`
+          const branch = `z9hG4bK-incoming-${Date.now()}`
+
+          const invite =
+            `INVITE ${toUri} SIP/2.0\r\n` +
+            `Via: SIP/2.0/WS fake;branch=${branch}\r\n` +
+            `From: <${fromUri}>;tag=${fromTag}\r\n` +
+            `To: <${toUri}>\r\n` +
+            `Call-ID: ${callId}\r\n` +
+            `CSeq: 1 INVITE\r\n` +
+            `Contact: <${fromUri}>\r\n` +
+            `Content-Type: application/sdp\r\n` +
+            `Content-Length: 200\r\n\r\n` +
+            `v=0\r\n` +
+            `o=- 123456 654321 IN IP4 192.168.1.1\r\n` +
+            `s=Incoming Call\r\n` +
+            `c=IN IP4 192.168.1.1\r\n` +
+            `t=0 0\r\n` +
+            `m=audio 50000 RTP/AVP 0 8 101\r\n` +
+            `a=rtpmap:0 PCMU/8000\r\n` +
+            `a=rtpmap:8 PCMA/8000\r\n` +
+            `a=rtpmap:101 telephone-event/8000\r\n`
+
+          this.dispatchEvent(new MessageEvent('message', { data: invite }))
         }
 
         send(data: string) {
@@ -705,13 +741,20 @@ export const test = base.extend<TestFixtures>({
 
   simulateIncomingCall: async ({ page }, use) => {
     await use(async (remoteUri: string) => {
-      // Inject script to simulate incoming call
-      await page.evaluate((uri: string) => {
-        // This would trigger an incoming call in the actual implementation
-        console.log('Simulating incoming call from:', uri)
-        // Note: This is a placeholder - actual implementation would need
-        // to trigger the VueSip library's incoming call handler
-      }, remoteUri)
+      // Trigger an incoming INVITE through the mock WebSocket
+      await page.evaluate(
+        ({ from, to }: { from: string; to: string }) => {
+          const mockWs = (window as any).__mockWebSocket
+          if (mockWs && typeof mockWs.simulateIncomingInvite === 'function') {
+            mockWs.simulateIncomingInvite(from, to)
+          } else {
+            console.error('Mock WebSocket not found or simulateIncomingInvite not available')
+          }
+        },
+        { from: remoteUri, to: 'sip:testuser@example.com' }
+      )
+      // Wait a bit for the call to be processed
+      await page.waitForTimeout(100)
     })
   },
 
