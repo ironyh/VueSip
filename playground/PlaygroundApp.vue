@@ -145,6 +145,11 @@ import AudioDevicesDemo from './demos/AudioDevicesDemo.vue'
 import CallHistoryDemo from './demos/CallHistoryDemo.vue'
 import CallTransferDemo from './demos/CallTransferDemo.vue'
 import VideoCallDemo from './demos/VideoCallDemo.vue'
+import CallTimerDemo from './demos/CallTimerDemo.vue'
+import SpeedDialDemo from './demos/SpeedDialDemo.vue'
+import DoNotDisturbDemo from './demos/DoNotDisturbDemo.vue'
+import CallQualityDemo from './demos/CallQualityDemo.vue'
+import CustomRingtonesDemo from './demos/CustomRingtonesDemo.vue'
 
 // Example definitions
 const examples = [
@@ -395,6 +400,216 @@ if (hasLocalVideo.value) {
 // Display video streams
 watch(remoteStream, (stream) => {
   videoElement.srcObject = stream
+})`,
+      },
+    ],
+  },
+  {
+    id: 'call-timer',
+    icon: '⏱️',
+    title: 'Call Timer',
+    description: 'Display call duration in various formats',
+    tags: ['UI', 'Formatting', 'Simple'],
+    component: CallTimerDemo,
+    setupGuide: '<p>Learn how to display call duration in different formats. Shows MM:SS, HH:MM:SS, human-readable, and compact formats.</p>',
+    codeSnippets: [
+      {
+        title: 'Duration Formatting',
+        description: 'Format call duration in different styles',
+        code: `import { useCallSession } from 'vuesip'
+
+const { duration } = useCallSession(sipClient)
+
+// Format as MM:SS
+const formatMMSS = (seconds: number) => {
+  const mins = Math.floor(seconds / 60)
+  const secs = seconds % 60
+  return \`\${mins}:\${secs.toString().padStart(2, '0')}\`
+}
+
+// Format as HH:MM:SS
+const formatHHMMSS = (seconds: number) => {
+  const hours = Math.floor(seconds / 3600)
+  const mins = Math.floor((seconds % 3600) / 60)
+  const secs = seconds % 60
+  return \`\${hours}:\${mins.toString().padStart(2, '0')}:\${secs.toString().padStart(2, '0')}\`
+}
+
+// Human readable
+const formatHuman = (seconds: number) => {
+  const hours = Math.floor(seconds / 3600)
+  const mins = Math.floor((seconds % 3600) / 60)
+  const secs = seconds % 60
+
+  const parts = []
+  if (hours > 0) parts.push(\`\${hours}h\`)
+  if (mins > 0) parts.push(\`\${mins}m\`)
+  if (secs > 0) parts.push(\`\${secs}s\`)
+  return parts.join(' ')
+}`,
+      },
+    ],
+  },
+  {
+    id: 'speed-dial',
+    icon: '⭐',
+    title: 'Speed Dial',
+    description: 'Quick-dial saved contacts',
+    tags: ['UI', 'Contacts', 'Practical'],
+    component: SpeedDialDemo,
+    setupGuide: '<p>Save frequently called contacts for one-click dialing. Contacts are stored in localStorage and persist across sessions.</p>',
+    codeSnippets: [
+      {
+        title: 'Speed Dial Management',
+        description: 'Save and dial favorite contacts',
+        code: `import { ref } from 'vuesip'
+
+interface Contact {
+  name: string
+  number: string
+}
+
+const speedDial = ref<Contact[]>([])
+
+// Load from localStorage
+const loadSpeedDial = () => {
+  const saved = localStorage.getItem('speed-dial')
+  if (saved) speedDial.value = JSON.parse(saved)
+}
+
+// Add contact
+const addContact = (contact: Contact) => {
+  speedDial.value.push(contact)
+  localStorage.setItem('speed-dial', JSON.stringify(speedDial.value))
+}
+
+// Quick dial
+const quickDial = async (contact: Contact) => {
+  await makeCall(contact.number)
+}`,
+      },
+    ],
+  },
+  {
+    id: 'do-not-disturb',
+    icon: '🔕',
+    title: 'Do Not Disturb',
+    description: 'Auto-reject incoming calls',
+    tags: ['Feature', 'Auto-Action', 'Simple'],
+    component: DoNotDisturbDemo,
+    setupGuide: '<p>Enable Do Not Disturb mode to automatically reject all incoming calls. Perfect for focus time or meetings.</p>',
+    codeSnippets: [
+      {
+        title: 'DND Implementation',
+        description: 'Auto-reject calls when DND is enabled',
+        code: `import { ref, watch } from 'vue'
+import { useCallSession } from 'vuesip'
+
+const dndEnabled = ref(false)
+
+const { state, reject } = useCallSession(sipClient)
+
+// Auto-reject incoming calls
+watch(state, async (newState) => {
+  if (newState === 'incoming' && dndEnabled.value) {
+    console.log('Auto-rejecting due to DND')
+    await reject(486) // 486 Busy Here
+  }
+})
+
+// Save DND state
+watch(dndEnabled, (enabled) => {
+  localStorage.setItem('dnd-enabled', String(enabled))
+})`,
+      },
+    ],
+  },
+  {
+    id: 'call-quality',
+    icon: '📊',
+    title: 'Call Quality Metrics',
+    description: 'Monitor real-time call statistics',
+    tags: ['Advanced', 'Monitoring', 'Debug'],
+    component: CallQualityDemo,
+    setupGuide: '<p>View real-time call quality metrics including packet loss, jitter, RTT, and codec information. Essential for diagnosing call quality issues.</p>',
+    codeSnippets: [
+      {
+        title: 'Getting Call Statistics',
+        description: 'Access WebRTC stats during calls',
+        code: `import { useCallSession } from 'vuesip'
+
+const { session } = useCallSession(sipClient)
+
+const getCallStats = async () => {
+  if (!session.value?.connection) return
+
+  const stats = await session.value.connection.getStats()
+
+  const metrics = {
+    packetLoss: 0,
+    jitter: 0,
+    rtt: 0
+  }
+
+  stats.forEach(report => {
+    if (report.type === 'inbound-rtp') {
+      metrics.packetLoss = report.packetsLost || 0
+      metrics.jitter = report.jitter * 1000
+    }
+
+    if (report.type === 'candidate-pair') {
+      metrics.rtt = report.currentRoundTripTime * 1000
+    }
+  })
+
+  return metrics
+}
+
+// Poll every 2 seconds
+setInterval(getCallStats, 2000)`,
+      },
+    ],
+  },
+  {
+    id: 'custom-ringtones',
+    icon: '🔔',
+    title: 'Custom Ringtones',
+    description: 'Play custom audio for incoming calls',
+    tags: ['Audio', 'Customization', 'UI'],
+    component: CustomRingtonesDemo,
+    setupGuide: '<p>Customize the incoming call experience with different ringtones. Select from built-in tones or use custom audio files with volume control.</p>',
+    codeSnippets: [
+      {
+        title: 'Ringtone Playback',
+        description: 'Play audio on incoming calls',
+        code: `import { ref, watch } from 'vue'
+import { useCallSession } from 'vuesip'
+
+const ringtone = ref<HTMLAudioElement | null>(null)
+
+// Initialize ringtone
+const initRingtone = () => {
+  ringtone.value = new Audio('/ringtones/default.mp3')
+  ringtone.value.loop = true
+  ringtone.value.volume = 0.8
+}
+
+const { state } = useCallSession(sipClient)
+
+watch(state, (newState, oldState) => {
+  if (newState === 'incoming') {
+    // Start ringing
+    ringtone.value?.play()
+
+    // Vibrate if supported
+    if (navigator.vibrate) {
+      navigator.vibrate([500, 250, 500])
+    }
+  } else if (oldState === 'incoming') {
+    // Stop ringing
+    ringtone.value?.pause()
+    if (ringtone.value) ringtone.value.currentTime = 0
+  }
 })`,
       },
     ],
