@@ -29,9 +29,15 @@ function forceGC(): void {
 
 /**
  * Get current memory usage in bytes
+ * Runs GC twice with waits to ensure reliable measurements
  */
-function getMemoryUsage(): number {
-  forceGC()
+async function getMemoryUsage(): Promise<number> {
+  if (global.gc) {
+    global.gc()
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    global.gc() // Run twice for more reliable GC
+    await new Promise((resolve) => setTimeout(resolve, 100))
+  }
   const usage = process.memoryUsage()
   return usage.heapUsed
 }
@@ -124,7 +130,7 @@ describe('Memory Leak Detection Tests', () => {
       await new Promise((resolve) => setTimeout(resolve, 100))
 
       // Baseline memory measurement
-      const baselineMemory = getMemoryUsage()
+      const baselineMemory = await getMemoryUsage()
       memorySnapshots.push(baselineMemory)
 
       // Run iterations and measure memory periodically
@@ -153,14 +159,14 @@ describe('Memory Leak Detection Tests', () => {
         if ((i + 1) % 20 === 0) {
           forceGC()
           await new Promise((resolve) => setTimeout(resolve, 50))
-          memorySnapshots.push(getMemoryUsage())
+          memorySnapshots.push(await getMemoryUsage())
         }
       }
 
       // Final memory measurement
       forceGC()
       await new Promise((resolve) => setTimeout(resolve, 100))
-      const finalMemory = getMemoryUsage()
+      const finalMemory = await getMemoryUsage()
       memorySnapshots.push(finalMemory)
 
       // Calculate memory growth
@@ -190,7 +196,7 @@ describe('Memory Leak Detection Tests', () => {
       const iterations = 50
 
       // Create multiple call sessions
-      const beforeMemory = getMemoryUsage()
+      const beforeMemory = await getMemoryUsage()
 
       for (let i = 0; i < iterations; i++) {
         const session = mockSipServer.createSession(`call-${i}`)
@@ -210,7 +216,7 @@ describe('Memory Leak Detection Tests', () => {
       }
 
       forceGC()
-      const duringMemory = getMemoryUsage()
+      const duringMemory = await getMemoryUsage()
 
       // Terminate all sessions
       sessions.forEach((session, index) => {
@@ -228,7 +234,7 @@ describe('Memory Leak Detection Tests', () => {
 
       forceGC()
       await new Promise((resolve) => setTimeout(resolve, 100))
-      const afterMemory = getMemoryUsage()
+      const afterMemory = await getMemoryUsage()
 
       // Memory after cleanup should be close to before
       // Allow 20% tolerance for test overhead
@@ -245,7 +251,7 @@ describe('Memory Leak Detection Tests', () => {
       const iterations = 100
       const handlers: Array<() => void> = []
 
-      const beforeMemory = getMemoryUsage()
+      const beforeMemory = await getMemoryUsage()
 
       // Register and remove listeners many times
       for (let i = 0; i < iterations; i++) {
@@ -269,7 +275,7 @@ describe('Memory Leak Detection Tests', () => {
       forceGC()
       await new Promise((resolve) => setTimeout(resolve, 100))
 
-      const afterMemory = getMemoryUsage()
+      const afterMemory = await getMemoryUsage()
       const memoryGrowth = getMemoryDelta(beforeMemory, afterMemory)
 
       // Should not accumulate significant memory from event listeners
@@ -281,7 +287,7 @@ describe('Memory Leak Detection Tests', () => {
       const eventBuses: EventBus[] = []
       const iterations = 100
 
-      const beforeMemory = getMemoryUsage()
+      const beforeMemory = await getMemoryUsage()
 
       // Create many EventBus instances with listeners
       for (let i = 0; i < iterations; i++) {
@@ -297,7 +303,7 @@ describe('Memory Leak Detection Tests', () => {
       }
 
       forceGC()
-      const duringMemory = getMemoryUsage()
+      const duringMemory = await getMemoryUsage()
 
       // Destroy all EventBus instances
       eventBuses.forEach((bus) => bus.destroy())
@@ -305,7 +311,7 @@ describe('Memory Leak Detection Tests', () => {
 
       forceGC()
       await new Promise((resolve) => setTimeout(resolve, 100))
-      const afterMemory = getMemoryUsage()
+      const afterMemory = await getMemoryUsage()
 
       // Memory should be mostly released
       const memoryRetained = afterMemory - beforeMemory
@@ -321,7 +327,7 @@ describe('Memory Leak Detection Tests', () => {
 
       eventBus.on('test:event', handler)
 
-      const beforeMemory = getMemoryUsage()
+      const beforeMemory = await getMemoryUsage()
 
       // Emit many events
       for (let i = 0; i < iterations; i++) {
@@ -330,7 +336,7 @@ describe('Memory Leak Detection Tests', () => {
 
       await new Promise((resolve) => setTimeout(resolve, 100))
       forceGC()
-      const afterMemory = getMemoryUsage()
+      const afterMemory = await getMemoryUsage()
 
       const memoryGrowth = getMemoryDelta(beforeMemory, afterMemory)
 
@@ -347,7 +353,7 @@ describe('Memory Leak Detection Tests', () => {
     it('should not leak memory after acquiring and releasing media streams 100 times', async () => {
       const iterations = 100
 
-      const beforeMemory = getMemoryUsage()
+      const beforeMemory = await getMemoryUsage()
 
       for (let i = 0; i < iterations; i++) {
         // Acquire media stream
@@ -363,7 +369,7 @@ describe('Memory Leak Detection Tests', () => {
 
       forceGC()
       await new Promise((resolve) => setTimeout(resolve, 100))
-      const afterMemory = getMemoryUsage()
+      const afterMemory = await getMemoryUsage()
 
       const memoryGrowth = getMemoryDelta(beforeMemory, afterMemory)
 
@@ -376,7 +382,7 @@ describe('Memory Leak Detection Tests', () => {
       const managers: MediaManager[] = []
       const iterations = 50
 
-      const beforeMemory = getMemoryUsage()
+      const beforeMemory = await getMemoryUsage()
 
       // Create multiple MediaManager instances with active streams
       for (let i = 0; i < iterations; i++) {
@@ -388,7 +394,7 @@ describe('Memory Leak Detection Tests', () => {
       }
 
       forceGC()
-      const duringMemory = getMemoryUsage()
+      const duringMemory = await getMemoryUsage()
 
       // Destroy all managers
       managers.forEach((manager) => manager.destroy())
@@ -396,7 +402,7 @@ describe('Memory Leak Detection Tests', () => {
 
       forceGC()
       await new Promise((resolve) => setTimeout(resolve, 100))
-      const afterMemory = getMemoryUsage()
+      const afterMemory = await getMemoryUsage()
 
       // Memory should be mostly released
       const memoryRetained = afterMemory - beforeMemory
@@ -469,7 +475,7 @@ describe('Memory Leak Detection Tests', () => {
       forceGC()
       await new Promise((resolve) => setTimeout(resolve, 100))
 
-      const baselineMemory = getMemoryUsage()
+      const baselineMemory = await getMemoryUsage()
       memorySnapshots.push(baselineMemory)
 
       // Run full call cycles
@@ -513,13 +519,13 @@ describe('Memory Leak Detection Tests', () => {
         if ((i + 1) % 20 === 0) {
           forceGC()
           await new Promise((resolve) => setTimeout(resolve, 50))
-          memorySnapshots.push(getMemoryUsage())
+          memorySnapshots.push(await getMemoryUsage())
         }
       }
 
       forceGC()
       await new Promise((resolve) => setTimeout(resolve, 100))
-      const finalMemory = getMemoryUsage()
+      const finalMemory = await getMemoryUsage()
       memorySnapshots.push(finalMemory)
 
       const memoryGrowth = getMemoryDelta(baselineMemory, finalMemory)
@@ -558,7 +564,7 @@ describe('Memory Leak Detection Tests', () => {
       mockSipServer.simulateCallAccepted(session)
 
       const memorySnapshots: number[] = []
-      const beforeMemory = getMemoryUsage()
+      const beforeMemory = await getMemoryUsage()
       memorySnapshots.push(beforeMemory)
 
       // Simulate long-running call with periodic operations
@@ -571,12 +577,12 @@ describe('Memory Leak Detection Tests', () => {
 
         if (i % 10 === 0) {
           forceGC()
-          memorySnapshots.push(getMemoryUsage())
+          memorySnapshots.push(await getMemoryUsage())
         }
       }
 
       forceGC()
-      const afterMemory = getMemoryUsage()
+      const afterMemory = await getMemoryUsage()
       memorySnapshots.push(afterMemory)
 
       // Clean up
@@ -593,7 +599,7 @@ describe('Memory Leak Detection Tests', () => {
       const sessions: CallSession[] = []
       const maxConcurrentCalls = 5
 
-      const beforeMemory = getMemoryUsage()
+      const beforeMemory = await getMemoryUsage()
 
       // Create multiple concurrent calls
       for (let i = 0; i < maxConcurrentCalls; i++) {
@@ -616,7 +622,7 @@ describe('Memory Leak Detection Tests', () => {
 
       forceGC()
       await new Promise((resolve) => setTimeout(resolve, 100))
-      const duringMemory = getMemoryUsage()
+      const duringMemory = await getMemoryUsage()
 
       const totalMemoryUsed = getMemoryDelta(beforeMemory, duringMemory)
       const memoryPerCall = totalMemoryUsed / maxConcurrentCalls
@@ -636,7 +642,7 @@ describe('Memory Leak Detection Tests', () => {
 
       forceGC()
       await new Promise((resolve) => setTimeout(resolve, 100))
-      const afterMemory = getMemoryUsage()
+      const afterMemory = await getMemoryUsage()
 
       // Memory should be released after cleanup
       const memoryRetained = afterMemory - beforeMemory
@@ -661,14 +667,14 @@ describe('Memory Leak Detection Tests', () => {
     it('should demonstrate memory cleanup with forced GC', async () => {
       const largeObjects: any[] = []
 
-      const beforeMemory = getMemoryUsage()
+      const beforeMemory = await getMemoryUsage()
 
       // Allocate memory
       for (let i = 0; i < 100; i++) {
         largeObjects.push(new Array(1000).fill({ data: `item-${i}` }))
       }
 
-      const duringMemory = getMemoryUsage()
+      const duringMemory = await getMemoryUsage()
       const allocated = duringMemory - beforeMemory
 
       // Clear references
@@ -676,7 +682,7 @@ describe('Memory Leak Detection Tests', () => {
 
       forceGC()
       await new Promise((resolve) => setTimeout(resolve, 100))
-      const afterMemory = getMemoryUsage()
+      const afterMemory = await getMemoryUsage()
 
       const retained = afterMemory - beforeMemory
 

@@ -7,7 +7,7 @@
  * Run with: pnpm vitest tests/performance/benchmarks
  */
 
-import { describe, bench, beforeEach } from 'vitest'
+import { describe, bench, beforeEach, afterEach } from 'vitest'
 import { EventBus } from '../../../src/core/EventBus'
 
 describe('EventBus Performance', () => {
@@ -15,6 +15,13 @@ describe('EventBus Performance', () => {
 
   beforeEach(() => {
     eventBus = new EventBus()
+  })
+
+  afterEach(async () => {
+    const result = eventBus.destroy()
+    if (result && typeof result.then === 'function') {
+      await result
+    }
   })
 
   // ============================================================================

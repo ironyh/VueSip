@@ -42,8 +42,11 @@ describe('Conference Performance Benchmarks', () => {
     mockSipClient = createMockSipClient()
   })
 
-  afterEach(() => {
-    eventBus.destroy()
+  afterEach(async () => {
+    const eventBusResult = eventBus.destroy()
+    if (eventBusResult && typeof eventBusResult.then === 'function') {
+      await eventBusResult
+    }
   })
 
   describe('Conference Creation', () => {

@@ -70,7 +70,7 @@ describe('CallSession Performance Benchmarks', () => {
   describe('Session Creation', () => {
     bench(
       'create incoming call session',
-      () => {
+      async () => {
         const eventBus = new EventBus()
         const mockRtcSession = new MockRTCSession()
 
@@ -84,8 +84,15 @@ describe('CallSession Performance Benchmarks', () => {
           eventBus,
         })
 
-        session.destroy()
-        eventBus.destroy()
+        const sessionResult = session.destroy()
+        if (sessionResult && typeof sessionResult.then === 'function') {
+          await sessionResult
+        }
+
+        const eventBusResult = eventBus.destroy()
+        if (eventBusResult && typeof eventBusResult.then === 'function') {
+          await eventBusResult
+        }
       },
       {
         time: 1000,
@@ -94,7 +101,7 @@ describe('CallSession Performance Benchmarks', () => {
 
     bench(
       'create outgoing call session',
-      () => {
+      async () => {
         const eventBus = new EventBus()
         const mockRtcSession = new MockRTCSession()
 
@@ -107,8 +114,15 @@ describe('CallSession Performance Benchmarks', () => {
           eventBus,
         })
 
-        session.destroy()
-        eventBus.destroy()
+        const sessionResult = session.destroy()
+        if (sessionResult && typeof sessionResult.then === 'function') {
+          await sessionResult
+        }
+
+        const eventBusResult = eventBus.destroy()
+        if (eventBusResult && typeof eventBusResult.then === 'function') {
+          await eventBusResult
+        }
       },
       {
         time: 1000,
@@ -135,8 +149,15 @@ describe('CallSession Performance Benchmarks', () => {
 
       await session.answer()
 
-      session.destroy()
-      eventBus.destroy()
+      const sessionResult = session.destroy()
+      if (sessionResult && typeof sessionResult.then === 'function') {
+        await sessionResult
+      }
+
+      const eventBusResult = eventBus.destroy()
+      if (eventBusResult && typeof eventBusResult.then === 'function') {
+        await eventBusResult
+      }
     })
 
     bench('answer with custom media constraints (slow path)', async () => {
@@ -166,8 +187,15 @@ describe('CallSession Performance Benchmarks', () => {
         extraHeaders: ['X-Custom-Header: value'],
       })
 
-      session.destroy()
-      eventBus.destroy()
+      const sessionResult = session.destroy()
+      if (sessionResult && typeof sessionResult.then === 'function') {
+        await sessionResult
+      }
+
+      const eventBusResult = eventBus.destroy()
+      if (eventBusResult && typeof eventBusResult.then === 'function') {
+        await eventBusResult
+      }
     })
   })
 
@@ -189,8 +217,15 @@ describe('CallSession Performance Benchmarks', () => {
 
       await session.hangup()
 
-      session.destroy()
-      eventBus.destroy()
+      const sessionResult = session.destroy()
+      if (sessionResult && typeof sessionResult.then === 'function') {
+        await sessionResult
+      }
+
+      const eventBusResult = eventBus.destroy()
+      if (eventBusResult && typeof eventBusResult.then === 'function') {
+        await eventBusResult
+      }
     })
 
     bench('reject incoming call', async () => {
@@ -210,8 +245,15 @@ describe('CallSession Performance Benchmarks', () => {
 
       await session.hangup()
 
-      session.destroy()
-      eventBus.destroy()
+      const sessionResult = session.destroy()
+      if (sessionResult && typeof sessionResult.then === 'function') {
+        await sessionResult
+      }
+
+      const eventBusResult = eventBus.destroy()
+      if (eventBusResult && typeof eventBusResult.then === 'function') {
+        await eventBusResult
+      }
     })
   })
 
@@ -233,8 +275,15 @@ describe('CallSession Performance Benchmarks', () => {
 
       await session.hold()
 
-      session.destroy()
-      eventBus.destroy()
+      const sessionResult = session.destroy()
+      if (sessionResult && typeof sessionResult.then === 'function') {
+        await sessionResult
+      }
+
+      const eventBusResult = eventBus.destroy()
+      if (eventBusResult && typeof eventBusResult.then === 'function') {
+        await eventBusResult
+      }
     })
 
     bench('resume held call', async () => {
@@ -255,8 +304,15 @@ describe('CallSession Performance Benchmarks', () => {
 
       await session.unhold()
 
-      session.destroy()
-      eventBus.destroy()
+      const sessionResult = session.destroy()
+      if (sessionResult && typeof sessionResult.then === 'function') {
+        await sessionResult
+      }
+
+      const eventBusResult = eventBus.destroy()
+      if (eventBusResult && typeof eventBusResult.then === 'function') {
+        await eventBusResult
+      }
     })
 
     bench('hold/resume cycle', async () => {
@@ -279,13 +335,20 @@ describe('CallSession Performance Benchmarks', () => {
       ;(session as any)._state = 'active'
       await session.unhold()
 
-      session.destroy()
-      eventBus.destroy()
+      const sessionResult = session.destroy()
+      if (sessionResult && typeof sessionResult.then === 'function') {
+        await sessionResult
+      }
+
+      const eventBusResult = eventBus.destroy()
+      if (eventBusResult && typeof eventBusResult.then === 'function') {
+        await eventBusResult
+      }
     })
   })
 
   describe('Mute/Unmute Operations', () => {
-    bench('mute call', () => {
+    bench('mute call', async () => {
       const eventBus = new EventBus()
       const mockRtcSession = new MockRTCSession()
 
@@ -302,11 +365,18 @@ describe('CallSession Performance Benchmarks', () => {
 
       session.mute()
 
-      session.destroy()
-      eventBus.destroy()
+      const sessionResult = session.destroy()
+      if (sessionResult && typeof sessionResult.then === 'function') {
+        await sessionResult
+      }
+
+      const eventBusResult = eventBus.destroy()
+      if (eventBusResult && typeof eventBusResult.then === 'function') {
+        await eventBusResult
+      }
     })
 
-    bench('unmute call', () => {
+    bench('unmute call', async () => {
       const eventBus = new EventBus()
       const mockRtcSession = new MockRTCSession()
 
@@ -324,13 +394,20 @@ describe('CallSession Performance Benchmarks', () => {
 
       session.unmute()
 
-      session.destroy()
-      eventBus.destroy()
+      const sessionResult = session.destroy()
+      if (sessionResult && typeof sessionResult.then === 'function') {
+        await sessionResult
+      }
+
+      const eventBusResult = eventBus.destroy()
+      if (eventBusResult && typeof eventBusResult.then === 'function') {
+        await eventBusResult
+      }
     })
   })
 
   describe('DTMF Operations', () => {
-    bench('send single DTMF tone', () => {
+    bench('send single DTMF tone', async () => {
       const eventBus = new EventBus()
       const mockRtcSession = new MockRTCSession()
 
@@ -347,11 +424,18 @@ describe('CallSession Performance Benchmarks', () => {
 
       session.sendDTMF('1')
 
-      session.destroy()
-      eventBus.destroy()
+      const sessionResult = session.destroy()
+      if (sessionResult && typeof sessionResult.then === 'function') {
+        await sessionResult
+      }
+
+      const eventBusResult = eventBus.destroy()
+      if (eventBusResult && typeof eventBusResult.then === 'function') {
+        await eventBusResult
+      }
     })
 
-    bench('send DTMF with custom duration', () => {
+    bench('send DTMF with custom duration', async () => {
       const eventBus = new EventBus()
       const mockRtcSession = new MockRTCSession()
 
@@ -371,13 +455,20 @@ describe('CallSession Performance Benchmarks', () => {
         interToneGap: 100,
       })
 
-      session.destroy()
-      eventBus.destroy()
+      const sessionResult = session.destroy()
+      if (sessionResult && typeof sessionResult.then === 'function') {
+        await sessionResult
+      }
+
+      const eventBusResult = eventBus.destroy()
+      if (eventBusResult && typeof eventBusResult.then === 'function') {
+        await eventBusResult
+      }
     })
   })
 
   describe('State Transitions', () => {
-    bench('call flow: ringing -> active', () => {
+    bench('call flow: ringing -> active', async () => {
       const eventBus = new EventBus()
       const mockRtcSession = new MockRTCSession()
 
@@ -396,11 +487,18 @@ describe('CallSession Performance Benchmarks', () => {
       })
       mockRtcSession.emit('confirmed', {})
 
-      session.destroy()
-      eventBus.destroy()
+      const sessionResult = session.destroy()
+      if (sessionResult && typeof sessionResult.then === 'function') {
+        await sessionResult
+      }
+
+      const eventBusResult = eventBus.destroy()
+      if (eventBusResult && typeof eventBusResult.then === 'function') {
+        await eventBusResult
+      }
     })
 
-    bench('call flow: active -> terminated', () => {
+    bench('call flow: active -> terminated', async () => {
       const eventBus = new EventBus()
       const mockRtcSession = new MockRTCSession()
 
@@ -420,13 +518,20 @@ describe('CallSession Performance Benchmarks', () => {
         originator: 'remote',
       })
 
-      session.destroy()
-      eventBus.destroy()
+      const sessionResult = session.destroy()
+      if (sessionResult && typeof sessionResult.then === 'function') {
+        await sessionResult
+      }
+
+      const eventBusResult = eventBus.destroy()
+      if (eventBusResult && typeof eventBusResult.then === 'function') {
+        await eventBusResult
+      }
     })
   })
 
   describe('Event Propagation', () => {
-    bench('event propagation speed', () => {
+    bench('event propagation speed', async () => {
       const eventBus = new EventBus()
       const mockRtcSession = new MockRTCSession()
 
@@ -456,13 +561,20 @@ describe('CallSession Performance Benchmarks', () => {
         )
       }
 
-      session.destroy()
-      eventBus.destroy()
+      const sessionResult = session.destroy()
+      if (sessionResult && typeof sessionResult.then === 'function') {
+        await sessionResult
+      }
+
+      const eventBusResult = eventBus.destroy()
+      if (eventBusResult && typeof eventBusResult.then === 'function') {
+        await eventBusResult
+      }
     })
   })
 
   describe('toInterface Serialization', () => {
-    bench('serialize call session to interface', () => {
+    bench('serialize call session to interface', async () => {
       const eventBus = new EventBus()
       const mockRtcSession = new MockRTCSession()
 
@@ -478,13 +590,20 @@ describe('CallSession Performance Benchmarks', () => {
 
       const _iface = session.toInterface()
 
-      session.destroy()
-      eventBus.destroy()
+      const sessionResult = session.destroy()
+      if (sessionResult && typeof sessionResult.then === 'function') {
+        await sessionResult
+      }
+
+      const eventBusResult = eventBus.destroy()
+      if (eventBusResult && typeof eventBusResult.then === 'function') {
+        await eventBusResult
+      }
     })
   })
 
   describe('Memory Management', () => {
-    bench('cleanup on destroy', () => {
+    bench('cleanup on destroy', async () => {
       const eventBus = new EventBus()
       const mockRtcSession = new MockRTCSession()
 
@@ -499,11 +618,18 @@ describe('CallSession Performance Benchmarks', () => {
 
       ;(session as any)._state = 'active'
 
-      session.destroy()
-      eventBus.destroy()
+      const sessionResult = session.destroy()
+      if (sessionResult && typeof sessionResult.then === 'function') {
+        await sessionResult
+      }
+
+      const eventBusResult = eventBus.destroy()
+      if (eventBusResult && typeof eventBusResult.then === 'function') {
+        await eventBusResult
+      }
     })
 
-    bench('concurrent session creation and cleanup', () => {
+    bench('concurrent session creation and cleanup', async () => {
       const eventBus = new EventBus()
       const sessions: CallSession[] = []
 
@@ -522,8 +648,17 @@ describe('CallSession Performance Benchmarks', () => {
       }
 
       // Cleanup all sessions
-      sessions.forEach((s) => s.destroy())
-      eventBus.destroy()
+      for (const s of sessions) {
+        const result = s.destroy()
+        if (result && typeof result.then === 'function') {
+          await result
+        }
+      }
+
+      const eventBusResult = eventBus.destroy()
+      if (eventBusResult && typeof eventBusResult.then === 'function') {
+        await eventBusResult
+      }
     })
   })
 })

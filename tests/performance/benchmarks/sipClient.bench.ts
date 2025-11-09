@@ -74,18 +74,29 @@ describe('SipClient Performance Benchmarks', () => {
     }
   })
 
-  afterEach(() => {
-    mockServer.destroy()
-    eventBus.destroy()
+  afterEach(async () => {
+    const mockServerResult = mockServer.destroy()
+    if (mockServerResult && typeof mockServerResult.then === 'function') {
+      await mockServerResult
+    }
+
+    const eventBusResult = eventBus.destroy()
+    if (eventBusResult && typeof eventBusResult.then === 'function') {
+      await eventBusResult
+    }
   })
 
   describe('Client Creation', () => {
-    bench('create SIP client instance', () => {
+    bench('create SIP client instance', async () => {
       const client = new SipClient(config, eventBus)
-      client.destroy()
+
+      const result = client.destroy()
+      if (result && typeof result.then === 'function') {
+        await result
+      }
     })
 
-    bench('create and configure client with all options', () => {
+    bench('create and configure client with all options', async () => {
       const fullConfig: SipClientConfig = {
         ...config,
         iceServers: [
@@ -107,7 +118,11 @@ describe('SipClient Performance Benchmarks', () => {
       }
 
       const client = new SipClient(fullConfig, eventBus)
-      client.destroy()
+
+      const result = client.destroy()
+      if (result && typeof result.then === 'function') {
+        await result
+      }
     })
   })
 
@@ -127,7 +142,10 @@ describe('SipClient Performance Benchmarks', () => {
 
       await registerPromise
 
-      client.destroy()
+      const result = client.destroy()
+      if (result && typeof result.then === 'function') {
+        await result
+      }
     })
 
     bench('unregister', async () => {
@@ -147,7 +165,10 @@ describe('SipClient Performance Benchmarks', () => {
 
       await unregisterPromise
 
-      client.destroy()
+      const result = client.destroy()
+      if (result && typeof result.then === 'function') {
+        await result
+      }
     })
 
     bench('register -> unregister cycle', async () => {
@@ -170,21 +191,27 @@ describe('SipClient Performance Benchmarks', () => {
       }
       await unregisterPromise
 
-      client.destroy()
+      const result = client.destroy()
+      if (result && typeof result.then === 'function') {
+        await result
+      }
     })
   })
 
   describe('Call Operations', () => {
-    bench('make outgoing call', () => {
+    bench('make outgoing call', async () => {
       const client = new SipClient(config, eventBus)
 
       // Make call
       client.makeCall('sip:alice@example.com')
 
-      client.destroy()
+      const result = client.destroy()
+      if (result && typeof result.then === 'function') {
+        await result
+      }
     })
 
-    bench('make call with custom options', () => {
+    bench('make call with custom options', async () => {
       const client = new SipClient(config, eventBus)
 
       client.makeCall('sip:alice@example.com', {
@@ -198,10 +225,13 @@ describe('SipClient Performance Benchmarks', () => {
         extraHeaders: ['X-Custom-Header: value', 'X-Call-ID: 12345'],
       })
 
-      client.destroy()
+      const result = client.destroy()
+      if (result && typeof result.then === 'function') {
+        await result
+      }
     })
 
-    bench('handle incoming call event', () => {
+    bench('handle incoming call event', async () => {
       const client = new SipClient(config, eventBus)
 
       // Simulate incoming call
@@ -220,21 +250,27 @@ describe('SipClient Performance Benchmarks', () => {
         })
       }
 
-      client.destroy()
+      const result = client.destroy()
+      if (result && typeof result.then === 'function') {
+        await result
+      }
     })
   })
 
   describe('Connection Management', () => {
-    bench('connect to server', () => {
+    bench('connect to server', async () => {
       const client = new SipClient(config, eventBus)
 
       // Start connection
       client.connect()
 
-      client.destroy()
+      const result = client.destroy()
+      if (result && typeof result.then === 'function') {
+        await result
+      }
     })
 
-    bench('disconnect from server', () => {
+    bench('disconnect from server', async () => {
       const client = new SipClient(config, eventBus)
 
       // Set as connected
@@ -242,10 +278,13 @@ describe('SipClient Performance Benchmarks', () => {
 
       client.disconnect()
 
-      client.destroy()
+      const result = client.destroy()
+      if (result && typeof result.then === 'function') {
+        await result
+      }
     })
 
-    bench('handle connection state changes', () => {
+    bench('handle connection state changes', async () => {
       const client = new SipClient(config, eventBus)
 
       const mockUA = (client as any).ua
@@ -262,12 +301,15 @@ describe('SipClient Performance Benchmarks', () => {
         connectedHandlers[1]({ socket: { url: 'wss://sip.example.com' } })
       }
 
-      client.destroy()
+      const result = client.destroy()
+      if (result && typeof result.then === 'function') {
+        await result
+      }
     })
   })
 
   describe('State Management', () => {
-    bench('check connection state', () => {
+    bench('check connection state', async () => {
       const client = new SipClient(config, eventBus)
 
       const _isConnected = client.isConnected
@@ -275,10 +317,13 @@ describe('SipClient Performance Benchmarks', () => {
       const _connectionState = client.connectionState
       const _registrationState = client.registrationState
 
-      client.destroy()
+      const result = client.destroy()
+      if (result && typeof result.then === 'function') {
+        await result
+      }
     })
 
-    bench('state transitions with event emission', () => {
+    bench('state transitions with event emission', async () => {
       const client = new SipClient(config, eventBus)
 
       let eventCount = 0
@@ -292,12 +337,15 @@ describe('SipClient Performance Benchmarks', () => {
         connectedHandlers[1]({ socket: { url: 'wss://sip.example.com' } })
       }
 
-      client.destroy()
+      const result = client.destroy()
+      if (result && typeof result.then === 'function') {
+        await result
+      }
     })
   })
 
   describe('Event Handling', () => {
-    bench('process multiple concurrent events', () => {
+    bench('process multiple concurrent events', async () => {
       const client = new SipClient(config, eventBus)
 
       const mockUA = (client as any).ua
@@ -337,12 +385,15 @@ describe('SipClient Performance Benchmarks', () => {
         )
       }
 
-      client.destroy()
+      const result = client.destroy()
+      if (result && typeof result.then === 'function') {
+        await result
+      }
     })
   })
 
   describe('Configuration Updates', () => {
-    bench('update client configuration', () => {
+    bench('update client configuration', async () => {
       const client = new SipClient(config, eventBus)
 
       // Update various config options
@@ -354,12 +405,15 @@ describe('SipClient Performance Benchmarks', () => {
       // Simulate config updates (if API exists)
       // This benchmarks the overhead of config changes
 
-      client.destroy()
+      const result = client.destroy()
+      if (result && typeof result.then === 'function') {
+        await result
+      }
     })
   })
 
   describe('Memory Management', () => {
-    bench('cleanup on destroy', () => {
+    bench('cleanup on destroy', async () => {
       const client = new SipClient(config, eventBus)
 
       // Set up some state
@@ -367,10 +421,13 @@ describe('SipClient Performance Benchmarks', () => {
       ;(client as any)._registrationState = 'registered'
 
       // Clean up
-      client.destroy()
+      const result = client.destroy()
+      if (result && typeof result.then === 'function') {
+        await result
+      }
     })
 
-    bench('multiple client creation and cleanup', () => {
+    bench('multiple client creation and cleanup', async () => {
       const clients: SipClient[] = []
 
       // Create multiple clients
@@ -386,12 +443,17 @@ describe('SipClient Performance Benchmarks', () => {
       }
 
       // Cleanup all
-      clients.forEach((c) => c.destroy())
+      for (const c of clients) {
+        const result = c.destroy()
+        if (result && typeof result.then === 'function') {
+          await result
+        }
+      }
     })
   })
 
   describe('Performance Budget Compliance', () => {
-    bench('state update latency check', () => {
+    bench('state update latency check', async () => {
       const client = new SipClient(config, eventBus)
 
       const startTime = performance.now()
@@ -412,12 +474,15 @@ describe('SipClient Performance Benchmarks', () => {
         )
       }
 
-      client.destroy()
+      const result = client.destroy()
+      if (result && typeof result.then === 'function') {
+        await result
+      }
     })
   })
 
   describe('Concurrent Operations', () => {
-    bench('handle concurrent registration and call', () => {
+    bench('handle concurrent registration and call', async () => {
       const client = new SipClient(config, eventBus)
 
       // Start registration
@@ -433,7 +498,10 @@ describe('SipClient Performance Benchmarks', () => {
         handlers[1]({ response: { getHeader: () => '600' } })
       }
 
-      client.destroy()
+      const result = client.destroy()
+      if (result && typeof result.then === 'function') {
+        await result
+      }
     })
   })
 })

@@ -93,9 +93,16 @@ describe('MediaDevices Performance Benchmarks', () => {
     mediaManager = new MediaManager({ eventBus })
   })
 
-  afterEach(() => {
-    mediaManager.destroy()
-    eventBus.destroy()
+  afterEach(async () => {
+    const mediaManagerResult = mediaManager.destroy()
+    if (mediaManagerResult && typeof mediaManagerResult.then === 'function') {
+      await mediaManagerResult
+    }
+
+    const eventBusResult = eventBus.destroy()
+    if (eventBusResult && typeof eventBusResult.then === 'function') {
+      await eventBusResult
+    }
   })
 
   describe('Device Enumeration', () => {
@@ -365,7 +372,10 @@ describe('MediaDevices Performance Benchmarks', () => {
     bench('cleanup on destroy', async () => {
       await mediaManager.getUserMedia({ audio: true, video: true })
 
-      mediaManager.destroy()
+      const result = mediaManager.destroy()
+      if (result && typeof result.then === 'function') {
+        await result
+      }
 
       // Reinitialize for next benchmark
       mediaManager = new MediaManager({ eventBus })
@@ -426,7 +436,7 @@ describe('MediaDevices Performance Benchmarks', () => {
   })
 
   describe('Memory Management', () => {
-    bench('create and cleanup multiple media managers', () => {
+    bench('create and cleanup multiple media managers', async () => {
       const managers: MediaManager[] = []
 
       // Create multiple managers
@@ -436,7 +446,12 @@ describe('MediaDevices Performance Benchmarks', () => {
       }
 
       // Cleanup all
-      managers.forEach((m) => m.destroy())
+      for (const m of managers) {
+        const result = m.destroy()
+        if (result && typeof result.then === 'function') {
+          await result
+        }
+      }
     })
   })
 })

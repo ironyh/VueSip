@@ -93,6 +93,8 @@ export class MockSipServer {
   private activeSessions: Map<string, MockRTCSession>
   private sessionIdCounter = 0
   private timeouts: NodeJS.Timeout[] = []
+  private sessionTimeouts: Map<string, NodeJS.Timeout[]> = new Map()
+  private destroyed = false
 
   constructor(config: MockSipServerConfig = {}) {
     this.config = {
@@ -111,10 +113,34 @@ export class MockSipServer {
 
   /**
    * Create a tracked setTimeout that will be cleaned up on reset/destroy
+   * @param callback - Function to execute after delay
+   * @param delay - Delay in milliseconds
+   * @param sessionId - Optional session ID to associate this timeout with a specific session
    */
-  private createTimeout(callback: () => void, delay: number): NodeJS.Timeout {
-    const timeout = setTimeout(callback, delay)
+  private createTimeout(callback: () => void, delay: number, sessionId?: string): NodeJS.Timeout {
+    // Guard against executing timeouts after server is destroyed
+    const guardedCallback = () => {
+      if (this.destroyed) {
+        return
+      }
+      // If this timeout is for a specific session, check if session is still active
+      if (sessionId && !this.activeSessions.has(sessionId)) {
+        return
+      }
+      callback()
+    }
+
+    const timeout = setTimeout(guardedCallback, delay)
     this.timeouts.push(timeout)
+
+    // Also track session-specific timeouts
+    if (sessionId) {
+      if (!this.sessionTimeouts.has(sessionId)) {
+        this.sessionTimeouts.set(sessionId, [])
+      }
+      this.sessionTimeouts.get(sessionId)!.push(timeout)
+    }
+
     return timeout
   }
 
@@ -206,19 +232,23 @@ export class MockSipServer {
     const fromUri = this.parseUri(from)
     const toUri = this.parseUri(to)
 
-    this.createTimeout(() => {
-      const handlers = this.mockUA._handlers['newRTCSession'] || []
-      handlers.forEach((handler) => {
-        handler({
-          session,
-          originator: 'remote',
-          request: {
-            from: { uri: fromUri },
-            to: { uri: toUri },
-          },
+    this.createTimeout(
+      () => {
+        const handlers = this.mockUA._handlers['newRTCSession'] || []
+        handlers.forEach((handler) => {
+          handler({
+            session,
+            originator: 'remote',
+            request: {
+              from: { uri: fromUri },
+              to: { uri: toUri },
+            },
+          })
         })
-      })
-    }, this.config.networkLatency)
+      },
+      this.config.networkLatency,
+      session.id
+    )
 
     return session
   }
@@ -229,10 +259,14 @@ export class MockSipServer {
    */
   simulateCallProgress(session: MockRTCSession): void {
     session.isInProgress.mockReturnValue(true)
-    this.createTimeout(() => {
-      const handlers = session._handlers['progress'] || []
-      handlers.forEach((handler) => handler({ originator: 'remote' }))
-    }, this.config.networkLatency)
+    this.createTimeout(
+      () => {
+        const handlers = session._handlers['progress'] || []
+        handlers.forEach((handler) => handler({ originator: 'remote' }))
+      },
+      this.config.networkLatency,
+      session.id
+    )
   }
 
   /**
@@ -243,10 +277,14 @@ export class MockSipServer {
     session.isEstablished.mockReturnValue(true)
     session.isInProgress.mockReturnValue(false)
 
-    this.createTimeout(() => {
-      const handlers = session._handlers['accepted'] || []
-      handlers.forEach((handler) => handler({ originator: 'remote' }))
-    }, this.config.networkLatency)
+    this.createTimeout(
+      () => {
+        const handlers = session._handlers['accepted'] || []
+        handlers.forEach((handler) => handler({ originator: 'remote' }))
+      },
+      this.config.networkLatency,
+      session.id
+    )
   }
 
   /**
@@ -254,10 +292,14 @@ export class MockSipServer {
    * @param session - The mock RTC session to update
    */
   simulateCallConfirmed(session: MockRTCSession): void {
-    this.createTimeout(() => {
-      const handlers = session._handlers['confirmed'] || []
-      handlers.forEach((handler) => handler())
-    }, this.config.networkLatency)
+    this.createTimeout(
+      () => {
+        const handlers = session._handlers['confirmed'] || []
+        handlers.forEach((handler) => handler())
+      },
+      this.config.networkLatency,
+      session.id
+    )
   }
 
   /**
@@ -274,31 +316,46 @@ export class MockSipServer {
     session.isEnded.mockReturnValue(true)
     session.isEstablished.mockReturnValue(false)
 
-    this.createTimeout(() => {
-      const handlers = session._handlers['ended'] || []
-      handlers.forEach((handler) => handler({ originator, cause }))
-      this.activeSessions.delete(session.id)
-    }, this.config.networkLatency)
+    // Clear all pending timeouts for this session before creating the ended event
+    this.clearSessionTimeouts(session.id)
+
+    this.createTimeout(
+      () => {
+        const handlers = session._handlers['ended'] || []
+        handlers.forEach((handler) => handler({ originator, cause }))
+        this.activeSessions.delete(session.id)
+      },
+      this.config.networkLatency,
+      session.id
+    )
   }
 
   /**
    * Simulate hold event
    */
   simulateHold(session: MockRTCSession, originator: 'local' | 'remote' = 'remote'): void {
-    this.createTimeout(() => {
-      const handlers = session._handlers['hold'] || []
-      handlers.forEach((handler) => handler({ originator }))
-    }, this.config.networkLatency)
+    this.createTimeout(
+      () => {
+        const handlers = session._handlers['hold'] || []
+        handlers.forEach((handler) => handler({ originator }))
+      },
+      this.config.networkLatency,
+      session.id
+    )
   }
 
   /**
    * Simulate unhold event
    */
   simulateUnhold(session: MockRTCSession, originator: 'local' | 'remote' = 'remote'): void {
-    this.createTimeout(() => {
-      const handlers = session._handlers['unhold'] || []
-      handlers.forEach((handler) => handler({ originator }))
-    }, this.config.networkLatency)
+    this.createTimeout(
+      () => {
+        const handlers = session._handlers['unhold'] || []
+        handlers.forEach((handler) => handler({ originator }))
+      },
+      this.config.networkLatency,
+      session.id
+    )
   }
 
   /**
@@ -405,10 +462,23 @@ export class MockSipServer {
   }
 
   /**
-   * Clear all active sessions
+   * Clear all active sessions and their associated timeouts
    */
   clearSessions(): void {
+    // Clear all session-specific timeouts before clearing sessions
+    this.activeSessions.forEach((_, sessionId) => {
+      this.clearSessionTimeouts(sessionId)
+    })
     this.activeSessions.clear()
+  }
+
+  /**
+   * Terminate a specific session and clear its timeouts
+   * @param sessionId - The session ID to terminate
+   */
+  terminateSession(sessionId: string): void {
+    this.clearSessionTimeouts(sessionId)
+    this.activeSessions.delete(sessionId)
   }
 
   /**
@@ -421,6 +491,8 @@ export class MockSipServer {
     this.mockUA.isRegistered.mockReturnValue(false)
     this.mockUA._handlers = {}
     this.mockUA._onceHandlers = {}
+    // Reset destroyed flag to allow reuse after reset
+    this.destroyed = false
   }
 
   /**
@@ -429,12 +501,29 @@ export class MockSipServer {
   private clearTimeouts(): void {
     this.timeouts.forEach(clearTimeout)
     this.timeouts = []
+    this.sessionTimeouts.clear()
+  }
+
+  /**
+   * Clear all timeouts associated with a specific session
+   * @param sessionId - The session ID whose timeouts should be cleared
+   */
+  private clearSessionTimeouts(sessionId: string): void {
+    const timeouts = this.sessionTimeouts.get(sessionId)
+    if (timeouts) {
+      timeouts.forEach(clearTimeout)
+      this.sessionTimeouts.delete(sessionId)
+      // Also remove from global timeouts array
+      this.timeouts = this.timeouts.filter((t) => !timeouts.includes(t))
+    }
   }
 
   /**
    * Destroy the mock server and clean up all resources
    */
   destroy(): void {
+    // Set destroyed flag first to prevent any pending timeouts from executing
+    this.destroyed = true
     this.reset()
   }
 
@@ -455,10 +544,14 @@ export class MockSipServer {
 
         if (this.config.autoAcceptCalls) {
           this.simulateCallProgress(session)
-          this.createTimeout(() => {
-            this.simulateCallAccepted(session)
-            this.simulateCallConfirmed(session)
-          }, this.config.networkLatency * 2)
+          this.createTimeout(
+            () => {
+              this.simulateCallAccepted(session)
+              this.simulateCallConfirmed(session)
+            },
+            this.config.networkLatency * 2,
+            session.id
+          )
         }
 
         return session

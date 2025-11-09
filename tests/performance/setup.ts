@@ -122,13 +122,17 @@ export interface LoadTestResult {
 
 /**
  * Get current memory usage snapshot
+ * Runs GC twice with waits to ensure reliable measurements
  *
  * @returns Memory snapshot with current usage
  */
-export function getMemorySnapshot(): MemorySnapshot {
+export async function getMemorySnapshot(): Promise<MemorySnapshot> {
   // Force garbage collection if available (run Node with --expose-gc)
   if (global.gc) {
     global.gc()
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    global.gc() // Run twice for more reliable GC
+    await new Promise((resolve) => setTimeout(resolve, 100))
   }
 
   const memory =
@@ -190,9 +194,9 @@ export async function trackMemory<T>(operation: () => Promise<T> | T): Promise<{
   memoryAfter: MemorySnapshot
   memoryDelta: number
 }> {
-  const memoryBefore = getMemorySnapshot()
+  const memoryBefore = await getMemorySnapshot()
   const result = await operation()
-  const memoryAfter = getMemorySnapshot()
+  const memoryAfter = await getMemorySnapshot()
   const memoryDelta = calculateMemoryDelta(memoryBefore, memoryAfter)
 
   return {
@@ -225,7 +229,7 @@ export async function measureTime<T>(
 ): Promise<TimingResult & { result: T }> {
   const { trackMemory: shouldTrackMemory = false, iterations = 1 } = options
 
-  const memoryBefore = shouldTrackMemory ? getMemorySnapshot() : undefined
+  const memoryBefore = shouldTrackMemory ? await getMemorySnapshot() : undefined
   const startTime = performance.now()
 
   let result: T | undefined
@@ -234,7 +238,7 @@ export async function measureTime<T>(
   }
 
   const endTime = performance.now()
-  const memoryAfter = shouldTrackMemory ? getMemorySnapshot() : undefined
+  const memoryAfter = shouldTrackMemory ? await getMemorySnapshot() : undefined
 
   if (result === undefined) {
     throw new Error('Operation did not return a result')
@@ -488,7 +492,7 @@ export async function assertNoMemoryLeak(
 
   // Initial GC
   gc()
-  const memoryBefore = getMemorySnapshot()
+  const memoryBefore = await getMemorySnapshot()
 
   // Run operation multiple times
   for (let i = 0; i < iterations; i++) {
@@ -500,7 +504,7 @@ export async function assertNoMemoryLeak(
 
   // Final GC
   gc()
-  const memoryAfter = getMemorySnapshot()
+  const memoryAfter = await getMemorySnapshot()
 
   const memoryDelta = calculateMemoryDelta(memoryBefore, memoryAfter)
   const memoryDeltaMB = memoryDelta / (1024 * 1024)
@@ -533,7 +537,7 @@ export async function runLoadTest(
 ): Promise<LoadTestResult> {
   const { concurrency = 10, duration, iterations } = options
 
-  const initialMemory = getMemorySnapshot()
+  const initialMemory = await getMemorySnapshot()
   let peakMemory = initialMemory
   let successCount = 0
   let failureCount = 0
@@ -549,7 +553,7 @@ export async function runLoadTest(
       successCount++
 
       // Track peak memory
-      const currentMemory = getMemorySnapshot()
+      const currentMemory = await getMemorySnapshot()
       if (currentMemory.usedHeapSize > peakMemory.usedHeapSize) {
         peakMemory = currentMemory
       }
@@ -582,7 +586,7 @@ export async function runLoadTest(
   }
 
   endTime = performance.now()
-  const finalMemory = getMemorySnapshot()
+  const finalMemory = await getMemorySnapshot()
 
   const totalOperations = successCount + failureCount
   const totalDuration = endTime - startTime
