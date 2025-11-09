@@ -76,9 +76,9 @@ The `AgentManager` class orchestrates multiple agents and provides high-level op
 
 ```typescript
 const manager = createAgentManager({
-  autoCleanup: true,        // Automatically cleanup on test end
-  verbose: false,           // Enable detailed logging
-  defaultNetworkProfile: NETWORK_PROFILES.PERFECT
+  autoCleanup: true, // Automatically cleanup on test end
+  verbose: false, // Enable detailed logging
+  defaultNetworkProfile: NETWORK_PROFILES.PERFECT,
 })
 ```
 
@@ -116,10 +116,11 @@ await manager.setupCall('alice', 'bob', autoAnswer)
 await manager.sendMessageBetweenAgents('alice', 'bob', 'Hello!')
 
 // Create conference
-const conference = await manager.createConference(
-  'sip:conf@example.com',
-  ['alice', 'bob', 'charlie']
-)
+const conference = await manager.createConference('sip:conf@example.com', [
+  'alice',
+  'bob',
+  'charlie',
+])
 ```
 
 ## SipTestAgent
@@ -287,14 +288,14 @@ const statusMessage = agent.presence.getStatusMessage()
 Pre-defined network profiles:
 
 ```typescript
-NETWORK_PROFILES.PERFECT      // No latency, no packet loss
-NETWORK_PROFILES.WIFI_GOOD    // 10ms latency, 0.1% loss
-NETWORK_PROFILES.WIFI_POOR    // 50ms latency, 2% loss
-NETWORK_PROFILES.MOBILE_4G    // 30ms latency, 0.5% loss
-NETWORK_PROFILES.MOBILE_3G    // 100ms latency, 1% loss
-NETWORK_PROFILES.MOBILE_2G    // 300ms latency, 3% loss
-NETWORK_PROFILES.SATELLITE    // 600ms latency, 2% loss
-NETWORK_PROFILES.CONGESTED    // 200ms latency, 5% loss
+NETWORK_PROFILES.PERFECT // No latency, no packet loss
+NETWORK_PROFILES.WIFI_GOOD // 10ms latency, 0.1% loss
+NETWORK_PROFILES.WIFI_POOR // 50ms latency, 2% loss
+NETWORK_PROFILES.MOBILE_4G // 30ms latency, 0.5% loss
+NETWORK_PROFILES.MOBILE_3G // 100ms latency, 1% loss
+NETWORK_PROFILES.MOBILE_2G // 300ms latency, 3% loss
+NETWORK_PROFILES.SATELLITE // 600ms latency, 2% loss
+NETWORK_PROFILES.CONGESTED // 200ms latency, 5% loss
 ```
 
 ### Using Network Profiles
@@ -330,8 +331,8 @@ const delay = simulator.calculateBandwidthDelay(dataSize)
 // Schedule interruption
 simulator.scheduleInterruption({
   type: 'disconnect',
-  duration: 1000,  // ms
-  delay: 500,      // ms
+  duration: 1000, // ms
+  delay: 500, // ms
 })
 
 // Check interruption status
@@ -350,10 +351,12 @@ simulator.reset()
 
 ```typescript
 // Create conference with multiple participants
-const conference = await manager.createConference(
-  'sip:conf@example.com',
-  ['alice', 'bob', 'charlie', 'david']
-)
+const conference = await manager.createConference('sip:conf@example.com', [
+  'alice',
+  'bob',
+  'charlie',
+  'david',
+])
 
 // Conference info
 console.log(conference.id)
@@ -408,12 +411,9 @@ it('should establish a call between two agents', async () => {
 ```typescript
 it('should create conference with 5 participants', async () => {
   const agents = await createAgents(5)
-  const agentIds = agents.map(a => a.getId())
+  const agentIds = agents.map((a) => a.getId())
 
-  const conference = await manager.createConference(
-    'sip:conf@example.com',
-    agentIds
-  )
+  const conference = await manager.createConference('sip:conf@example.com', agentIds)
 
   expect(conference.participants).toHaveLength(5)
 })
@@ -485,12 +485,14 @@ manager.on('manager:conference-created', (data) => {
 ### Available Events
 
 **Registration Events:**
+
 - `registration:started`
 - `registration:success`
 - `registration:failed`
 - `registration:unregistered`
 
 **Call Events:**
+
 - `call:made`
 - `call:incoming`
 - `call:answered`
@@ -506,12 +508,14 @@ manager.on('manager:conference-created', (data) => {
 - `call:dtmf`
 
 **Presence Events:**
+
 - `presence:status-changed`
 - `presence:message-sent`
 - `presence:message-received`
 - `presence:messages-cleared`
 
 **Media Events:**
+
 - `media:stream-started`
 - `media:stream-stopped`
 - `media:audio-changed`
@@ -521,12 +525,14 @@ manager.on('manager:conference-created', (data) => {
 - `media:video-input-changed`
 
 **Agent Lifecycle Events:**
+
 - `agent:initialized`
 - `agent:connected`
 - `agent:disconnected`
 - `agent:cleaned-up`
 
 **Manager Events:**
+
 - `manager:agent-created`
 - `manager:agent-removed`
 - `manager:conference-created`
@@ -695,12 +701,12 @@ agent.setNetworkProfile(customProfile)
 // Schedule interruption
 agent.getNetworkSimulator().scheduleInterruption({
   type: 'disconnect',
-  duration: 2000,   // 2 seconds
-  delay: 1000,      // Start after 1 second
+  duration: 2000, // 2 seconds
+  delay: 1000, // Start after 1 second
 })
 
 // Test recovery
-await new Promise(resolve => setTimeout(resolve, 3500))
+await new Promise((resolve) => setTimeout(resolve, 3500))
 expect(agent.getNetworkSimulator().isNetworkInterrupted()).toBe(false)
 ```
 
@@ -721,11 +727,8 @@ await manager.connectAllAgents()
 await manager.registerAllAgents()
 
 // Create large conference
-const agentIds = agents.map(a => a.getId())
-const conference = await manager.createConference(
-  'sip:bigconf@example.com',
-  agentIds
-)
+const agentIds = agents.map((a) => a.getId())
+const conference = await manager.createConference('sip:bigconf@example.com', agentIds)
 ```
 
 ## Future Enhancements
@@ -745,6 +748,7 @@ Possible future additions to the framework:
 The Agent-Based Testing Framework provides a powerful, flexible way to test complex SIP scenarios. By simulating multiple agents with realistic network conditions, you can ensure your SIP application works correctly in real-world situations.
 
 For more examples, see the test files:
+
 - `tests/integration/agent-to-agent.test.ts`
 - `tests/integration/multi-agent-conference.test.ts`
 - `tests/integration/agent-network-conditions.test.ts`
