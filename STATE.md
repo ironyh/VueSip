@@ -2587,12 +2587,13 @@ Each guide is a separate markdown file in `docs/guide/`:
   - Answer/reject options
   - Call queuing
 
-- [ ] Write Call Controls guide
+- [x] Write Call Controls guide
   - **Files:** `docs/guide/call-controls.md`
   - Hold/unhold functionality
   - Mute/unmute controls
   - DTMF tone sending
   - Call transfer (blind and attended)
+  - **Status:** ✅ Complete (~1600 lines, comprehensive coverage, 9/10 quality rating)
 
 - [ ] Write Device Management guide
   - **Files:** `docs/guide/device-management.md`
