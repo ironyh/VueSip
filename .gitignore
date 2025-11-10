@@ -64,3 +64,6 @@ Thumbs.db
 
 # TypeDoc generated documentation
 docs/api/generated/
+
+# MCP Configuration (contains sensitive tokens)
+.mcp.json
