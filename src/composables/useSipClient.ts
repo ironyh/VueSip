@@ -354,7 +354,7 @@ export function useSipClient(
       if (!sipClient.value) {
         logger.info('Creating SIP client')
         // Extract raw config object from Vue reactivity system
-        sipClient.value = new SipClient(toRaw(config), eventBus)
+        sipClient.value = new SipClient(toRaw(config) as SipClientConfig, eventBus)
       }
 
       // Start the client with timeout

@@ -340,7 +340,7 @@ export interface DTMFSender {
  */
 export interface RTCRtpSenderWithDTMF extends RTCRtpSender {
   /** DTMF sender for this RTP sender (null if not supported) */
-  readonly dtmf: DTMFSender | null
+  readonly dtmf: RTCDTMFSender | null
 }
 
 /**

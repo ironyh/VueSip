@@ -562,6 +562,7 @@ export default {
 /**
  * Augment Vue's ComponentCustomProperties to include $vuesip
  */
+// @ts-expect-error - Vue runtime-core types may not be available during build
 declare module '@vue/runtime-core' {
   interface ComponentCustomProperties {
     /**

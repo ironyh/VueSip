@@ -12,6 +12,8 @@ import type {
   ConferenceOptions,
   ConferenceStateInterface,
   Participant,
+} from '@/types/conference.types'
+import {
   ConferenceState,
   ParticipantState,
 } from '@/types/conference.types'
@@ -1388,6 +1390,9 @@ export class SipClient {
       throw new Error('SIP client is not started')
     }
 
+    // Capture ua reference for use in async context
+    const ua = this.ua
+
     if (!this.isConnected) {
       throw new Error('Not connected to SIP server')
     }
@@ -1413,7 +1418,8 @@ export class SipClient {
 
     return new Promise((resolve, reject) => {
       // Send PUBLISH request using JsSIP's sendRequest
-      this.ua.sendRequest('PUBLISH', this.config.sipUri, {
+      // @ts-expect-error - sendRequest is not in JsSIP types but exists in runtime
+      ua.sendRequest('PUBLISH', this.config.sipUri, {
         body: pidfBody,
         contentType: 'application/pidf+xml',
         extraHeaders,
@@ -1482,6 +1488,9 @@ export class SipClient {
       throw new Error('SIP client is not started')
     }
 
+    // Capture ua reference for use in async context
+    const ua = this.ua
+
     if (!this.isConnected) {
       throw new Error('Not connected to SIP server')
     }
@@ -1503,7 +1512,8 @@ export class SipClient {
 
     return new Promise((resolve, reject) => {
       // Send SUBSCRIBE request using JsSIP's sendRequest
-      this.ua.sendRequest('SUBSCRIBE', uri, {
+      // @ts-expect-error - sendRequest is not in JsSIP types but exists in runtime
+      ua.sendRequest('SUBSCRIBE', uri, {
         extraHeaders,
         eventHandlers: {
           onSuccessResponse: (response: any) => {
@@ -1566,6 +1576,9 @@ export class SipClient {
       throw new Error('SIP client is not started')
     }
 
+    // Capture ua reference for use in async context
+    const ua = this.ua
+
     logger.info('Unsubscribing from presence', { uri })
 
     // Check if subscribed
@@ -1578,7 +1591,8 @@ export class SipClient {
 
     return new Promise((resolve, reject) => {
       // Send SUBSCRIBE with Expires: 0 to unsubscribe
-      this.ua.sendRequest('SUBSCRIBE', uri, {
+      // @ts-expect-error - sendRequest is not in JsSIP types but exists in runtime
+      ua.sendRequest('SUBSCRIBE', uri, {
         extraHeaders,
         eventHandlers: {
           onSuccessResponse: (response: any) => {
@@ -1826,8 +1840,11 @@ export class SipClient {
 
   /**
    * Convert JsSIP session to CallSession interface
+   * @deprecated Not currently used, kept for potential future use
    */
-  private sessionToCallSession(session: any): CallSession {
+  // @ts-expect-error - Kept for potential future use
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  private _sessionToCallSession(session: any): CallSession {
     const startTime = session.start_time ? new Date(session.start_time) : undefined
     const endTime = session.end_time ? new Date(session.end_time) : undefined
 

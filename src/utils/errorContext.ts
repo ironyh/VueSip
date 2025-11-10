@@ -281,7 +281,7 @@ export function extractErrorInfo(error: unknown): {
  * ```
  */
 export function logErrorWithContext(
-  logger: { error: (...args: unknown[]) => void },
+  logger: { error: (message: string, ...args: unknown[]) => void },
   message: string,
   error: unknown,
   operation: string,

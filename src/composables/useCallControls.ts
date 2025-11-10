@@ -234,6 +234,10 @@ export function useCallControls(sipClient: Ref<SipClient | null>): UseCallContro
         throw new Error(`Call ${callId} not found`)
       }
 
+      if (!call.transfer) {
+        throw new Error('Transfer method not supported on this call session')
+      }
+
       // Perform blind transfer
       await call.transfer(targetUri, extraHeaders)
 
@@ -287,6 +291,10 @@ export function useCallControls(sipClient: Ref<SipClient | null>): UseCallContro
       const call = sipClient.value.getActiveCall(callId) as ExtendedCallSession | undefined
       if (!call) {
         throw new Error(`Call ${callId} not found`)
+      }
+
+      if (!call.hold) {
+        throw new Error('Hold method not supported on this call session')
       }
 
       // Hold the original call
@@ -361,6 +369,10 @@ export function useCallControls(sipClient: Ref<SipClient | null>): UseCallContro
         throw new Error(`Call ${activeTransfer.value.callId} not found`)
       }
 
+      if (!call.attendedTransfer) {
+        throw new Error('Attended transfer method not supported on this call session')
+      }
+
       // Perform attended transfer (REFER with Replaces header)
       await call.attendedTransfer(activeTransfer.value.target, consultationCall.value.id)
 
@@ -404,8 +416,11 @@ export function useCallControls(sipClient: Ref<SipClient | null>): UseCallContro
       // If attended transfer, hang up consultation call and unhold original
       if (activeTransfer.value.type === TransferType.Attended) {
         if (consultationCall.value) {
-          log.debug('Ending consultation call')
-          await consultationCall.value.hangup()
+          const consultation = consultationCall.value as ExtendedCallSession
+          if (consultation.hangup) {
+            log.debug('Ending consultation call')
+            await consultation.hangup()
+          }
           consultationCall.value = null
         }
 
@@ -413,7 +428,7 @@ export function useCallControls(sipClient: Ref<SipClient | null>): UseCallContro
         const call = sipClient.value.getActiveCall(activeTransfer.value.callId) as
           | ExtendedCallSession
           | undefined
-        if (call) {
+        if (call && call.unhold) {
           log.debug('Unholding original call')
           await call.unhold()
         }

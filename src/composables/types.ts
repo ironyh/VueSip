@@ -56,7 +56,7 @@ export function hasCallSessionMethod<K extends keyof ExtendedCallSession>(
   session: CallSession | null | undefined,
   method: K
 ): session is ExtendedCallSession & Required<Pick<ExtendedCallSession, K>> {
-  return session != null && typeof session[method] === 'function'
+  return session != null && typeof (session as ExtendedCallSession)[method] === 'function'
 }
 
 /**

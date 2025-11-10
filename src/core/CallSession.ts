@@ -19,8 +19,35 @@ import type {
   CallSession as ICallSession,
 } from '@/types/call.types'
 import { createLogger } from '@/utils/logger'
+import { EventEmitter } from '@/utils/EventEmitter'
 
 const logger = createLogger('CallSession')
+
+/**
+ * Call session event types
+ */
+export interface CallSessionEvents {
+  progress: any
+  accepted: void
+  confirmed: void
+  ended: any
+  failed: any
+  hold: void
+  unhold: void
+  muted: void
+  unmuted: void
+  sdp: any
+  icecandidate: any
+  getusermediafailed: any
+  peerconnection: any
+  connecting: void
+  sending: void
+  newDTMF: any
+  newInfo: any
+  refer: any
+  replaces: any
+  update: any
+}
 
 /**
  * Call session options
@@ -63,7 +90,7 @@ export interface CallSessionOptions {
  * await session.hangup()
  * ```
  */
-export class CallSession {
+export class CallSession extends EventEmitter<CallSessionEvents> {
   // Core properties
   private readonly _id: string
   private readonly _direction: CallDirection
@@ -107,6 +134,8 @@ export class CallSession {
   private isDtmfSending = false
 
   constructor(options: CallSessionOptions) {
+    super()
+
     // Validate URIs
     this.validateUri(options.localUri, 'localUri')
     this.validateUri(options.remoteUri, 'remoteUri')
@@ -381,6 +410,13 @@ export class CallSession {
     } finally {
       this.isTerminating = false
     }
+  }
+
+  /**
+   * Terminate the call (alias for hangup)
+   */
+  async terminate(): Promise<void> {
+    return this.hangup()
   }
 
   /**

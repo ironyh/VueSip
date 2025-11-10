@@ -86,6 +86,7 @@ export function useSipDtmf(currentSession: Ref<any | null>): UseSipDtmfReturn {
 
     for (let i = 0; i < digits.length; i++) {
       const digit = digits[i]
+      if (!digit) continue // Skip undefined/empty
 
       // Send the tone
       await sendDtmf(digit)

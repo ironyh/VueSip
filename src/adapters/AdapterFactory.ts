@@ -48,17 +48,23 @@ export class AdapterFactory {
 
     switch (adapterConfig.library) {
       case 'jssip': {
-        // Dynamically import JsSIP adapter
-        const { JsSipAdapter } = await import('./jssip/JsSipAdapter')
-        adapter = new JsSipAdapter(adapterConfig.libraryOptions)
-        break
+        // TODO: Implement JsSIP adapter
+        // Dynamically import JsSIP adapter when implemented
+        // const { JsSipAdapter } = await import('./jssip/JsSipAdapter')
+        // adapter = new JsSipAdapter(adapterConfig.libraryOptions)
+        throw new Error(
+          'JsSIP adapter is not yet implemented. Use the core SipClient directly for now.'
+        )
       }
 
       case 'sipjs': {
-        // Dynamically import SIP.js adapter
-        const { SipJsAdapter } = await import('./sipjs/SipJsAdapter')
-        adapter = new SipJsAdapter(adapterConfig.libraryOptions)
-        break
+        // TODO: Implement SIP.js adapter
+        // Dynamically import SIP.js adapter when implemented
+        // const { SipJsAdapter } = await import('./sipjs/SipJsAdapter')
+        // adapter = new SipJsAdapter(adapterConfig.libraryOptions)
+        throw new Error(
+          'SIP.js adapter is not yet implemented. Use the core SipClient directly for now.'
+        )
       }
 
       case 'custom': {
@@ -89,23 +95,25 @@ export class AdapterFactory {
    * @param library - Library name to check
    * @returns True if the library adapter is available
    */
-  static async isLibraryAvailable(library: 'jssip' | 'sipjs'): Promise<boolean> {
-    try {
-      switch (library) {
-        case 'jssip': {
-          await import('./jssip/JsSipAdapter')
-          return true
-        }
-        case 'sipjs': {
-          await import('./sipjs/SipJsAdapter')
-          return true
-        }
-        default:
-          return false
-      }
-    } catch (error) {
-      return false
-    }
+  static async isLibraryAvailable(_library: 'jssip' | 'sipjs'): Promise<boolean> {
+    // TODO: Re-enable when adapters are implemented
+    // try {
+    //   switch (library) {
+    //     case 'jssip': {
+    //       await import('./jssip/JsSipAdapter')
+    //       return true
+    //     }
+    //     case 'sipjs': {
+    //       await import('./sipjs/SipJsAdapter')
+    //       return true
+    //     }
+    //     default:
+    //       return false
+    //   }
+    // } catch (error) {
+    //   return false
+    // }
+    return false // Adapters not yet implemented
   }
 
   /**
