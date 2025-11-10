@@ -382,9 +382,23 @@ describe('SipClient', () => {
     })
 
     it('should handle registration timeout', async () => {
-      // Don't emit any events to trigger timeout
-      mockUA.once.mockImplementation(() => {})
+      // Start the client first
+      mockUA.on.mockImplementation((event: string, handler: (...args: any[]) => void) => {
+        if (event === 'connected') {
+          setTimeout(() => handler({}), 10)
+        }
+      })
+      mockUA.once.mockImplementation((event: string, handler: (...args: any[]) => void) => {
+        if (event === 'connected') {
+          setTimeout(() => handler({}), 10)
+        }
+        // Don't emit 'registered' event to trigger timeout
+      })
+      mockUA.isConnected.mockReturnValue(true)
 
+      await sipClient.start()
+
+      // Now attempt to register - should timeout
       await expect(sipClient.register()).rejects.toThrow('Registration timeout')
     }, 35000) // Increase test timeout
   })
@@ -430,17 +444,36 @@ describe('SipClient', () => {
       const unregisteredHandler = vi.fn()
       eventBus.on('sip:unregistered', unregisteredHandler)
 
+      // First start and register the client
       mockUA.on.mockImplementation((event: string, handler: (...args: any[]) => void) => {
+        if (event === 'connected') {
+          setTimeout(() => handler({}), 10)
+        }
+        if (event === 'registered') {
+          setTimeout(() => handler({}), 10)
+        }
         if (event === 'unregistered') {
           setTimeout(() => handler({ cause: 'user' }), 10)
         }
       })
       mockUA.once.mockImplementation((event: string, handler: (...args: any[]) => void) => {
+        if (event === 'connected') {
+          setTimeout(() => handler({}), 10)
+        }
+        if (event === 'registered') {
+          setTimeout(() => handler({}), 10)
+        }
         if (event === 'unregistered') {
           setTimeout(() => handler({ cause: 'user' }), 10)
         }
       })
+      mockUA.isConnected.mockReturnValue(true)
+      mockUA.isRegistered.mockReturnValue(true)
 
+      await sipClient.start()
+      await sipClient.register()
+
+      // Now unregister
       await sipClient.unregister()
 
       // Wait for async events
