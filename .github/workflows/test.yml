@@ -24,35 +24,30 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: 8
-
       - name: Setup Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
-          cache: 'pnpm'
+          cache: 'npm'
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: npm ci
 
       - name: Run linter
-        run: pnpm run lint
+        run: npm run lint
 
       - name: Run type checking
-        run: pnpm run typecheck
+        run: npm run typecheck
 
       - name: Run unit tests
-        run: pnpm run test:unit
+        run: npm run test:unit
 
       - name: Run integration tests
-        run: pnpm run test:integration
+        run: npm run test:integration
         continue-on-error: true
 
       - name: Generate coverage report
-        run: pnpm run coverage:unit
+        run: npm run coverage:unit
 
       - name: Upload coverage to artifacts
         uses: actions/upload-artifact@v4
@@ -68,22 +63,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: 8
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20.x'
-          cache: 'pnpm'
+          cache: 'npm'
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: npm ci
 
       - name: Run performance benchmarks
-        run: pnpm run test:performance:bench
+        run: npm run test:performance:bench
         continue-on-error: true
 
       - name: Run performance load tests (with GC)
@@ -91,7 +81,7 @@ jobs:
         continue-on-error: true
 
       - name: Run performance metrics tests
-        run: pnpm run test:performance:metrics
+        run: npm run test:performance:metrics
         continue-on-error: true
 
       - name: Upload performance results
@@ -102,6 +92,7 @@ jobs:
           path: |
             tests/performance/**/*.log
             tests/performance/**/*.json
+          if-no-files-found: warn
 
   build:
     name: Build
@@ -111,25 +102,20 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: 8
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20.x'
-          cache: 'pnpm'
+          cache: 'npm'
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: npm ci
 
       - name: Build package
-        run: pnpm run build
+        run: npm run build
 
       - name: Check bundle size
-        run: pnpm run test:performance:metrics
+        run: npm run test:performance:metrics
         continue-on-error: true
 
       - name: Upload build artifacts
