@@ -145,6 +145,7 @@ describe('useSipRegistration', () => {
       const basicClient = {
         register: vi.fn().mockResolvedValue(undefined),
         unregister: vi.fn().mockResolvedValue(undefined),
+        getConfig: vi.fn().mockReturnValue({ uri: 'sip:test@example.com' }),
       }
 
       const sipClientRef = ref<SipClient>(basicClient as any)
