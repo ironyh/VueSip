@@ -361,6 +361,9 @@ describe('SipClient', () => {
 
       await sipClient.register()
 
+      // Wait for async event emission (setTimeout 10ms in mock)
+      await new Promise(resolve => setTimeout(resolve, 15))
+
       // Handler should be called after event is emitted
       expect(registeredHandler).toHaveBeenCalled()
     })
@@ -457,6 +460,9 @@ describe('SipClient', () => {
       })
 
       await sipClient.unregister()
+
+      // Wait for async event emission (setTimeout 10ms in mock)
+      await new Promise(resolve => setTimeout(resolve, 15))
 
       // Handler should be called after event is emitted
       expect(unregisteredHandler).toHaveBeenCalled()
