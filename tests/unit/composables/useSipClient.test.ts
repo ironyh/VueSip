@@ -518,17 +518,26 @@ describe('useSipClient', () => {
 
   describe('reconnect()', () => {
     it('should reconnect successfully', async () => {
+      vi.useFakeTimers()
+
       const [result, unmount] = withSetup(() => useSipClient(testConfig))
       const { connect, reconnect, isConnected } = result
 
       await connect()
       expect(isConnected.value).toBe(true)
 
-      await reconnect()
+      // Start reconnect (which includes 1000ms delay)
+      const reconnectPromise = reconnect()
+
+      // Fast-forward past the reconnect delay
+      await vi.advanceTimersByTimeAsync(1000)
+
+      await reconnectPromise
 
       // After reconnect, client should still be connected
       expect(isConnected.value).toBe(true)
 
+      vi.useRealTimers()
       unmount()
     })
 
