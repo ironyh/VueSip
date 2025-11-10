@@ -116,16 +116,21 @@ describe('MediaProvider', () => {
     })
 
     it('should auto-enumerate devices on mount by default', async () => {
+      const readyEmitted = vi.fn()
+
       mount(MediaProvider, {
         slots: {
           default: () => h('div', 'Child'),
         },
+        attrs: {
+          onReady: readyEmitted,
+        },
       })
 
-      await nextTick()
-      await nextTick() // Wait for async initialization
-
-      expect(mockEnumerateDevices).toHaveBeenCalled()
+      // Wait for ready event to be emitted after enumeration
+      await vi.waitFor(() => {
+        expect(readyEmitted).toHaveBeenCalled()
+      })
     })
 
     it('should skip enumeration when autoEnumerate is false', async () => {
