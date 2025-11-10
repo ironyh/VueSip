@@ -31,7 +31,7 @@
       </div>
 
       <!-- Settings Panel -->
-      <div v-if="showSettings" class="settings-panel">
+      <div v-if="showSettings" data-testid="settings-panel" class="settings-panel">
         <h2>SIP Settings</h2>
         <div class="form-group">
           <label>SIP URI:</label>
@@ -289,7 +289,7 @@
           </button>
           <div v-if="showDevices" class="device-panel">
             <h3>Audio Devices</h3>
-            <div class="form-group">
+            <div class="form-group" data-testid="audio-input-devices">
               <label>Audio Input:</label>
               <select
                 v-model="selectedAudioInputId"
@@ -305,7 +305,7 @@
                 </option>
               </select>
             </div>
-            <div class="form-group">
+            <div class="form-group" data-testid="audio-output-devices">
               <label>Audio Output:</label>
               <select
                 v-model="selectedAudioOutputId"
