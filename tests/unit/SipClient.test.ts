@@ -350,16 +350,18 @@ describe('SipClient', () => {
       const registeredHandler = vi.fn()
       eventBus.on('sip:registered', registeredHandler)
 
-      // Simulate successful registration with response
-      setTimeout(() => {
-        mockUA.isRegistered.mockReturnValue(true)
-        triggerEvent('registered', { response: { getHeader: () => '600' } })
-      }, 10)
+      // Call register and then trigger the event
+      const registerPromise = sipClient.register()
 
-      await sipClient.register()
+      // Give handlers time to be set up, then trigger event
+      await new Promise((resolve) => setTimeout(resolve, 1))
+      mockUA.isRegistered.mockReturnValue(true)
+      triggerEvent('registered', { response: { getHeader: () => '600' } })
 
-      // Wait for async events
-      await new Promise((resolve) => setTimeout(resolve, 50))
+      await registerPromise
+
+      // Wait for async events to propagate
+      await new Promise((resolve) => setTimeout(resolve, 10))
 
       expect(registeredHandler).toHaveBeenCalled()
     })
