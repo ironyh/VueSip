@@ -154,19 +154,29 @@ describe('SipClient', () => {
 
   describe('start()', () => {
     it('should start the SIP client', async () => {
-      // Mock successful connection
+      // Store handlers to call them properly
+      const handlers: { on: ((...args: any[]) => void)[]; once: ((...args: any[]) => void)[] } = {
+        on: [],
+        once: [],
+      }
+
+      // Mock successful connection - store all handlers
       mockUA.on.mockImplementation((event: string, handler: (...args: any[]) => void) => {
         if (event === 'connected') {
-          // Simulate immediate connection
-          setTimeout(() => handler({}), 10)
+          handlers.on.push(handler)
+          // Trigger handler after start() sets up all handlers
+          setTimeout(() => {
+            handlers.on.forEach((h) => h({}))
+            handlers.once.forEach((h) => h({}))
+          }, 10)
         }
       })
       mockUA.once.mockImplementation((event: string, handler: (...args: any[]) => void) => {
         if (event === 'connected') {
-          setTimeout(() => handler({}), 10)
+          handlers.once.push(handler)
         }
       })
-      mockUA.isConnected.mockReturnValue(true)
+      mockUA.isConnected.mockReturnValue(false)
 
       await sipClient.start()
 
@@ -305,26 +315,40 @@ describe('SipClient', () => {
   describe('register()', () => {
     beforeEach(async () => {
       // Start client before registering
+      const connHandlers: { on: ((...args: any[]) => void)[]; once: ((...args: any[]) => void)[] } = {
+        on: [],
+        once: [],
+      }
+
       mockUA.on.mockImplementation((event: string, handler: (...args: any[]) => void) => {
         if (event === 'connected') {
-          setTimeout(() => handler({}), 10)
+          connHandlers.on.push(handler)
+          setTimeout(() => {
+            connHandlers.on.forEach((h) => h({}))
+            connHandlers.once.forEach((h) => h({}))
+          }, 10)
         }
       })
       mockUA.once.mockImplementation((event: string, handler: (...args: any[]) => void) => {
         if (event === 'connected') {
-          setTimeout(() => handler({}), 10)
+          connHandlers.once.push(handler)
         }
       })
-      mockUA.isConnected.mockReturnValue(true)
+      mockUA.isConnected.mockReturnValue(false)
       await sipClient.start()
+      mockUA.isConnected.mockReturnValue(true)
     })
 
     it('should register with SIP server', async () => {
+      const regHandlers: ((...args: any[]) => void)[] = []
+
       mockUA.once.mockImplementation((event: string, handler: (...args: any[]) => void) => {
         if (event === 'registered') {
-          setTimeout(() => handler({}), 10)
+          regHandlers.push(handler)
+          setTimeout(() => regHandlers.forEach((h) => h({})), 10)
         }
       })
+      mockUA.isRegistered.mockReturnValue(true)
 
       await sipClient.register()
 
@@ -336,16 +360,26 @@ describe('SipClient', () => {
       const registeredHandler = vi.fn()
       eventBus.on('sip:registered', registeredHandler)
 
+      const regHandlers: { on: ((...args: any[]) => void)[]; once: ((...args: any[]) => void)[] } = {
+        on: [],
+        once: [],
+      }
+
       mockUA.on.mockImplementation((event: string, handler: (...args: any[]) => void) => {
         if (event === 'registered') {
-          setTimeout(() => handler({ response: { getHeader: () => '600' } }), 10)
+          regHandlers.on.push(handler)
+          setTimeout(() => {
+            regHandlers.on.forEach((h) => h({ response: { getHeader: () => '600' } }))
+            regHandlers.once.forEach((h) => h({ response: { getHeader: () => '600' } }))
+          }, 10)
         }
       })
       mockUA.once.mockImplementation((event: string, handler: (...args: any[]) => void) => {
         if (event === 'registered') {
-          setTimeout(() => handler({ response: { getHeader: () => '600' } }), 10)
+          regHandlers.once.push(handler)
         }
       })
+      mockUA.isRegistered.mockReturnValue(true)
 
       await sipClient.register()
 

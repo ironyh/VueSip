@@ -154,6 +154,8 @@ function createMockRTCSession(sessionId: string) {
     terminate: vi.fn(),
     hold: vi.fn(),
     unhold: vi.fn(),
+    mute: vi.fn(),
+    unmute: vi.fn(),
     renegotiate: vi.fn(),
     refer: vi.fn(),
     sendDTMF: vi.fn(),
@@ -161,6 +163,7 @@ function createMockRTCSession(sessionId: string) {
     on: vi.fn(),
     once: vi.fn(),
     off: vi.fn(),
+    removeAllListeners: vi.fn(),
   }
 }
 

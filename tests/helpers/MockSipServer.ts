@@ -56,11 +56,14 @@ export interface MockRTCSession {
   terminate: Mock<() => void>
   hold: Mock<() => Promise<void>>
   unhold: Mock<() => Promise<void>>
+  mute: Mock<(options?: { audio?: boolean; video?: boolean }) => void>
+  unmute: Mock<(options?: { audio?: boolean; video?: boolean }) => void>
   renegotiate: Mock<() => Promise<void>>
   refer: Mock<(target: string) => void>
   sendDTMF: Mock<(tone: string, options?: unknown) => void>
   on: Mock<(event: string, handler: EventHandler) => void>
   off: Mock<(event: string, handler: EventHandler) => void>
+  removeAllListeners: Mock<() => void>
   _handlers: Record<string, EventHandler[]>
 }
 
@@ -171,6 +174,8 @@ export class MockSipServer {
       terminate: vi.fn(),
       hold: vi.fn().mockResolvedValue(undefined),
       unhold: vi.fn().mockResolvedValue(undefined),
+      mute: vi.fn(),
+      unmute: vi.fn(),
       renegotiate: vi.fn().mockResolvedValue(undefined),
       refer: vi.fn(),
       sendDTMF: vi.fn(),
@@ -182,6 +187,9 @@ export class MockSipServer {
         if (handlers[event]) {
           handlers[event] = handlers[event].filter((h) => h !== handler)
         }
+      }),
+      removeAllListeners: vi.fn(() => {
+        Object.keys(handlers).forEach((key) => delete handlers[key])
       }),
       _handlers: handlers,
     }
@@ -515,6 +523,8 @@ export function createMockRTCSession(sessionId = 'test-session'): MockRTCSession
     terminate: vi.fn(),
     hold: vi.fn().mockResolvedValue(undefined),
     unhold: vi.fn().mockResolvedValue(undefined),
+    mute: vi.fn(),
+    unmute: vi.fn(),
     renegotiate: vi.fn().mockResolvedValue(undefined),
     refer: vi.fn(),
     sendDTMF: vi.fn(),
@@ -526,6 +536,9 @@ export function createMockRTCSession(sessionId = 'test-session'): MockRTCSession
       if (handlers[event]) {
         handlers[event] = handlers[event].filter((h) => h !== handler)
       }
+    }),
+    removeAllListeners: vi.fn(() => {
+      Object.keys(handlers).forEach((key) => delete handlers[key])
     }),
     _handlers: handlers,
   }
