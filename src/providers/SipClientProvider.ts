@@ -203,7 +203,7 @@ export const SipClientProvider = defineComponent({
 
   setup(props, { emit, slots }) {
     // Create event bus instance (shared across provider)
-    const eventBus = ref<EventBus | null>(null)
+    const eventBus = ref<EventBus>(new EventBus())
 
     // SIP client instance
     const client = ref<SipClient | null>(null)
@@ -239,10 +239,6 @@ export const SipClientProvider = defineComponent({
           sipUri: props.config.sipUri,
         })
 
-        // Lazily create EventBus if not created yet (allows test mocks to apply before mount)
-        if (!eventBus.value) {
-          eventBus.value = new EventBus()
-        }
         // Create SIP client instance
         client.value = new SipClient(props.config, eventBus.value as EventBus)
         initialized.value = true
@@ -375,8 +371,6 @@ export const SipClientProvider = defineComponent({
       try {
         logger.info('Connecting to SIP server')
         await client.value.start()
-        // For test environment without real event emissions, manually emit connected
-        eventBus.value?.emitSync?.('sip:connected', undefined as any)
       } catch (err) {
         const errorObj = err instanceof Error ? err : new Error(String(err))
         logger.error('Failed to connect', err)
@@ -484,19 +478,13 @@ export const SipClientProvider = defineComponent({
     }
 
     // Lifecycle hooks
-    // Do not initialize early; wait until mounted so test mocks can override EventBus
-    // initializeClient()
+    // Initialize immediately so listeners are ready and tests' EventBus.on handlers can fire
+    initializeClient()
 
     onMounted(async () => {
       logger.debug('SipClientProvider mounted')
 
-      // Avoid double initialization if already done
-      if (!initialized.value && !client.value) {
-        initializeClient()
-      } else if (!initialized.value) {
-        // Edge case: eventBus mocked after import but before mount
-        initializeClient()
-      }
+      // Already initialized in setup to register event listeners
 
       // Auto-connect if enabled
       if (props.autoConnect && client.value) {
@@ -504,8 +492,7 @@ export const SipClientProvider = defineComponent({
           await connect()
         } catch (err) {
           logger.error('Auto-connect failed', err)
-          // Ensure error event emitted
-          if (error.value) emit('error', error.value)
+          // error already emitted in connect()
         }
       }
     })
@@ -521,7 +508,7 @@ export const SipClientProvider = defineComponent({
     // Create provider context
     const providerContext: SipClientProviderContext = {
       client: readonly(client) as Ref<SipClient | null>,
-      eventBus: readonly(eventBus) as Ref<EventBus | null>,
+      eventBus: readonly(eventBus) as Ref<EventBus>,
       connectionState: readonly(connectionState) as Ref<ConnectionState>,
       registrationState: readonly(registrationState) as Ref<RegistrationState>,
       isReady: readonly(isReady) as Ref<boolean>,
@@ -539,10 +526,7 @@ export const SipClientProvider = defineComponent({
 
     // Render default slot
     return () => {
-      if (slots.default) {
-        return h('div', { class: 'sip-client-provider' }, slots.default())
-      }
-      return null
+      return h('div', { class: 'sip-client-provider' }, slots.default ? slots.default() : null)
     }
   },
 })
