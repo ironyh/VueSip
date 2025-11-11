@@ -374,24 +374,25 @@ export const SipClientProvider = defineComponent({
       try {
         logger.info('Connecting to SIP server')
         await client.value.start()
-        // Fallback: if bus didn't emit connected, emit now
-        queueMicrotask(() => {
-          if (!busConnectedHandled.value && connectionState.value !== ConnectionState.Connected) {
-            connectionState.value = ConnectionState.Connected
-            emit('connected')
-            if (props.autoRegister) {
-              // Attempt registration fallback
-              client.value?.register().catch((err) => {
-                const regErr = err instanceof Error ? err : new Error(String(err))
-                error.value = regErr
-                emit('error', regErr)
-              })
-            } else {
-              isReady.value = true
-              emit('ready')
-            }
+        // Proactively emit connection/registration events when start() succeeds
+        connectionState.value = ConnectionState.Connected
+        emit('connected')
+        if (props.autoRegister) {
+          try {
+            await client.value.register()
+            registrationState.value = RegistrationState.Registered
+            isReady.value = true
+            emit('registered', props.config?.sipUri || '')
+            emit('ready')
+          } catch (regErr) {
+            const regError = regErr instanceof Error ? regErr : new Error(String(regErr))
+            error.value = regError
+            emit('error', regError)
           }
-        })
+        } else {
+          isReady.value = true
+          emit('ready')
+        }
       } catch (err) {
         const errorObj = err instanceof Error ? err : new Error(String(err))
         logger.error('Failed to connect', err)
