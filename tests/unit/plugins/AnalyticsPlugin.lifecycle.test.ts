@@ -11,6 +11,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { AnalyticsPlugin } from '../../../src/plugins/AnalyticsPlugin'
 import { EventBus } from '../../../src/core/EventBus'
 import { checkEventBusListeners } from '../../utils/test-helpers'
+import * as loggerModule from '../../../src/utils/logger'
 
 describe('AnalyticsPlugin - Lifecycle', () => {
   describe('Multiple Install Protection', () => {
@@ -31,6 +32,8 @@ describe('AnalyticsPlugin - Lifecycle', () => {
     })
 
     it('should prevent double installation', async () => {
+      // Enable logging for this test and spy on console.warn
+      loggerModule.configureLogger({ enabled: true })
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
       await plugin.install({ eventBus }, { endpoint: 'https://test.com' })
@@ -45,6 +48,8 @@ describe('AnalyticsPlugin - Lifecycle', () => {
       ).toBe(true)
 
       consoleSpy.mockRestore()
+      // Restore logging to disabled state
+      loggerModule.configureLogger({ enabled: false })
     })
 
     it('should allow reinstallation after uninstall', async () => {
