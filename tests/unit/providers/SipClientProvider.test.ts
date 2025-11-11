@@ -236,22 +236,28 @@ describe('SipClientProvider - Phase 7.1 Implementation', () => {
     })
 
     it('should auto-connect when autoConnect is true', async () => {
+      const mockEventBus = {
+        on: vi.fn((event: string, handler: any) => `listener_${event}`),
+        removeById: vi.fn(),
+        once: vi.fn(),
+        off: vi.fn(),
+        emit: vi.fn(),
+      }
+
       const wrapper = mount(SipClientProvider, {
         props: {
           config: mockConfig,
           autoConnect: true,
+          eventBus: mockEventBus,
         },
       })
 
       await flushPromises()
 
-      // Force event bus emit to simulate JsSIP events
-      ;(wrapper.vm as any).eventBus.emitSync?.('sip:connected')
-
       const { SipClient } = await import('@/core/SipClient')
       const mockInstance = vi.mocked(SipClient).mock.results[0]?.value
 
-      // Should call start() and emit connected
+      // Should call start()
       expect(mockInstance?.start).toHaveBeenCalled()
       expect(wrapper.emitted('connected')).toBeDefined()
     })
@@ -529,6 +535,7 @@ describe('SipClientProvider - Phase 7.1 Implementation', () => {
         props: {
           config: mockConfig,
           autoConnect: false,
+          eventBus: mockEventBus,
         },
       })
 
@@ -562,6 +569,7 @@ describe('SipClientProvider - Phase 7.1 Implementation', () => {
         props: {
           config: mockConfig,
           autoConnect: false,
+          eventBus: mockEventBus,
         },
       })
 
@@ -593,6 +601,7 @@ describe('SipClientProvider - Phase 7.1 Implementation', () => {
         props: {
           config: mockConfig,
           autoConnect: false,
+          eventBus: mockEventBus,
         },
       })
 
