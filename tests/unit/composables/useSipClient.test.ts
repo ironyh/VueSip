@@ -13,7 +13,7 @@ import type { SipClientConfig } from '@/types/config.types'
 import { RegistrationState } from '@/types/sip.types'
 
 // Helper to wrap composable in proper Vue context
-function withSetup<T>(composable: () => T): [T, () => void] {
+function withSetup<T>(composable: () => T): { result: T; unmount: () => void } {
   let result: T
   const app = createApp({
     setup() {
@@ -22,7 +22,7 @@ function withSetup<T>(composable: () => T): [T, () => void] {
     },
   })
   app.mount(document.createElement('div'))
-  return [result!, () => app.unmount()]
+  return { result: result!, unmount: () => app.unmount() }
 }
 
 // Mock the core modules
@@ -153,7 +153,7 @@ describe('useSipClient', () => {
 
   describe('initialization', () => {
     it('should initialize with default state', () => {
-      const [result, unmount] = withSetup(() => useSipClient())
+      const { result, unmount } = withSetup(() => useSipClient())
       const { isConnected, isRegistered, isConnecting, isStarted, error } = result
 
       expect(isConnected.value).toBe(false)
@@ -166,7 +166,7 @@ describe('useSipClient', () => {
     })
 
     it('should accept initial configuration', () => {
-      const [, unmount] = withSetup(() => useSipClient(testConfig))
+      const { unmount } = withSetup(() => useSipClient(testConfig))
 
       expect(configStore.hasSipConfig).toBe(true)
       expect(configStore.getSipUri()).toBe(testConfig.sipUri)
@@ -180,7 +180,7 @@ describe('useSipClient', () => {
         uri: '', // Invalid empty URI
       }
 
-      const [result, unmount] = withSetup(() => useSipClient(invalidConfig))
+      const { result, unmount } = withSetup(() => useSipClient(invalidConfig))
       const { error } = result
 
       expect(error.value).not.toBeNull()
@@ -191,7 +191,7 @@ describe('useSipClient', () => {
 
     it('should use provided event bus', () => {
       const customEventBus = new EventBus()
-      const [result, unmount] = withSetup(() =>
+      const { result, unmount } = withSetup(() =>
         useSipClient(testConfig, { eventBus: customEventBus })
       )
       const { getEventBus } = result
@@ -202,7 +202,7 @@ describe('useSipClient', () => {
     })
 
     it('should create new event bus if not provided', () => {
-      const [result, unmount] = withSetup(() => useSipClient())
+      const { result, unmount } = withSetup(() => useSipClient())
       const { getEventBus } = result
 
       expect(getEventBus()).toBeDefined()
@@ -215,7 +215,7 @@ describe('useSipClient', () => {
 
   describe('connect()', () => {
     it('should connect to SIP server successfully', async () => {
-      const [result, unmount] = withSetup(() => useSipClient(testConfig))
+      const { result, unmount } = withSetup(() => useSipClient(testConfig))
       const { connect, isStarted, isConnected } = result
 
       expect(isStarted.value).toBe(false)
@@ -232,7 +232,7 @@ describe('useSipClient', () => {
     })
 
     it('should throw error if no configuration set', async () => {
-      const [result, unmount] = withSetup(() => useSipClient())
+      const { result, unmount } = withSetup(() => useSipClient())
       const { connect } = result
 
       await expect(connect()).rejects.toThrow('No SIP configuration set')
@@ -244,7 +244,7 @@ describe('useSipClient', () => {
       const connectionError = new Error('Connection failed')
       mockSipClient.start.mockRejectedValueOnce(connectionError)
 
-      const [result, unmount] = withSetup(() => useSipClient(testConfig))
+      const { result, unmount } = withSetup(() => useSipClient(testConfig))
       const { connect, error } = result
 
       await expect(connect()).rejects.toThrow('Connection failed')
@@ -254,7 +254,7 @@ describe('useSipClient', () => {
     })
 
     it('should reuse existing SipClient on subsequent calls', async () => {
-      const [result, unmount] = withSetup(() => useSipClient(testConfig))
+      const { result, unmount } = withSetup(() => useSipClient(testConfig))
       const { connect } = result
 
       await connect()
@@ -267,7 +267,7 @@ describe('useSipClient', () => {
     })
 
     it('should clear error on successful connection', async () => {
-      const [result, unmount] = withSetup(() => useSipClient(testConfig))
+      const { result, unmount } = withSetup(() => useSipClient(testConfig))
       const { connect, error } = result
 
       // Set an error first
@@ -288,7 +288,7 @@ describe('useSipClient', () => {
 
   describe('disconnect()', () => {
     it('should disconnect from SIP server successfully', async () => {
-      const [result, unmount] = withSetup(() => useSipClient(testConfig))
+      const { result, unmount } = withSetup(() => useSipClient(testConfig))
       const { connect, disconnect, isStarted, isDisconnecting } = result
 
       await connect()
@@ -307,7 +307,7 @@ describe('useSipClient', () => {
     })
 
     it('should handle disconnect when not connected', async () => {
-      const [result, unmount] = withSetup(() => useSipClient())
+      const { result, unmount } = withSetup(() => useSipClient())
       const { disconnect } = result
 
       // Should not throw
@@ -320,7 +320,7 @@ describe('useSipClient', () => {
       const disconnectError = new Error('Disconnect failed')
       mockSipClient.stop.mockRejectedValueOnce(disconnectError)
 
-      const [result, unmount] = withSetup(() => useSipClient(testConfig))
+      const { result, unmount } = withSetup(() => useSipClient(testConfig))
       const { connect, disconnect, error } = result
 
       await connect()
@@ -331,7 +331,7 @@ describe('useSipClient', () => {
     })
 
     it('should clear registration state on disconnect', async () => {
-      const [result, unmount] = withSetup(() => useSipClient(testConfig))
+      const { result, unmount } = withSetup(() => useSipClient(testConfig))
       const { connect, disconnect } = result
 
       await connect()
@@ -347,7 +347,7 @@ describe('useSipClient', () => {
 
   describe('register()', () => {
     it('should register with SIP server successfully', async () => {
-      const [result, unmount] = withSetup(() => useSipClient(testConfig))
+      const { result, unmount } = withSetup(() => useSipClient(testConfig))
       const { connect, register } = result
 
       await connect()
@@ -359,7 +359,7 @@ describe('useSipClient', () => {
     })
 
     it('should throw error if not connected', async () => {
-      const [result, unmount] = withSetup(() => useSipClient())
+      const { result, unmount } = withSetup(() => useSipClient())
       const { register } = result
 
       await expect(register()).rejects.toThrow('SIP client not started')
@@ -371,7 +371,7 @@ describe('useSipClient', () => {
       const registrationError = new Error('Registration failed')
       mockSipClient.register.mockRejectedValueOnce(registrationError)
 
-      const [result, unmount] = withSetup(() => useSipClient(testConfig))
+      const { result, unmount } = withSetup(() => useSipClient(testConfig))
       const { connect, register, error } = result
 
       await connect()
@@ -382,7 +382,7 @@ describe('useSipClient', () => {
     })
 
     it('should update registration store during registration', async () => {
-      const [result, unmount] = withSetup(() => useSipClient(testConfig))
+      const { result, unmount } = withSetup(() => useSipClient(testConfig))
       const { connect, register } = result
 
       await connect()
@@ -401,7 +401,7 @@ describe('useSipClient', () => {
 
   describe('unregister()', () => {
     it('should unregister from SIP server successfully', async () => {
-      const [result, unmount] = withSetup(() => useSipClient(testConfig))
+      const { result, unmount } = withSetup(() => useSipClient(testConfig))
       const { connect, unregister } = result
 
       await connect()
@@ -413,7 +413,7 @@ describe('useSipClient', () => {
     })
 
     it('should throw error if not started', async () => {
-      const [result, unmount] = withSetup(() => useSipClient())
+      const { result, unmount } = withSetup(() => useSipClient())
       const { unregister } = result
 
       await expect(unregister()).rejects.toThrow('SIP client not started')
@@ -425,7 +425,7 @@ describe('useSipClient', () => {
       const unregistrationError = new Error('Unregistration failed')
       mockSipClient.unregister.mockRejectedValueOnce(unregistrationError)
 
-      const [result, unmount] = withSetup(() => useSipClient(testConfig))
+      const { result, unmount } = withSetup(() => useSipClient(testConfig))
       const { connect, unregister, error } = result
 
       await connect()
@@ -436,7 +436,7 @@ describe('useSipClient', () => {
     })
 
     it('should update registration store during unregistration', async () => {
-      const [result, unmount] = withSetup(() => useSipClient(testConfig))
+      const { result, unmount } = withSetup(() => useSipClient(testConfig))
       const { connect, unregister } = result
 
       await connect()
@@ -455,7 +455,7 @@ describe('useSipClient', () => {
 
   describe('updateConfig()', () => {
     it('should update configuration successfully', () => {
-      const [result, unmount] = withSetup(() => useSipClient(testConfig))
+      const { result, unmount } = withSetup(() => useSipClient(testConfig))
       const { updateConfig } = result
 
       const updates = {
@@ -473,7 +473,7 @@ describe('useSipClient', () => {
     })
 
     it('should validate configuration updates', () => {
-      const [result, unmount] = withSetup(() => useSipClient(testConfig))
+      const { result, unmount } = withSetup(() => useSipClient(testConfig))
       const { updateConfig } = result
 
       const invalidUpdates = {
@@ -489,7 +489,7 @@ describe('useSipClient', () => {
     })
 
     it('should update SipClient config if client exists', async () => {
-      const [result, unmount] = withSetup(() => useSipClient(testConfig))
+      const { result, unmount } = withSetup(() => useSipClient(testConfig))
       const { connect, updateConfig } = result
 
       await connect()
@@ -503,7 +503,7 @@ describe('useSipClient', () => {
     })
 
     it('should handle update errors', () => {
-      const [result, unmount] = withSetup(() => useSipClient(testConfig))
+      const { result, unmount } = withSetup(() => useSipClient(testConfig))
       const { updateConfig, error } = result
 
       // Try to update with invalid config
@@ -520,7 +520,7 @@ describe('useSipClient', () => {
     it('should reconnect successfully', async () => {
       vi.useFakeTimers()
 
-      const [result, unmount] = withSetup(() => useSipClient(testConfig))
+      const { result, unmount } = withSetup(() => useSipClient(testConfig))
       const { connect, reconnect, isConnected } = result
 
       await connect()
@@ -542,7 +542,7 @@ describe('useSipClient', () => {
     })
 
     it('should reconnect when not previously connected', async () => {
-      const [result, unmount] = withSetup(() => useSipClient(testConfig))
+      const { result, unmount } = withSetup(() => useSipClient(testConfig))
       const { reconnect } = result
 
       await reconnect()
@@ -555,7 +555,7 @@ describe('useSipClient', () => {
     it('should handle reconnection failure', async () => {
       mockSipClient.start.mockRejectedValueOnce(new Error('Reconnection failed'))
 
-      const [result, unmount] = withSetup(() => useSipClient(testConfig))
+      const { result, unmount } = withSetup(() => useSipClient(testConfig))
       const { reconnect, error } = result
 
       await expect(reconnect()).rejects.toThrow('Reconnection failed')
@@ -567,7 +567,7 @@ describe('useSipClient', () => {
     it('should wait before reconnecting', async () => {
       vi.useFakeTimers()
 
-      const [result, unmount] = withSetup(() => useSipClient(testConfig))
+      const { result, unmount } = withSetup(() => useSipClient(testConfig))
       const { connect, reconnect } = result
 
       await connect()
@@ -589,7 +589,7 @@ describe('useSipClient', () => {
 
   describe('event handling', () => {
     it('should setup event listeners', () => {
-      const [, unmount] = withSetup(() => useSipClient(testConfig))
+      const { unmount } = withSetup(() => useSipClient(testConfig))
 
       expect(mockEventBus.on).toHaveBeenCalledWith('sip:connected', expect.any(Function))
       expect(mockEventBus.on).toHaveBeenCalledWith('sip:disconnected', expect.any(Function))
@@ -605,7 +605,7 @@ describe('useSipClient', () => {
     })
 
     it('should handle sip:connected event', async () => {
-      const [result, unmount] = withSetup(() => useSipClient(testConfig))
+      const { result, unmount } = withSetup(() => useSipClient(testConfig))
       const { connect, isConnected } = result
 
       // Initially disconnected
@@ -622,7 +622,7 @@ describe('useSipClient', () => {
     })
 
     it('should handle sip:disconnected event', async () => {
-      const [result, unmount] = withSetup(() => useSipClient())
+      const { result, unmount } = withSetup(() => useSipClient())
       const { error } = result
 
       const disconnectedHandler = mockEventBus.on.mock.calls.find(
@@ -641,7 +641,7 @@ describe('useSipClient', () => {
     })
 
     it('should handle sip:registered event', async () => {
-      const [, unmount] = withSetup(() => useSipClient())
+      const { unmount } = withSetup(() => useSipClient())
 
       const registeredHandler = mockEventBus.on.mock.calls.find(
         (call: any) => call[0] === 'sip:registered'
@@ -660,7 +660,7 @@ describe('useSipClient', () => {
     })
 
     it('should handle sip:registration_failed event', async () => {
-      const [result, unmount] = withSetup(() => useSipClient())
+      const { result, unmount } = withSetup(() => useSipClient())
       const { error } = result
 
       const failedHandler = mockEventBus.on.mock.calls.find(
@@ -682,7 +682,7 @@ describe('useSipClient', () => {
 
   describe('lifecycle options', () => {
     it('should not auto-connect by default', () => {
-      const [, unmount] = withSetup(() => useSipClient(testConfig))
+      const { unmount } = withSetup(() => useSipClient(testConfig))
 
       expect(mockSipClient.start).not.toHaveBeenCalled()
 
@@ -690,7 +690,7 @@ describe('useSipClient', () => {
     })
 
     it('should auto-connect when configured', async () => {
-      const [, unmount] = withSetup(() => useSipClient(testConfig, { autoConnect: true }))
+      const { unmount } = withSetup(() => useSipClient(testConfig, { autoConnect: true }))
 
       // Wait for async connect
       await nextTick()
@@ -704,7 +704,7 @@ describe('useSipClient', () => {
     it('should handle auto-connect failure gracefully', async () => {
       mockSipClient.start.mockRejectedValueOnce(new Error('Auto-connect failed'))
 
-      const [result, unmount] = withSetup(() => useSipClient(testConfig, { autoConnect: true }))
+      const { result, unmount } = withSetup(() => useSipClient(testConfig, { autoConnect: true }))
       const { error } = result
 
       // Wait for async connect to fail
@@ -721,7 +721,7 @@ describe('useSipClient', () => {
 
   describe('getClient() and getEventBus()', () => {
     it('should return null client before connect', () => {
-      const [result, unmount] = withSetup(() => useSipClient())
+      const { result, unmount } = withSetup(() => useSipClient())
       const { getClient } = result
 
       expect(getClient()).toBeNull()
@@ -730,7 +730,7 @@ describe('useSipClient', () => {
     })
 
     it('should return SipClient after connect', async () => {
-      const [result, unmount] = withSetup(() => useSipClient(testConfig))
+      const { result, unmount } = withSetup(() => useSipClient(testConfig))
       const { connect, getClient } = result
 
       await connect()
@@ -743,7 +743,7 @@ describe('useSipClient', () => {
     })
 
     it('should return EventBus instance', () => {
-      const [result, unmount] = withSetup(() => useSipClient())
+      const { result, unmount } = withSetup(() => useSipClient())
       const { getEventBus } = result
 
       expect(getEventBus()).toBeDefined()
@@ -756,7 +756,7 @@ describe('useSipClient', () => {
 
   describe('reactive state', () => {
     it('should expose readonly reactive state', async () => {
-      const [result, unmount] = withSetup(() => useSipClient(testConfig))
+      const { result, unmount } = withSetup(() => useSipClient(testConfig))
       const { isConnected, isRegistered, error } = result
 
       // These should be readonly
@@ -768,7 +768,7 @@ describe('useSipClient', () => {
     })
 
     it('should update isConnected reactively', async () => {
-      const [result, unmount] = withSetup(() => useSipClient(testConfig))
+      const { result, unmount } = withSetup(() => useSipClient(testConfig))
       const { connect, isConnected } = result
 
       // Initially disconnected
@@ -785,7 +785,7 @@ describe('useSipClient', () => {
     })
 
     it('should update isRegistered reactively', async () => {
-      const [result, unmount] = withSetup(() => useSipClient(testConfig))
+      const { result, unmount } = withSetup(() => useSipClient(testConfig))
       const { connect, register, isRegistered } = result
 
       // Initially not registered
@@ -805,7 +805,7 @@ describe('useSipClient', () => {
 
   describe('event listener cleanup (CRITICAL FIX)', () => {
     it('should register 6 event listeners on initialization', () => {
-      const [, unmount] = withSetup(() => useSipClient())
+      const { unmount } = withSetup(() => useSipClient())
 
       // Should have registered 6 event listeners
       expect(mockEventBus.on).toHaveBeenCalledTimes(6)
@@ -828,7 +828,7 @@ describe('useSipClient', () => {
       let idIndex = 0
       mockEventBus.on.mockImplementation(() => ids[idIndex++])
 
-      const [, unmount] = withSetup(() => useSipClient())
+      const { unmount } = withSetup(() => useSipClient())
 
       // Verify all IDs were captured
       expect(mockEventBus.on).toHaveBeenCalledTimes(6)
@@ -844,10 +844,10 @@ describe('useSipClient', () => {
       const sharedBus = new EventBus()
 
       // Create first instance - should not warn
-      const [, unmount1] = withSetup(() => useSipClient(testConfig, { eventBus: sharedBus }))
+      const { unmount: unmount1 } = withSetup(() => useSipClient(testConfig, { eventBus: sharedBus }))
 
       // Create second instance - should warn about conflict
-      const [, unmount2] = withSetup(() => useSipClient(testConfig, { eventBus: sharedBus }))
+      const { unmount: unmount2 } = withSetup(() => useSipClient(testConfig, { eventBus: sharedBus }))
 
       // The warning is logged via logger.warn
       // Test verifies multiple instances work without errors
@@ -862,7 +862,7 @@ describe('useSipClient', () => {
     it('should use custom reconnect delay', async () => {
       vi.useFakeTimers()
 
-      const [result, unmount] = withSetup(() => useSipClient(testConfig, { reconnectDelay: 2000 }))
+      const { result, unmount } = withSetup(() => useSipClient(testConfig, { reconnectDelay: 2000 }))
       const { connect, reconnect } = result
 
       await connect()

@@ -555,7 +555,11 @@ export async function detectMemoryLeaks(
   // Initial GC
   gc()
 
-  const heapBefore = performance.memory?.usedJSHeapSize || 0
+  // Note: performance.memory is only available in Chrome/Chromium browsers
+  // In Node.js or other environments, we can't measure heap size
+  const hasPerformanceMemory = typeof performance !== 'undefined' && 'memory' in performance
+
+  const heapBefore = hasPerformanceMemory ? (performance as any).memory.usedJSHeapSize : 0
 
   // Run function multiple times
   for (let i = 0; i < iterations; i++) {
@@ -568,7 +572,7 @@ export async function detectMemoryLeaks(
   // Final GC
   gc()
 
-  const heapAfter = performance.memory?.usedJSHeapSize || 0
+  const heapAfter = hasPerformanceMemory ? (performance as any).memory.usedJSHeapSize : 0
   const heapDelta = heapAfter - heapBefore
   const heapDeltaMB = heapDelta / (1024 * 1024)
 
@@ -593,8 +597,8 @@ export function checkEventBusListeners(eventBus: EventBus, eventName?: string): 
     return eventBus.listenerCount(eventName)
   }
   // Return total listener count across all events
-  const allEvents = (eventBus as any)._events || {}
-  return Object.keys(allEvents).reduce((total, event) => {
+  const allEventNames = eventBus.eventNames()
+  return allEventNames.reduce((total, event) => {
     return total + eventBus.listenerCount(event)
   }, 0)
 }
