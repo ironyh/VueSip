@@ -346,13 +346,8 @@ describe('MediaManager', () => {
       expect(pc.onnegotiationneeded).toBeDefined()
     })
 
-    it('should emit ICE candidate event', (done) => {
+    it('should emit ICE candidate event', async () => {
       const pc = mediaManager.createPeerConnection() as MockRTCPeerConnection
-
-      eventBus.on('media:ice:candidate', (event) => {
-        expect(event.payload.candidate).toBeDefined()
-        done()
-      })
 
       const mockCandidate = {
         candidate: 'candidate:1 1 UDP 2130706431 192.168.1.1 54321 typ host',
@@ -360,55 +355,57 @@ describe('MediaManager', () => {
         sdpMLineIndex: 0,
       }
 
+      const eventPromise = eventBus.waitFor('media:ice:candidate')
       pc.onicecandidate?.({ candidate: mockCandidate } as any)
+
+      const event = await eventPromise
+      expect(event.payload.candidate).toBeDefined()
     })
 
-    it('should emit ICE gathering complete event on null candidate', (done) => {
+    it('should emit ICE gathering complete event on null candidate', async () => {
       const pc = mediaManager.createPeerConnection() as MockRTCPeerConnection
 
-      eventBus.on('media:ice:gathering:complete', () => {
-        done()
-      })
-
+      const eventPromise = eventBus.waitFor('media:ice:gathering:complete')
       pc.onicecandidate?.({ candidate: null } as any)
+
+      await eventPromise
     })
 
-    it('should emit ICE connection state change event', (done) => {
+    it('should emit ICE connection state change event', async () => {
       const pc = mediaManager.createPeerConnection() as MockRTCPeerConnection
 
-      eventBus.on('media:ice:connection:state', (event) => {
-        expect(event.payload.state).toBe('connected')
-        done()
-      })
+      const eventPromise = eventBus.waitFor('media:ice:connection:state')
 
       pc.iceConnectionState = 'connected'
       pc.oniceconnectionstatechange?.()
+
+      const event = await eventPromise
+      expect(event.payload.state).toBe('connected')
     })
 
-    it('should handle connection failure', (done) => {
+    it('should handle connection failure', async () => {
       const pc = mediaManager.createPeerConnection() as MockRTCPeerConnection
 
-      eventBus.on('media:connection:failed', (event) => {
-        expect(event.payload.state).toBe('failed')
-        done()
-      })
+      const eventPromise = eventBus.waitFor('media:connection:failed')
 
       pc.iceConnectionState = 'failed'
       pc.oniceconnectionstatechange?.()
+
+      const event = await eventPromise
+      expect(event.payload.state).toBe('failed')
     })
 
-    it('should emit track added event', (done) => {
+    it('should emit track added event', async () => {
       const pc = mediaManager.createPeerConnection() as MockRTCPeerConnection
-
-      eventBus.on('media:track:added', (event) => {
-        expect(event.payload.track).toBeDefined()
-        done()
-      })
 
       const mockTrack = new MockMediaStreamTrack('audio', 'track-1', 'Audio') as any
       const mockStream = new MockMediaStream([mockTrack]) as any
 
+      const eventPromise = eventBus.waitFor('media:track:added')
       pc.ontrack?.({ track: mockTrack, streams: [mockStream] } as any)
+
+      const event = await eventPromise
+      expect(event.payload.track).toBeDefined()
     })
   })
 
