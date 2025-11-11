@@ -927,7 +927,7 @@ describe('Conference Integration Tests', () => {
       p1.callSession = callSession1
 
       // Hold participant
-      await callSession1.hold()
+        await callSession1.hold()
       mockSipServer.simulateHold(session1, 'local')
       await new Promise((resolve) => setTimeout(resolve, 10))
 
@@ -935,7 +935,12 @@ describe('Conference Integration Tests', () => {
       expect(session1.hold).toHaveBeenCalled()
 
       // Unhold participant
-      await callSession1.unhold()
+      const unholdPromise = callSession1.unhold()
+      mockSipServer.simulateUnhold(session1, 'local')
+      await unholdPromise
+
+      // Wait for unhold event to propagate
+      await new Promise((resolve) => setTimeout(resolve, 100))
 
       expect(session1.unhold).toHaveBeenCalled()
     })
