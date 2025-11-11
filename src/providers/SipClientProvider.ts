@@ -216,6 +216,9 @@ export const SipClientProvider = defineComponent({
 
     // Track event listener IDs for cleanup
     const eventListenerIds = ref<string[]>([])
+    // Internal flags for fallback emissions in test environments
+    const busConnectedHandled = ref(false)
+    const busRegisteredHandled = ref(false)
 
     /**
      * Initialize SIP client with configuration
