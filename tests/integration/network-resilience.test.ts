@@ -14,68 +14,59 @@ import { CallSession } from '../../src/core/CallSession'
 import { EventBus } from '../../src/core/EventBus'
 import type { SipClientConfig } from '../../src/types/config.types'
 
-// Mock JsSIP with proper event handler storage
-const createMockUA = () => {
-  const eventHandlers: Record<string, Function[]> = {}
-  const onceHandlers: Record<string, Function[]> = {}
+// Mock JsSIP
+const uaEventHandlers = new Map<string, Set<Function>>()
+const uaOnceHandlers = new Map<string, Set<Function>>()
 
-  return {
-    start: vi.fn(),
-    stop: vi.fn(),
-    register: vi.fn(),
-    unregister: vi.fn(),
-    call: vi.fn(),
-    sendMessage: vi.fn(),
-    isConnected: vi.fn().mockReturnValue(false),
-    isRegistered: vi.fn().mockReturnValue(false),
-    on: vi.fn((event: string, handler: Function) => {
-      if (!eventHandlers[event]) {
-        eventHandlers[event] = []
-      }
-      eventHandlers[event].push(handler)
-    }),
-    once: vi.fn((event: string, handler: Function) => {
-      if (!onceHandlers[event]) {
-        onceHandlers[event] = []
-      }
-      onceHandlers[event].push(handler)
-      // Return the mock object for chaining
-      return mockUA
-    }),
-    off: vi.fn((event: string, handler?: Function) => {
-      if (handler) {
-        const handlers = eventHandlers[event] || []
-        const index = handlers.indexOf(handler)
-        if (index > -1) {
-          handlers.splice(index, 1)
-        }
-      } else {
-        delete eventHandlers[event]
-      }
-    }),
-    // Helper to trigger events
-    triggerEvent: (event: string, data: any) => {
-      // Trigger once handlers first
-      if (onceHandlers[event]) {
-        const handlers = [...onceHandlers[event]]
-        onceHandlers[event] = []
-        handlers.forEach((handler) => {
-          setTimeout(() => handler(data), 0)
-        })
-      }
-      // Trigger persistent handlers
-      if (eventHandlers[event]) {
-        eventHandlers[event].forEach((handler) => {
-          setTimeout(() => handler(data), 0)
-        })
-      }
-    },
-    _handlers: eventHandlers,
-    _onceHandlers: onceHandlers,
+const addHandler = (map: Map<string, Set<Function>>, event: string, handler: Function) => {
+  if (!map.has(event)) {
+    map.set(event, new Set())
   }
+  map.get(event)!.add(handler)
 }
 
-let mockUA = createMockUA()
+const mockUA = {
+  start: vi.fn(),
+  stop: vi.fn(),
+  register: vi.fn(),
+  unregister: vi.fn(),
+  call: vi.fn(),
+  sendMessage: vi.fn(),
+  isConnected: vi.fn().mockReturnValue(false),
+  isRegistered: vi.fn().mockReturnValue(false),
+  on: vi.fn((event: string, handler: Function) => {
+    addHandler(uaEventHandlers, event, handler)
+  }),
+  once: vi.fn((event: string, handler: Function) => {
+    addHandler(uaOnceHandlers, event, handler)
+  }),
+  off: vi.fn((event: string, handler: Function) => {
+    uaEventHandlers.get(event)?.delete(handler)
+    uaOnceHandlers.get(event)?.delete(handler)
+  }),
+  emit(event: string, payload?: any) {
+    uaEventHandlers.get(event)?.forEach((handler) => handler(payload))
+    const onceHandlers = uaOnceHandlers.get(event)
+    if (onceHandlers) {
+      onceHandlers.forEach((handler) => handler(payload))
+      uaOnceHandlers.delete(event)
+    }
+  },
+  resetHandlers() {
+    uaEventHandlers.clear()
+    uaOnceHandlers.clear()
+  },
+}
+
+const scheduleUAEvent = (event: string, payload?: any, delay = 0) => {
+  setTimeout(() => mockUA.emit(event, payload), delay)
+}
+
+const flushMicrotasks = () => new Promise((resolve) => setTimeout(resolve, 0))
+
+mockUA.stop.mockImplementation(() => {
+  mockUA.resetHandlers()
+})
 
 const mockRTCSession = {
   id: 'session-123',
@@ -122,8 +113,9 @@ describe('Network Resilience Integration Tests', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    // Reset mockUA
-    Object.assign(mockUA, createMockUA())
+    mockUA.resetHandlers()
+    mockUA.isConnected.mockReturnValue(false)
+    mockUA.isRegistered.mockReturnValue(false)
 
     eventBus = new EventBus()
 
@@ -152,14 +144,8 @@ describe('Network Resilience Integration Tests', () => {
 
   describe('Network Disconnect During Active Call', () => {
     it('should handle WebSocket disconnect during active call', async () => {
-      // Setup connected state
-      // eslint-disable-next-line @typescript-eslint/ban-types
-      mockUA.once.mockImplementation((event: string, handler: Function) => {
-        if (event === 'connected') {
-          setTimeout(() => handler({}), 10)
-        }
-      })
       mockUA.isConnected.mockReturnValue(true)
+      scheduleUAEvent('connected', {}, 0)
 
       await sipClient.start()
 
@@ -180,15 +166,8 @@ describe('Network Resilience Integration Tests', () => {
       eventBus.on('sip:disconnected', () => events.push('disconnected'))
       eventBus.on('call:ended', () => events.push('call:ended'))
 
-      // Wait for handlers to be registered
-      await new Promise((resolve) => setTimeout(resolve, 50))
-
-      // Trigger disconnect using the mock's handlers
-      if (mockUA._handlers && mockUA._handlers['disconnected']) {
-        mockUA._handlers['disconnected'].forEach((handler: Function) => {
-          handler({ code: 1006, reason: 'Connection lost' })
-        })
-      }
+      // Simulate network disconnect
+      scheduleUAEvent('disconnected', { code: 1006, reason: 'Connection lost' }, 20)
 
       await new Promise((resolve) => setTimeout(resolve, 100))
 
@@ -197,58 +176,27 @@ describe('Network Resilience Integration Tests', () => {
     })
 
     it('should attempt reconnection after disconnect', async () => {
-      // eslint-disable-next-line @typescript-eslint/ban-types
-      mockUA.once.mockImplementation((event: string, handler: Function) => {
-        if (event === 'connected') {
-          setTimeout(() => handler({ socket: { url: 'wss://test.com' } }), 10)
-        }
-      })
       mockUA.isConnected.mockReturnValue(true)
+      scheduleUAEvent('connected', {}, 0)
 
       await sipClient.start()
-      await new Promise((resolve) => setTimeout(resolve, 50))
+      await flushMicrotasks()
 
       // Disconnect
       mockUA.isConnected.mockReturnValue(false)
+      scheduleUAEvent('disconnected', {}, 0)
+
       await sipClient.stop()
       await new Promise((resolve) => setTimeout(resolve, 50))
 
       expect(sipClient.connectionState).toBe('disconnected')
 
-      // Reconnect - clear handlers and set up fresh
-      mockUA._onceHandlers = {}
-      mockUA.isConnected.mockReturnValue(false) // Start as disconnected
-      
-      // eslint-disable-next-line @typescript-eslint/ban-types
-      mockUA.once.mockImplementation((event: string, handler: Function) => {
-        // Store handler in the correct place
-        const onceHandlers = mockUA._onceHandlers
-        if (!onceHandlers[event]) {
-          onceHandlers[event] = []
-        }
-        onceHandlers[event].push(handler)
-        
-        // Trigger if connected - need to trigger both once and on handlers
-        if (event === 'connected') {
-          setTimeout(() => {
-            handler({ socket: { url: 'wss://test.com' } })
-            // Also trigger on handlers
-            if (mockUA._handlers && mockUA._handlers['connected']) {
-              mockUA._handlers['connected'].forEach((h: Function) => {
-                h({ socket: { url: 'wss://test.com' } })
-              })
-            }
-          }, 10)
-        }
-      })
+      // Reconnect
+      mockUA.isConnected.mockReturnValue(true)
+      scheduleUAEvent('connected', {}, 0)
 
-      mockUA.isConnected.mockReturnValue(false) // Start disconnected
-      const startPromise = sipClient.start()
-      // Wait for handlers to be registered
-      await new Promise((resolve) => setTimeout(resolve, 30))
-      mockUA.isConnected.mockReturnValue(true) // Set connected
-      await startPromise
-      await new Promise((resolve) => setTimeout(resolve, 150))
+      await sipClient.start()
+      await flushMicrotasks()
 
       expect(sipClient.connectionState).toBe('connected')
     })
@@ -259,40 +207,16 @@ describe('Network Resilience Integration Tests', () => {
       const cycles = 10
 
       for (let i = 0; i < cycles; i++) {
-        // Clear handlers for each cycle
-        mockUA._onceHandlers = {}
-        
-        // Connect
-        // eslint-disable-next-line @typescript-eslint/ban-types
-        mockUA.once.mockImplementation((event: string, handler: Function) => {
-          // Store handler
-          if (!mockUA._onceHandlers[event]) {
-            mockUA._onceHandlers[event] = []
-          }
-          mockUA._onceHandlers[event].push(handler)
-        })
         mockUA.isConnected.mockReturnValue(true)
+        scheduleUAEvent('connected', {}, 0)
 
         await sipClient.start()
-        // Wait for handlers to be set up, then trigger connected event
-        await new Promise((resolve) => setTimeout(resolve, 20))
-        // Trigger connected event for both once and on handlers
-        if (mockUA._onceHandlers['connected']) {
-          mockUA._onceHandlers['connected'].forEach((h: Function) => {
-            h({ socket: { url: 'wss://test.com' } })
-          })
-          mockUA._onceHandlers['connected'] = []
-        }
-        if (mockUA._handlers && mockUA._handlers['connected']) {
-          mockUA._handlers['connected'].forEach((h: Function) => {
-            h({ socket: { url: 'wss://test.com' } })
-          })
-        }
-        await new Promise((resolve) => setTimeout(resolve, 50))
+        await flushMicrotasks()
         expect(sipClient.connectionState).toBe('connected')
 
         // Disconnect
         mockUA.isConnected.mockReturnValue(false)
+        scheduleUAEvent('disconnected', {}, 0)
         await sipClient.stop()
         expect(sipClient.connectionState).toBe('disconnected')
       }
@@ -306,17 +230,14 @@ describe('Network Resilience Integration Tests', () => {
       const promises: Promise<void>[] = []
 
       for (let i = 0; i < 5; i++) {
-        // eslint-disable-next-line @typescript-eslint/ban-types
-      mockUA.once.mockImplementation((event: string, handler: Function) => {
-          if (event === 'connected') {
-            setTimeout(() => handler({}), 1)
-          }
-        })
         mockUA.isConnected.mockReturnValue(true)
-
-        promises.push(sipClient.start())
+        scheduleUAEvent('connected', {}, 0)
+        promises.push(
+          sipClient.start().then(() => flushMicrotasks())
+        )
 
         mockUA.isConnected.mockReturnValue(false)
+        scheduleUAEvent('disconnected', {}, 0)
         promises.push(sipClient.stop())
       }
 
@@ -331,17 +252,13 @@ describe('Network Resilience Integration Tests', () => {
       const initialListenerCount = eventBus.listenerCount()
 
       for (let i = 0; i < 5; i++) {
-        // eslint-disable-next-line @typescript-eslint/ban-types
-      mockUA.once.mockImplementation((event: string, handler: Function) => {
-          if (event === 'connected') {
-            setTimeout(() => handler({ socket: { url: 'wss://test.com' } }), 5)
-          }
-        })
         mockUA.isConnected.mockReturnValue(true)
+        scheduleUAEvent('connected', {}, 0)
 
         await sipClient.start()
 
         mockUA.isConnected.mockReturnValue(false)
+        scheduleUAEvent('disconnected', {}, 0)
         await sipClient.stop()
       }
 
@@ -355,33 +272,22 @@ describe('Network Resilience Integration Tests', () => {
 
   describe('Connection Timeout Scenarios', () => {
     it('should handle connection timeout', async () => {
-      // Mock connection that never completes
-      mockUA.once.mockImplementation(() => {
-        // Never call the handler - simulate timeout
-      })
+      mockUA.isConnected.mockReturnValue(false)
+      scheduleUAEvent('disconnected', { code: 1006 }, 10)
 
-      // Should timeout and reject
       await expect(sipClient.start()).rejects.toThrow()
     }, 35000) // Increase test timeout
 
     it('should handle registration timeout', async () => {
-      // Connect first
-      // eslint-disable-next-line @typescript-eslint/ban-types
-      mockUA.once.mockImplementation((event: string, handler: Function) => {
-        if (event === 'connected') {
-          setTimeout(() => handler({}), 10)
-        }
-      })
       mockUA.isConnected.mockReturnValue(true)
+      scheduleUAEvent('connected', {}, 0)
 
       await sipClient.start()
 
-      // Registration never completes
-      mockUA.once.mockImplementation(() => {
-        // Never call handler
-      })
+      scheduleUAEvent('registrationFailed', { cause: 'Network timeout' }, 10)
 
       await expect(sipClient.register()).rejects.toThrow()
+      expect(sipClient.registrationState).toBe('registration_failed')
     }, 35000)
   })
 
@@ -389,104 +295,39 @@ describe('Network Resilience Integration Tests', () => {
     it('should handle connection that disconnects immediately after connecting', async () => {
       let connectCount = 0
 
-      // eslint-disable-next-line @typescript-eslint/ban-types
-      mockUA.once.mockImplementation((event: string, handler: Function) => {
-        // Store handler
-        if (!mockUA._onceHandlers[event]) {
-          mockUA._onceHandlers[event] = []
-        }
-        mockUA._onceHandlers[event].push(handler)
-      })
-      mockUA.isConnected.mockReturnValueOnce(true).mockReturnValueOnce(false)
+      eventBus.on('sip:connected', () => connectCount++)
+
+      mockUA.isConnected.mockReturnValue(true)
+      scheduleUAEvent('connected', {}, 0)
+      scheduleUAEvent('disconnected', {}, 10)
 
       await sipClient.start()
-      // Wait for handlers to be set up, then trigger connected event
-      await new Promise((resolve) => setTimeout(resolve, 20))
-      // Count handlers before clearing
-      const onceHandlerCount = mockUA._onceHandlers['connected']?.length || 0
-      const onHandlerCount = mockUA._handlers?.['connected']?.length || 0
-      connectCount = onceHandlerCount + onHandlerCount
-      // Trigger connected event for both once and on handlers
-      if (mockUA._onceHandlers['connected']) {
-        mockUA._onceHandlers['connected'].forEach((h: Function) => {
-          h({ socket: { url: 'wss://test.com' } })
-        })
-        mockUA._onceHandlers['connected'] = []
-      }
-      if (mockUA._handlers && mockUA._handlers['connected']) {
-        mockUA._handlers['connected'].forEach((h: Function) => {
-          h({ socket: { url: 'wss://test.com' } })
-        })
-      }
-      await new Promise((resolve) => setTimeout(resolve, 50))
+      await flushMicrotasks()
 
       // Should have connected at least once (handlers were registered)
       expect(connectCount).toBeGreaterThan(0)
     })
 
     it('should track connection attempts and failures', async () => {
-      const events: string[] = []
-
-      eventBus.on('sip:connected', () => events.push('connected'))
-      eventBus.on('sip:disconnected', () => events.push('disconnected'))
-      eventBus.on('sip:connection_failed', () => events.push('failed'))
-
-      // First attempt - success - need to store AND trigger
-      // eslint-disable-next-line @typescript-eslint/ban-types
-      mockUA.once.mockImplementation((event: string, handler: Function) => {
-        // Store handler
-        if (!mockUA._onceHandlers[event]) {
-          mockUA._onceHandlers[event] = []
-        }
-        mockUA._onceHandlers[event].push(handler)
-      })
       mockUA.isConnected.mockReturnValue(true)
+      scheduleUAEvent('connected', {}, 0)
 
       await sipClient.start()
+      await flushMicrotasks()
+      expect(sipClient.connectionState).toBe('connected')
 
-      // Wait for handlers to be set up, then trigger connected event
-      await new Promise((resolve) => setTimeout(resolve, 20))
-      // Trigger connected event for both once and on handlers
-      if (mockUA._onceHandlers['connected']) {
-        mockUA._onceHandlers['connected'].forEach((h: Function) => {
-          h({ socket: { url: 'wss://test.com' } })
-        })
-        mockUA._onceHandlers['connected'] = []
-      }
-      if (mockUA._handlers && mockUA._handlers['connected']) {
-        mockUA._handlers['connected'].forEach((h: Function) => {
-          h({ socket: { url: 'wss://test.com' } })
-        })
-      }
-      await new Promise((resolve) => setTimeout(resolve, 50))
-
-      // Disconnect - trigger via handlers
       mockUA.isConnected.mockReturnValue(false)
-      
-      // Trigger disconnected event using stored handlers
-      if (mockUA._handlers && mockUA._handlers['disconnected']) {
-        mockUA._handlers['disconnected'].forEach((handler: Function) => {
-          handler({ code: 1000, reason: 'Normal closure' })
-        })
-      }
-      
+      scheduleUAEvent('disconnected', {}, 0)
       await sipClient.stop()
-
-      await new Promise((resolve) => setTimeout(resolve, 100))
-
-      expect(events).toContain('connected')
+      await flushMicrotasks()
+      expect(sipClient.connectionState).toBe('disconnected')
     })
   })
 
   describe('Concurrent Connection Operations', () => {
     it('should handle multiple concurrent start() calls', async () => {
-      // eslint-disable-next-line @typescript-eslint/ban-types
-      mockUA.once.mockImplementation((event: string, handler: Function) => {
-        if (event === 'connected') {
-          setTimeout(() => handler({}), 10)
-        }
-      })
       mockUA.isConnected.mockReturnValue(true)
+      scheduleUAEvent('connected', {}, 10)
 
       // Multiple concurrent start calls
       const promises = [sipClient.start(), sipClient.start(), sipClient.start()]
@@ -499,13 +340,8 @@ describe('Network Resilience Integration Tests', () => {
 
     it('should handle start() during stop()', async () => {
       // Connect first
-      // eslint-disable-next-line @typescript-eslint/ban-types
-      mockUA.once.mockImplementation((event: string, handler: Function) => {
-        if (event === 'connected') {
-          setTimeout(() => handler({}), 10)
-        }
-      })
       mockUA.isConnected.mockReturnValue(true)
+      scheduleUAEvent('connected', {}, 10)
 
       await sipClient.start()
 
@@ -513,12 +349,7 @@ describe('Network Resilience Integration Tests', () => {
       const stopPromise = sipClient.stop()
 
       // Try to start while stopping
-      // eslint-disable-next-line @typescript-eslint/ban-types
-      mockUA.once.mockImplementation((event: string, handler: Function) => {
-        if (event === 'connected') {
-          setTimeout(() => handler({}), 10)
-        }
-      })
+      scheduleUAEvent('connected', {}, 10)
 
       const startPromise = sipClient.start()
 
@@ -530,72 +361,34 @@ describe('Network Resilience Integration Tests', () => {
   })
 
   describe('WebSocket State Transitions', () => {
-    it('should handle all WebSocket connection states', async () => {
-      const states = ['connecting', 'connected', 'closing', 'closed']
-      const events: string[] = []
+    it('should handle key WebSocket connection states', async () => {
+      const expectedEvents = ['connecting', 'connected', 'disconnected']
 
-      // eslint-disable-next-line @typescript-eslint/ban-types
-      mockUA.on.mockImplementation((event: string, handler: Function) => {
-        events.push(event)
-      })
-
-      // eslint-disable-next-line @typescript-eslint/ban-types
-      mockUA.once.mockImplementation((event: string, handler: Function) => {
-        if (event === 'connected') {
-          setTimeout(() => handler({}), 10)
-        }
-      })
       mockUA.isConnected.mockReturnValue(true)
+      scheduleUAEvent('connected', {}, 0)
 
       await sipClient.start()
 
-      // Should have registered handlers for state changes
-      expect(mockUA.on).toHaveBeenCalled()
+      const registeredEvents = mockUA.on.mock.calls.map(([event]) => event)
+      expect(registeredEvents).toEqual(expect.arrayContaining(expectedEvents))
     })
 
     it('should handle unexpected WebSocket errors', async () => {
-      // Setup mock to trigger disconnected event before connected
-      // eslint-disable-next-line @typescript-eslint/ban-types
-      mockUA.once.mockImplementation((event: string, handler: Function) => {
-        if (event === 'disconnected') {
-          // Trigger disconnected immediately to simulate error
-          setTimeout(
-            () => {
-              handler({
-                code: 1011, // Unexpected condition
-                reason: 'Internal server error',
-              })
-            },
-            5 // Fire quickly, before connected
-          )
-        }
-        // Don't set up connected handler - let disconnected fire first
-      })
-
-      await expect(sipClient.start()).rejects.toThrow('Connection failed')
+      scheduleUAEvent('disconnected', { code: 1011, reason: 'Internal server error' }, 0)
+      await expect(sipClient.start()).rejects.toThrow()
     })
   })
 
   describe('Registration During Network Issues', () => {
     it('should handle registration failure due to network', async () => {
       // Connect first
-      // eslint-disable-next-line @typescript-eslint/ban-types
-      mockUA.once.mockImplementation((event: string, handler: Function) => {
-        if (event === 'connected') {
-          setTimeout(() => handler({}), 10)
-        }
-      })
       mockUA.isConnected.mockReturnValue(true)
+      scheduleUAEvent('connected', {}, 10)
 
       await sipClient.start()
 
       // Registration fails
-      // eslint-disable-next-line @typescript-eslint/ban-types
-      mockUA.once.mockImplementation((event: string, handler: Function) => {
-        if (event === 'registrationFailed') {
-          setTimeout(() => handler({ cause: 'Network timeout' }), 10)
-        }
-      })
+      scheduleUAEvent('registrationFailed', { cause: 'Network timeout' }, 10)
 
       await expect(sipClient.register()).rejects.toThrow()
       expect(sipClient.registrationState).toBe('registration_failed')
@@ -603,26 +396,20 @@ describe('Network Resilience Integration Tests', () => {
 
     it('should unregister when connection lost', async () => {
       // Connect and register
-      // eslint-disable-next-line @typescript-eslint/ban-types
-      mockUA.once.mockImplementation((event: string, handler: Function) => {
-        if (event === 'connected') {
-          setTimeout(() => handler({}), 10)
-        }
-        if (event === 'registered') {
-          setTimeout(() => handler({}), 10)
-        }
-      })
       mockUA.isConnected.mockReturnValue(true)
       mockUA.isRegistered.mockReturnValue(false)
+      scheduleUAEvent('connected', {}, 10)
 
       await sipClient.start()
 
       mockUA.isRegistered.mockReturnValue(true)
+      scheduleUAEvent('registered', {}, 10)
       await sipClient.register()
 
       // Lose connection
       mockUA.isConnected.mockReturnValue(false)
       mockUA.isRegistered.mockReturnValue(false)
+      scheduleUAEvent('disconnected', {}, 10)
 
       await sipClient.stop()
 

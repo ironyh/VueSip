@@ -32,12 +32,14 @@ class MockMediaRecorder {
 
   stop() {
     this.state = 'inactive'
-    // Trigger ondataavailable with mock data before onstop
+    // Fire ondataavailable with mock data before onstop
     if (this.ondataavailable) {
-      const mockBlob = new Blob(['mock data'], { type: 'audio/webm' })
-      this.ondataavailable({ data: mockBlob } as any)
-    }
-    if (this.onstop) {
+      setTimeout(() => {
+        this.ondataavailable?.({ data: new Blob(['mock-audio-data'], { type: 'audio/webm' }) } as any)
+        // Then fire onstop
+        setTimeout(() => this.onstop?.(), 10)
+      }, 5)
+    } else if (this.onstop) {
       setTimeout(() => this.onstop?.(), 10)
     }
   }
@@ -61,13 +63,12 @@ class MockIDBDatabase {
     onabort: null,
     onerror: null,
     objectStore: vi.fn((name: string) => ({
-      add: vi.fn((data: any) => {
+      add: vi.fn().mockImplementation(() => {
         const request = {
-          onsuccess: null,
-          onerror: null,
-          result: data,
+          onsuccess: null as ((event: any) => void) | null,
+          onerror: null as ((event: any) => void) | null,
         }
-        // Trigger onsuccess asynchronously to simulate IndexedDB behavior
+        // Trigger onsuccess asynchronously
         setTimeout(() => {
           if (request.onsuccess) {
             request.onsuccess({ target: request } as any)
@@ -208,6 +209,21 @@ describe('RecordingPlugin - Edge Cases', () => {
 
   describe('Empty MediaRecorder Chunks', () => {
     it('should detect and handle empty recordings', async () => {
+      // Create a custom mock that doesn't add data (to simulate empty recording)
+      class EmptyMockMediaRecorder extends MockMediaRecorder {
+        stop() {
+          this.state = 'inactive'
+          // Fire onstop WITHOUT ondataavailable to simulate empty recording
+          if (this.onstop) {
+            setTimeout(() => this.onstop?.(), 10)
+          }
+        }
+      }
+
+      // Temporarily replace global mock
+      const originalMockMediaRecorder = global.MediaRecorder
+      global.MediaRecorder = EmptyMockMediaRecorder as any
+
       const onRecordingError = vi.fn()
 
       // Create a mock MediaRecorder that doesn't provide data
@@ -242,8 +258,8 @@ describe('RecordingPlugin - Edge Cases', () => {
       // Should have called error callback for empty recording
       expect(onRecordingError).toHaveBeenCalled()
 
-      // Restore original MediaRecorder
-      global.MediaRecorder = originalMediaRecorder
+      // Restore original mock
+      global.MediaRecorder = originalMockMediaRecorder
     })
 
     it('should not save empty blobs to IndexedDB', async () => {
@@ -272,18 +288,13 @@ describe('RecordingPlugin - Edge Cases', () => {
 
       const recordingId = await plugin.startRecording('call-123', mockStream)
 
-      // Add blob data
-      const recording = plugin.getRecording(recordingId)
-      if (recording) {
-        recording.blob = new Blob(['test data'], { type: 'audio/webm' })
-      }
-
+      // MockMediaRecorder will automatically add blob data on stop
       await plugin.stopRecording('call-123')
 
       // Wait for save and cleanup
       await new Promise((resolve) => setTimeout(resolve, 100))
 
-      // Blob should be cleared from memory
+      // Blob should be cleared from memory after IndexedDB save
       const savedRecording = plugin.getRecording(recordingId)
       expect(savedRecording?.blob).toBeUndefined()
     })

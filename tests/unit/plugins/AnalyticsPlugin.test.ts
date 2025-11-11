@@ -83,9 +83,9 @@ describe('AnalyticsPlugin', () => {
       await plugin.install(context)
 
       // Emit events and verify they are tracked
-      eventBus.emit('connected')
-      eventBus.emit('disconnected')
-      eventBus.emit('registered')
+      eventBus.emit('connected', undefined)
+      eventBus.emit('disconnected', undefined)
+      eventBus.emit('registered', undefined)
 
       // Wait for async processing
       await new Promise((resolve) => setTimeout(resolve, 50))
@@ -121,7 +121,7 @@ describe('AnalyticsPlugin', () => {
       })
 
       // Track some events
-      eventBus.emit('connected')
+      eventBus.emit('connected', undefined)
 
       await plugin.uninstall(context)
 
@@ -154,7 +154,7 @@ describe('AnalyticsPlugin', () => {
       const fetchMock = vi.fn().mockResolvedValue({ ok: true })
       global.fetch = fetchMock
 
-      eventBus.emit('connected')
+      eventBus.emit('connected', undefined)
 
       await new Promise((resolve) => setTimeout(resolve, 50))
     })
@@ -175,8 +175,8 @@ describe('AnalyticsPlugin', () => {
       const fetchMock = vi.fn().mockResolvedValue({ ok: true })
       global.fetch = fetchMock
 
-      eventBus.emit('registered')
-      eventBus.emit('unregistered')
+      eventBus.emit('registered', undefined)
+      eventBus.emit('unregistered', undefined)
 
       await new Promise((resolve) => setTimeout(resolve, 50))
     })
@@ -185,8 +185,8 @@ describe('AnalyticsPlugin', () => {
       const fetchMock = vi.fn().mockResolvedValue({ ok: true })
       global.fetch = fetchMock
 
-      eventBus.emit('mediaAcquired')
-      eventBus.emit('mediaReleased')
+      eventBus.emit('mediaAcquired', undefined)
+      eventBus.emit('mediaReleased', undefined)
 
       await new Promise((resolve) => setTimeout(resolve, 50))
     })
@@ -196,39 +196,44 @@ describe('AnalyticsPlugin', () => {
     it('should batch events when enabled', async () => {
       const fetchMock = vi.fn().mockResolvedValue({ ok: true })
       global.fetch = fetchMock
+      const sendSpy = vi
+        .spyOn(plugin as any, 'sendEvents')
+        .mockResolvedValue(undefined)
 
       await plugin.install(context, {
         endpoint: 'https://analytics.example.com',
         batchEvents: true,
-        batchSize: 4, // Account for plugin:installed event (1) + 3 more = 4 total
+        batchSize: 4, // Account for auto-tracked plugin:installed event
         sendInterval: 5000,
       })
 
-      // Wait for plugin:installed event to be processed
+      // Track events (plugin:installed already tracked = 1)
+      eventBus.emit('connected', undefined) // 2
+      eventBus.emit('registered', undefined) // 3
+
+      // Should not send yet (batch size 4 not reached, only 3 events)
       await new Promise((resolve) => setTimeout(resolve, 50))
-      // Clear the fetch mock to ignore the plugin:installed event
-      fetchMock.mockClear()
+      expect(sendSpy).not.toHaveBeenCalled()
 
-      // Track events
-      eventBus.emit('connected')
-      eventBus.emit('registered')
-
-      // Should not send yet (batch size not reached: 1 plugin:installed + 2 new = 3 < 4)
-      await new Promise((resolve) => setTimeout(resolve, 50))
-      expect(fetchMock).not.toHaveBeenCalled()
-
-      // Track one more event to reach batch size (1 + 2 + 1 = 4)
-      eventBus.emit('callStarted', { callId: 'test' })
+      // Track one more event to reach batch size
+      eventBus.emit('callStarted', { callId: 'test' }) // 4
 
       // Should send now
       await new Promise((resolve) => setTimeout(resolve, 100))
-      expect(fetchMock).toHaveBeenCalled()
+      expect(sendSpy).toHaveBeenCalledTimes(1)
+      const sentBatch = sendSpy.mock.calls[0]?.[0] as unknown[]
+      expect(sentBatch).toHaveLength(4)
+
+      sendSpy.mockRestore()
     })
 
     it('should send batched events on interval', async () => {
       vi.useFakeTimers()
       const fetchMock = vi.fn().mockResolvedValue({ ok: true })
       global.fetch = fetchMock
+      const sendSpy = vi
+        .spyOn(plugin as any, 'sendEvents')
+        .mockResolvedValue(undefined)
 
       await plugin.install(context, {
         endpoint: 'https://analytics.example.com',
@@ -238,7 +243,7 @@ describe('AnalyticsPlugin', () => {
       })
 
       // Track some events
-      eventBus.emit('connected')
+      eventBus.emit('connected', undefined)
 
       // Fast-forward time to trigger batch send
       await vi.advanceTimersByTimeAsync(1000)
@@ -246,6 +251,9 @@ describe('AnalyticsPlugin', () => {
       // Allow any pending async operations to complete
       await vi.advanceTimersByTimeAsync(50)
 
+      expect(sendSpy).toHaveBeenCalledTimes(1)
+
+      sendSpy.mockRestore()
       vi.clearAllTimers()
       vi.useRealTimers()
     })
@@ -266,7 +274,7 @@ describe('AnalyticsPlugin', () => {
       eventBus.emit('callStarted', { callId: 'test' })
 
       // Should not track
-      eventBus.emit('connected')
+      eventBus.emit('connected', undefined)
 
       await new Promise((resolve) => setTimeout(resolve, 50))
     })
@@ -282,7 +290,7 @@ describe('AnalyticsPlugin', () => {
       global.fetch = fetchMock
 
       // Should not track
-      eventBus.emit('connected')
+      eventBus.emit('connected', undefined)
 
       // Should track
       eventBus.emit('callStarted', { callId: 'test' })
@@ -301,8 +309,8 @@ describe('AnalyticsPlugin', () => {
       global.fetch = fetchMock
 
       eventBus.emit('callStarted', { callId: 'test' })
-      eventBus.emit('mediaAcquired')
-      eventBus.emit('connected') // Should not track
+      eventBus.emit('mediaAcquired', undefined)
+      eventBus.emit('connected', undefined) // Should not track
 
       await new Promise((resolve) => setTimeout(resolve, 50))
     })
@@ -324,7 +332,7 @@ describe('AnalyticsPlugin', () => {
         transformEvent,
       })
 
-      eventBus.emit('connected')
+      eventBus.emit('connected', undefined)
 
       await new Promise((resolve) => setTimeout(resolve, 50))
 
@@ -391,7 +399,7 @@ describe('AnalyticsPlugin', () => {
         batchEvents: false,
       })
 
-      eventBus.emit('connected')
+      eventBus.emit('connected', undefined)
 
       await new Promise((resolve) => setTimeout(resolve, 50))
 
@@ -408,7 +416,7 @@ describe('AnalyticsPlugin', () => {
         batchEvents: false,
       })
 
-      eventBus.emit('connected')
+      eventBus.emit('connected', undefined)
 
       await new Promise((resolve) => setTimeout(resolve, 50))
 
@@ -428,7 +436,7 @@ describe('AnalyticsPlugin', () => {
         batchEvents: false,
       })
 
-      eventBus.emit('connected')
+      eventBus.emit('connected', undefined)
 
       await new Promise((resolve) => setTimeout(resolve, 100))
     })
@@ -445,7 +453,7 @@ describe('AnalyticsPlugin', () => {
         enabled: false,
       })
 
-      eventBus.emit('connected')
+      eventBus.emit('connected', undefined)
 
       await new Promise((resolve) => setTimeout(resolve, 50))
 
