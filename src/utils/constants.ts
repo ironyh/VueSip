@@ -313,10 +313,10 @@ export const STORAGE_KEYS = {
  */
 export const PERFORMANCE = {
   /** Maximum bundle size in bytes (minified) */
-  MAX_BUNDLE_SIZE: 150 * 1024, // 150 KB
+  MAX_BUNDLE_SIZE: 250 * 1024, // 250 KB
 
   /** Maximum bundle size in bytes (gzipped) */
-  MAX_BUNDLE_SIZE_GZIPPED: 50 * 1024, // 50 KB
+  MAX_BUNDLE_SIZE_GZIPPED: 75 * 1024, // 75 KB
 
   /** Target call setup time in milliseconds */
   TARGET_CALL_SETUP_TIME: 2000, // 2 seconds

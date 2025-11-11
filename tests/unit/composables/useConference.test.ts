@@ -8,6 +8,7 @@ import { useConference } from '@/composables/useConference'
 import type { SipClient } from '@/core/SipClient'
 import { ConferenceState, ParticipantState, type ConferenceOptions } from '@/types/conference.types'
 import { CONFERENCE_CONSTANTS } from '@/composables/constants'
+import { withSetup } from '../../utils/test-helpers'
 
 // Mock logger
 vi.mock('@/utils/logger', () => ({
@@ -61,16 +62,17 @@ describe('useConference', () => {
 
   describe('Initial State', () => {
     it('should initialize with correct default values', () => {
-      const { conference, state, participants, participantCount, isActive, isLocked, isRecording } =
-        useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      expect(conference.value).toBeNull()
-      expect(state.value).toBe(ConferenceState.Idle)
-      expect(participants.value).toEqual([])
-      expect(participantCount.value).toBe(0)
-      expect(isActive.value).toBe(false)
-      expect(isLocked.value).toBe(false)
-      expect(isRecording.value).toBe(false)
+      expect(result.conference.value).toBeNull()
+      expect(result.state.value).toBe(ConferenceState.Idle)
+      expect(result.participants.value).toEqual([])
+      expect(result.participantCount.value).toBe(0)
+      expect(result.isActive.value).toBe(false)
+      expect(result.isLocked.value).toBe(false)
+      expect(result.isRecording.value).toBe(false)
+
+      unmount()
     })
   })
 
@@ -80,22 +82,23 @@ describe('useConference', () => {
 
   describe('createConference() method', () => {
     it('should create conference successfully', async () => {
-      const { createConference, conference, state, participants, isActive } =
-        useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      const conferenceId = await createConference()
+      const conferenceId = await result.createConference()
 
       expect(conferenceId).toBeTruthy()
-      expect(conference.value).toBeTruthy()
-      expect(conference.value?.id).toBe(conferenceId)
-      expect(state.value).toBe(ConferenceState.Active)
-      expect(isActive.value).toBe(true)
-      expect(participants.value).toHaveLength(1) // Local participant
+      expect(result.conference.value).toBeTruthy()
+      expect(result.conference.value?.id).toBe(conferenceId)
+      expect(result.state.value).toBe(ConferenceState.Active)
+      expect(result.isActive.value).toBe(true)
+      expect(result.participants.value).toHaveLength(1) // Local participant
       expect(mockSipClient.createConference).toHaveBeenCalledWith(conferenceId, {})
+
+      unmount()
     })
 
     it('should create conference with options', async () => {
-      const { createConference, conference } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
       const options: ConferenceOptions = {
         maxParticipants: 5,
@@ -103,63 +106,75 @@ describe('useConference', () => {
         metadata: { room: 'meeting-1' },
       }
 
-      const conferenceId = await createConference(options)
+      const conferenceId = await result.createConference(options)
 
-      expect(conference.value?.maxParticipants).toBe(5)
-      expect(conference.value?.isLocked).toBe(true)
-      expect(conference.value?.metadata).toStrictEqual({ room: 'meeting-1' })
+      expect(result.conference.value?.maxParticipants).toBe(5)
+      expect(result.conference.value?.isLocked).toBe(true)
+      expect(result.conference.value?.metadata).toStrictEqual({ room: 'meeting-1' })
       expect(mockSipClient.createConference).toHaveBeenCalledWith(conferenceId, options)
+
+      unmount()
     })
 
     it('should create local participant with moderator role', async () => {
-      const { createConference, localParticipant, participants } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      await createConference()
+      await result.createConference()
 
-      expect(localParticipant.value).toBeTruthy()
-      expect(localParticipant.value?.uri).toBe('sip:self@example.com')
-      expect(localParticipant.value?.displayName).toBe('Self User')
-      expect(localParticipant.value?.isModerator).toBe(true)
-      expect(localParticipant.value?.isSelf).toBe(true)
-      expect(localParticipant.value?.state).toBe(ParticipantState.Connected)
-      expect(participants.value[0]).toStrictEqual(localParticipant.value)
+      expect(result.localParticipant.value).toBeTruthy()
+      expect(result.localParticipant.value?.uri).toBe('sip:self@example.com')
+      expect(result.localParticipant.value?.displayName).toBe('Self User')
+      expect(result.localParticipant.value?.isModerator).toBe(true)
+      expect(result.localParticipant.value?.isSelf).toBe(true)
+      expect(result.localParticipant.value?.state).toBe(ParticipantState.Connected)
+      expect(result.participants.value[0]).toStrictEqual(result.localParticipant.value)
+
+      unmount()
     })
 
     it('should throw error if SIP client not initialized', async () => {
       const nullClientRef = ref<SipClient | null>(null)
-      const { createConference } = useConference(nullClientRef)
+      const { result, unmount } = withSetup(() => useConference(nullClientRef))
 
-      await expect(createConference()).rejects.toThrow('SIP client not initialized')
+      await expect(result.createConference()).rejects.toThrow('SIP client not initialized')
+
+      unmount()
     })
 
     it('should throw error if conference already active', async () => {
-      const { createConference } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      await createConference()
+      await result.createConference()
 
-      await expect(createConference()).rejects.toThrow('A conference is already active')
+      await expect(result.createConference()).rejects.toThrow('A conference is already active')
+
+      unmount()
     })
 
     it('should handle createConference failure', async () => {
       mockSipClient.createConference.mockRejectedValueOnce(new Error('Network error'))
-      const { createConference, state } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      await expect(createConference()).rejects.toThrow('Network error')
-      expect(state.value).toBe(ConferenceState.Failed)
+      await expect(result.createConference()).rejects.toThrow('Network error')
+      expect(result.state.value).toBe(ConferenceState.Failed)
+
+      unmount()
     })
 
     it('should emit created event', async () => {
-      const { createConference, onConferenceEvent } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
       const events: any[] = []
 
-      onConferenceEvent((event) => events.push(event))
+      result.onConferenceEvent((event) => events.push(event))
 
-      const conferenceId = await createConference()
+      const conferenceId = await result.createConference()
 
       expect(events).toHaveLength(1)
       expect(events[0].type).toBe('created')
       expect(events[0].conferenceId).toBe(conferenceId)
       expect(events[0].state).toBe(ConferenceState.Active)
+
+      unmount()
     })
   })
 
@@ -169,46 +184,54 @@ describe('useConference', () => {
 
   describe('joinConference() method', () => {
     it('should join conference successfully', async () => {
-      const { joinConference, conference, state, isActive } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      await joinConference('sip:conference@example.com')
+      await result.joinConference('sip:conference@example.com')
 
-      expect(conference.value).toBeTruthy()
-      expect(conference.value?.uri).toBe('sip:conference@example.com')
-      expect(state.value).toBe(ConferenceState.Active)
-      expect(isActive.value).toBe(true)
+      expect(result.conference.value).toBeTruthy()
+      expect(result.conference.value?.uri).toBe('sip:conference@example.com')
+      expect(result.state.value).toBe(ConferenceState.Active)
+      expect(result.isActive.value).toBe(true)
       expect(mockSipClient.joinConference).toHaveBeenCalledWith('sip:conference@example.com', {})
+
+      unmount()
     })
 
     it('should join conference with options', async () => {
-      const { joinConference } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
       const options: ConferenceOptions = { maxParticipants: 20 }
-      await joinConference('sip:conference@example.com', options)
+      await result.joinConference('sip:conference@example.com', options)
 
       expect(mockSipClient.joinConference).toHaveBeenCalledWith(
         'sip:conference@example.com',
         options
       )
+
+      unmount()
     })
 
     it('should throw error if SIP client not initialized', async () => {
       const nullClientRef = ref<SipClient | null>(null)
-      const { joinConference } = useConference(nullClientRef)
+      const { result, unmount } = withSetup(() => useConference(nullClientRef))
 
-      await expect(joinConference('sip:conference@example.com')).rejects.toThrow(
+      await expect(result.joinConference('sip:conference@example.com')).rejects.toThrow(
         'SIP client not initialized'
       )
+
+      unmount()
     })
 
     it('should handle joinConference failure', async () => {
       mockSipClient.joinConference.mockRejectedValueOnce(new Error('Conference not found'))
-      const { joinConference, state } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      await expect(joinConference('sip:conference@example.com')).rejects.toThrow(
+      await expect(result.joinConference('sip:conference@example.com')).rejects.toThrow(
         'Conference not found'
       )
-      expect(state.value).toBe(ConferenceState.Failed)
+      expect(result.state.value).toBe(ConferenceState.Failed)
+
+      unmount()
     })
   })
 
@@ -218,99 +241,113 @@ describe('useConference', () => {
 
   describe('addParticipant() method', () => {
     it('should add participant successfully', async () => {
-      const { createConference, addParticipant, participants, participantCount } =
-        useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      await createConference()
-      const participantId = await addParticipant('sip:alice@example.com', 'Alice')
+      await result.createConference()
+      const participantId = await result.addParticipant('sip:alice@example.com', 'Alice')
 
       expect(participantId).toBeTruthy()
-      expect(participantCount.value).toBe(2) // Local + Alice
-      expect(participants.value[1].uri).toBe('sip:alice@example.com')
-      expect(participants.value[1].displayName).toBe('Alice')
-      expect(participants.value[1].state).toBe(ParticipantState.Connected)
-      expect(participants.value[1].isModerator).toBe(false)
-      expect(participants.value[1].isSelf).toBe(false)
+      expect(result.participantCount.value).toBe(2) // Local + Alice
+      expect(result.participants.value[1].uri).toBe('sip:alice@example.com')
+      expect(result.participants.value[1].displayName).toBe('Alice')
+      expect(result.participants.value[1].state).toBe(ParticipantState.Connected)
+      expect(result.participants.value[1].isModerator).toBe(false)
+      expect(result.participants.value[1].isSelf).toBe(false)
+
+      unmount()
     })
 
     it('should throw error if no active conference', async () => {
-      const { addParticipant } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      await expect(addParticipant('sip:alice@example.com')).rejects.toThrow('No active conference')
+      await expect(result.addParticipant('sip:alice@example.com')).rejects.toThrow('No active conference')
+
+      unmount()
     })
 
     it('should throw error if conference is locked', async () => {
-      const { createConference, addParticipant } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      await createConference({ locked: true })
+      await result.createConference({ locked: true })
 
-      await expect(addParticipant('sip:alice@example.com')).rejects.toThrow('Conference is locked')
+      await expect(result.addParticipant('sip:alice@example.com')).rejects.toThrow('Conference is locked')
+
+      unmount()
     })
 
     it('should throw error if conference is full', async () => {
-      const { createConference, addParticipant } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      await createConference({ maxParticipants: 1 }) // Only local participant
+      await result.createConference({ maxParticipants: 1 }) // Only local participant
 
-      await expect(addParticipant('sip:alice@example.com')).rejects.toThrow('Conference is full')
+      await expect(result.addParticipant('sip:alice@example.com')).rejects.toThrow('Conference is full')
+
+      unmount()
     })
 
     it('should emit participant:joined event', async () => {
-      const { createConference, addParticipant, onConferenceEvent } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const events: any[] = []
 
-      onConferenceEvent((event) => {
+      result.onConferenceEvent((event) => {
         if (event.type === 'participant:joined') events.push(event)
       })
 
-      await createConference()
-      const participantId = await addParticipant('sip:alice@example.com')
+      await result.createConference()
+      const participantId = await result.addParticipant('sip:alice@example.com')
 
       expect(events).toHaveLength(1)
       expect(events[0].type).toBe('participant:joined')
       expect(events[0].participant.id).toBe(participantId)
       expect(events[0].participant.uri).toBe('sip:alice@example.com')
+
+      unmount()
     })
 
     it('should call inviteToConference on SIP client', async () => {
-      const { createConference, addParticipant, conference } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      await createConference()
-      await addParticipant('sip:alice@example.com')
+      await result.createConference()
+      await result.addParticipant('sip:alice@example.com')
 
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       expect(mockSipClient.inviteToConference).toHaveBeenCalledWith(
-        conference.value!.id,
+        result.conference.value!.id,
         'sip:alice@example.com'
       )
+
+      unmount()
     })
 
     it('should allow adding same participant multiple times with different IDs', async () => {
-      const { createConference, addParticipant, participantCount, participants } =
-        useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      await createConference()
-      const firstId = await addParticipant('sip:alice@example.com', 'Alice')
-      const secondId = await addParticipant('sip:alice@example.com', 'Alice')
+      await result.createConference()
+      const firstId = await result.addParticipant('sip:alice@example.com', 'Alice')
+      const secondId = await result.addParticipant('sip:alice@example.com', 'Alice')
 
       expect(firstId).not.toBe(secondId)
-      expect(participantCount.value).toBe(3) // Local + Alice + Alice
-      expect(participants.value.filter((p) => p.uri === 'sip:alice@example.com')).toHaveLength(2)
+      expect(result.participantCount.value).toBe(3) // Local + Alice + Alice
+      expect(result.participants.value.filter((p) => p.uri === 'sip:alice@example.com')).toHaveLength(2)
+
+      unmount()
     })
 
     it('should set joinedAt timestamp for new participants', async () => {
-      const { createConference, addParticipant, participants } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
       const beforeTime = new Date()
-      await createConference()
-      await addParticipant('sip:alice@example.com')
+      await result.createConference()
+      await result.addParticipant('sip:alice@example.com')
       const afterTime = new Date()
 
-      const alice = participants.value.find((p) => p.uri === 'sip:alice@example.com')
+      const alice = result.participants.value.find((p) => p.uri === 'sip:alice@example.com')
       expect(alice?.joinedAt).toBeInstanceOf(Date)
       expect(alice!.joinedAt.getTime()).toBeGreaterThanOrEqual(beforeTime.getTime())
       expect(alice!.joinedAt.getTime()).toBeLessThanOrEqual(afterTime.getTime())
+
+      unmount()
     })
   })
 
@@ -320,79 +357,88 @@ describe('useConference', () => {
 
   describe('removeParticipant() method', () => {
     it('should remove participant successfully', async () => {
-      const { createConference, addParticipant, removeParticipant, participantCount } =
-        useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      await createConference()
-      const participantId = await addParticipant('sip:alice@example.com')
+      await result.createConference()
+      const participantId = await result.addParticipant('sip:alice@example.com')
 
-      expect(participantCount.value).toBe(2)
+      expect(result.participantCount.value).toBe(2)
 
-      await removeParticipant(participantId)
+      await result.removeParticipant(participantId)
 
-      expect(participantCount.value).toBe(1) // Only local participant
+      expect(result.participantCount.value).toBe(1) // Only local participant
+
+      unmount()
     })
 
     it('should throw error if no active conference', async () => {
-      const { removeParticipant } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      await expect(removeParticipant('part-123')).rejects.toThrow('No active conference')
+      await expect(result.removeParticipant('part-123')).rejects.toThrow('No active conference')
+
+      unmount()
     })
 
     it('should throw error if participant not found', async () => {
-      const { createConference, removeParticipant } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      await createConference()
+      await result.createConference()
 
-      await expect(removeParticipant('nonexistent')).rejects.toThrow(
+      await expect(result.removeParticipant('nonexistent')).rejects.toThrow(
         'Participant nonexistent not found'
       )
+
+      unmount()
     })
 
     it('should throw error when trying to remove self', async () => {
-      const { createConference, removeParticipant, localParticipant } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      await createConference()
+      await result.createConference()
 
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      await expect(removeParticipant(localParticipant.value!.id)).rejects.toThrow(
+      await expect(result.removeParticipant(result.localParticipant.value!.id)).rejects.toThrow(
         'Cannot remove yourself, use endConference() instead'
       )
+
+      unmount()
     })
 
     it('should emit participant:left event', async () => {
-      const { createConference, addParticipant, removeParticipant, onConferenceEvent } =
-        useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const events: any[] = []
 
-      onConferenceEvent((event) => {
+      result.onConferenceEvent((event) => {
         if (event.type === 'participant:left') events.push(event)
       })
 
-      await createConference()
-      const participantId = await addParticipant('sip:alice@example.com')
-      await removeParticipant(participantId, 'Kicked')
+      await result.createConference()
+      const participantId = await result.addParticipant('sip:alice@example.com')
+      await result.removeParticipant(participantId, 'Kicked')
 
       expect(events).toHaveLength(1)
       expect(events[0].type).toBe('participant:left')
       expect(events[0].participant.id).toBe(participantId)
       expect(events[0].reason).toBe('Kicked')
+
+      unmount()
     })
 
     it('should call removeFromConference on SIP client', async () => {
-      const { createConference, addParticipant, removeParticipant, conference } =
-        useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      await createConference()
-      const participantId = await addParticipant('sip:alice@example.com')
-      await removeParticipant(participantId)
+      await result.createConference()
+      const participantId = await result.addParticipant('sip:alice@example.com')
+      await result.removeParticipant(participantId)
 
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       expect(mockSipClient.removeFromConference).toHaveBeenCalledWith(
-        conference.value!.id,
+        result.conference.value!.id,
         'sip:alice@example.com'
       )
+
+      unmount()
     })
   })
 
@@ -402,117 +448,131 @@ describe('useConference', () => {
 
   describe('muteParticipant() method', () => {
     it('should mute remote participant', async () => {
-      const { createConference, addParticipant, muteParticipant, participants } =
-        useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      await createConference()
-      const participantId = await addParticipant('sip:alice@example.com')
-      await muteParticipant(participantId)
+      await result.createConference()
+      const participantId = await result.addParticipant('sip:alice@example.com')
+      await result.muteParticipant(participantId)
 
-      const participant = participants.value.find((p) => p.id === participantId)
+      const participant = result.participants.value.find((p) => p.id === participantId)
       expect(participant?.isMuted).toBe(true)
       expect(mockSipClient.muteParticipant).toHaveBeenCalled()
+
+      unmount()
     })
 
     it('should mute self using muteAudio', async () => {
-      const { createConference, muteParticipant, localParticipant } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      await createConference()
+      await result.createConference()
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      await muteParticipant(localParticipant.value!.id)
+      await result.muteParticipant(result.localParticipant.value!.id)
 
-      expect(localParticipant.value?.isMuted).toBe(true)
+      expect(result.localParticipant.value?.isMuted).toBe(true)
       expect(mockSipClient.muteAudio).toHaveBeenCalled()
+
+      unmount()
     })
 
     it('should throw error if no active conference', async () => {
-      const { muteParticipant } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      await expect(muteParticipant('part-123')).rejects.toThrow('No active conference')
+      await expect(result.muteParticipant('part-123')).rejects.toThrow('No active conference')
+
+      unmount()
     })
 
     it('should throw error if participant not found', async () => {
-      const { createConference, muteParticipant } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      await createConference()
+      await result.createConference()
 
-      await expect(muteParticipant('nonexistent')).rejects.toThrow(
+      await expect(result.muteParticipant('nonexistent')).rejects.toThrow(
         'Participant nonexistent not found'
       )
+
+      unmount()
     })
 
     it('should handle already muted participant gracefully', async () => {
-      const { createConference, addParticipant, muteParticipant } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      await createConference()
-      const participantId = await addParticipant('sip:alice@example.com')
-      await muteParticipant(participantId)
+      await result.createConference()
+      const participantId = await result.addParticipant('sip:alice@example.com')
+      await result.muteParticipant(participantId)
 
       mockSipClient.muteParticipant.mockClear()
 
-      await muteParticipant(participantId) // Mute again
+      await result.muteParticipant(participantId) // Mute again
 
       expect(mockSipClient.muteParticipant).not.toHaveBeenCalled() // No SIP call
+
+      unmount()
     })
 
     it('should emit participant:updated event', async () => {
-      const { createConference, addParticipant, muteParticipant, onConferenceEvent } =
-        useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const events: any[] = []
 
-      onConferenceEvent((event) => {
+      result.onConferenceEvent((event) => {
         if (event.type === 'participant:updated') events.push(event)
       })
 
-      await createConference()
-      const participantId = await addParticipant('sip:alice@example.com')
-      await muteParticipant(participantId)
+      await result.createConference()
+      const participantId = await result.addParticipant('sip:alice@example.com')
+      await result.muteParticipant(participantId)
 
       expect(events).toHaveLength(1)
       expect(events[0].type).toBe('participant:updated')
       expect(events[0].changes).toStrictEqual({ isMuted: true })
+
+      unmount()
     })
   })
 
   describe('unmuteParticipant() method', () => {
     it('should unmute remote participant', async () => {
-      const { createConference, addParticipant, muteParticipant, unmuteParticipant, participants } =
-        useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      await createConference()
-      const participantId = await addParticipant('sip:alice@example.com')
-      await muteParticipant(participantId)
-      await unmuteParticipant(participantId)
+      await result.createConference()
+      const participantId = await result.addParticipant('sip:alice@example.com')
+      await result.muteParticipant(participantId)
+      await result.unmuteParticipant(participantId)
 
-      const participant = participants.value.find((p) => p.id === participantId)
+      const participant = result.participants.value.find((p) => p.id === participantId)
       expect(participant?.isMuted).toBe(false)
       expect(mockSipClient.unmuteParticipant).toHaveBeenCalled()
+
+      unmount()
     })
 
     it('should unmute self using unmuteAudio', async () => {
-      const { createConference, muteParticipant, unmuteParticipant, localParticipant } =
-        useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      await createConference()
+      await result.createConference()
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      await muteParticipant(localParticipant.value!.id)
+      await result.muteParticipant(result.localParticipant.value!.id)
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      await unmuteParticipant(localParticipant.value!.id)
+      await result.unmuteParticipant(result.localParticipant.value!.id)
 
-      expect(localParticipant.value?.isMuted).toBe(false)
+      expect(result.localParticipant.value?.isMuted).toBe(false)
       expect(mockSipClient.unmuteAudio).toHaveBeenCalled()
+
+      unmount()
     })
 
     it('should handle already unmuted participant gracefully', async () => {
-      const { createConference, addParticipant, unmuteParticipant } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      await createConference()
-      const participantId = await addParticipant('sip:alice@example.com')
+      await result.createConference()
+      const participantId = await result.addParticipant('sip:alice@example.com')
 
-      await unmuteParticipant(participantId) // Unmute when already unmuted
+      await result.unmuteParticipant(participantId) // Unmute when already unmuted
 
       expect(mockSipClient.unmuteParticipant).not.toHaveBeenCalled()
+
+      unmount()
     })
   })
 
@@ -522,45 +582,51 @@ describe('useConference', () => {
 
   describe('endConference() method', () => {
     it('should end conference successfully', async () => {
-      const { createConference, endConference, state } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      const conferenceId = await createConference()
-      await endConference()
+      const conferenceId = await result.createConference()
+      await result.endConference()
 
-      expect(state.value).toBe(ConferenceState.Ended)
+      expect(result.state.value).toBe(ConferenceState.Ended)
       expect(mockSipClient.endConference).toHaveBeenCalledWith(conferenceId)
+
+      unmount()
     })
 
     it('should throw error if no active conference', async () => {
-      const { endConference } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      await expect(endConference()).rejects.toThrow('No active conference')
+      await expect(result.endConference()).rejects.toThrow('No active conference')
+
+      unmount()
     })
 
     it('should clear conference after delay', async () => {
-      const { createConference, endConference, conference } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      await createConference()
-      await endConference()
+      await result.createConference()
+      await result.endConference()
 
-      expect(conference.value).not.toBeNull()
+      expect(result.conference.value).not.toBeNull()
 
       await vi.advanceTimersByTimeAsync(CONFERENCE_CONSTANTS.STATE_TRANSITION_DELAY)
 
-      expect(conference.value).toBeNull()
+      expect(result.conference.value).toBeNull()
+
+      unmount()
     })
 
     it('should emit state:changed events', async () => {
-      const { createConference, endConference, onConferenceEvent } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const events: any[] = []
 
-      onConferenceEvent((event) => {
+      result.onConferenceEvent((event) => {
         if (event.type === 'state:changed') events.push(event)
       })
 
-      await createConference()
-      await endConference()
+      await result.createConference()
+      await result.endConference()
 
       // Expect events: Ending -> Ended
       const endingEvents = events.filter((e) => e.state === ConferenceState.Ending)
@@ -568,33 +634,39 @@ describe('useConference', () => {
 
       expect(endingEvents).toHaveLength(1)
       expect(endedEvents).toHaveLength(1)
+
+      unmount()
     })
 
     it('should set startedAt timestamp on conference creation', async () => {
-      const { createConference, conference } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
       const beforeTime = new Date()
-      await createConference()
+      await result.createConference()
       const afterTime = new Date()
 
-      expect(conference.value?.startedAt).toBeInstanceOf(Date)
-      expect(conference.value!.startedAt!.getTime()).toBeGreaterThanOrEqual(beforeTime.getTime())
-      expect(conference.value!.startedAt!.getTime()).toBeLessThanOrEqual(afterTime.getTime())
+      expect(result.conference.value?.startedAt).toBeInstanceOf(Date)
+      expect(result.conference.value!.startedAt!.getTime()).toBeGreaterThanOrEqual(beforeTime.getTime())
+      expect(result.conference.value!.startedAt!.getTime()).toBeLessThanOrEqual(afterTime.getTime())
+
+      unmount()
     })
 
     it('should set endedAt timestamp on conference end', async () => {
-      const { createConference, endConference, conference } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      await createConference()
-      expect(conference.value?.endedAt).toBeUndefined()
+      await result.createConference()
+      expect(result.conference.value?.endedAt).toBeUndefined()
 
       const beforeEnd = new Date()
-      await endConference()
+      await result.endConference()
       const afterEnd = new Date()
 
-      expect(conference.value?.endedAt).toBeInstanceOf(Date)
-      expect(conference.value!.endedAt!.getTime()).toBeGreaterThanOrEqual(beforeEnd.getTime())
-      expect(conference.value!.endedAt!.getTime()).toBeLessThanOrEqual(afterEnd.getTime())
+      expect(result.conference.value?.endedAt).toBeInstanceOf(Date)
+      expect(result.conference.value!.endedAt!.getTime()).toBeGreaterThanOrEqual(beforeEnd.getTime())
+      expect(result.conference.value!.endedAt!.getTime()).toBeLessThanOrEqual(afterEnd.getTime())
+
+      unmount()
     })
   })
 
@@ -604,89 +676,105 @@ describe('useConference', () => {
 
   describe('lockConference() method', () => {
     it('should lock conference', async () => {
-      const { createConference, lockConference, isLocked } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      await createConference()
-      await lockConference()
+      await result.createConference()
+      await result.lockConference()
 
-      expect(isLocked.value).toBe(true)
+      expect(result.isLocked.value).toBe(true)
+
+      unmount()
     })
 
     it('should throw error if no active conference', async () => {
-      const { lockConference } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      await expect(lockConference()).rejects.toThrow('No active conference')
+      await expect(result.lockConference()).rejects.toThrow('No active conference')
+
+      unmount()
     })
 
     it('should handle already locked conference gracefully', async () => {
-      const { createConference, lockConference, isLocked } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      await createConference({ locked: true })
-      expect(isLocked.value).toBe(true)
+      await result.createConference({ locked: true })
+      expect(result.isLocked.value).toBe(true)
 
-      await lockConference() // Lock again
+      await result.lockConference() // Lock again
 
-      expect(isLocked.value).toBe(true)
+      expect(result.isLocked.value).toBe(true)
+
+      unmount()
     })
 
     it('should emit locked event', async () => {
-      const { createConference, lockConference, onConferenceEvent } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const events: any[] = []
 
-      onConferenceEvent((event) => {
+      result.onConferenceEvent((event) => {
         if (event.type === 'locked') events.push(event)
       })
 
-      await createConference()
-      await lockConference()
+      await result.createConference()
+      await result.lockConference()
 
       expect(events).toHaveLength(1)
       expect(events[0].type).toBe('locked')
+
+      unmount()
     })
   })
 
   describe('unlockConference() method', () => {
     it('should unlock conference', async () => {
-      const { createConference, unlockConference, isLocked } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      await createConference({ locked: true })
-      await unlockConference()
+      await result.createConference({ locked: true })
+      await result.unlockConference()
 
-      expect(isLocked.value).toBe(false)
+      expect(result.isLocked.value).toBe(false)
+
+      unmount()
     })
 
     it('should throw error if no active conference', async () => {
-      const { unlockConference } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      await expect(unlockConference()).rejects.toThrow('No active conference')
+      await expect(result.unlockConference()).rejects.toThrow('No active conference')
+
+      unmount()
     })
 
     it('should handle already unlocked conference gracefully', async () => {
-      const { createConference, unlockConference, isLocked } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      await createConference()
-      expect(isLocked.value).toBe(false)
+      await result.createConference()
+      expect(result.isLocked.value).toBe(false)
 
-      await unlockConference() // Unlock again
+      await result.unlockConference() // Unlock again
 
-      expect(isLocked.value).toBe(false)
+      expect(result.isLocked.value).toBe(false)
+
+      unmount()
     })
 
     it('should emit unlocked event', async () => {
-      const { createConference, unlockConference, onConferenceEvent } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const events: any[] = []
 
-      onConferenceEvent((event) => {
+      result.onConferenceEvent((event) => {
         if (event.type === 'unlocked') events.push(event)
       })
 
-      await createConference({ locked: true })
-      await unlockConference()
+      await result.createConference({ locked: true })
+      await result.unlockConference()
 
       expect(events).toHaveLength(1)
       expect(events[0].type).toBe('unlocked')
+
+      unmount()
     })
   })
 
@@ -696,99 +784,112 @@ describe('useConference', () => {
 
   describe('startRecording() method', () => {
     it('should start recording', async () => {
-      const { createConference, startRecording, isRecording, conference } =
-        useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      await createConference()
-      await startRecording()
+      await result.createConference()
+      await result.startRecording()
 
-      expect(isRecording.value).toBe(true)
+      expect(result.isRecording.value).toBe(true)
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      expect(mockSipClient.startConferenceRecording).toHaveBeenCalledWith(conference.value!.id)
+      expect(mockSipClient.startConferenceRecording).toHaveBeenCalledWith(result.conference.value!.id)
+
+      unmount()
     })
 
     it('should throw error if no active conference', async () => {
-      const { startRecording } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      await expect(startRecording()).rejects.toThrow('No active conference')
+      await expect(result.startRecording()).rejects.toThrow('No active conference')
+
+      unmount()
     })
 
     it('should handle already recording gracefully', async () => {
-      const { createConference, startRecording } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      await createConference()
-      await startRecording()
+      await result.createConference()
+      await result.startRecording()
 
       mockSipClient.startConferenceRecording.mockClear()
 
-      await startRecording() // Start again
+      await result.startRecording() // Start again
 
       expect(mockSipClient.startConferenceRecording).not.toHaveBeenCalled()
+
+      unmount()
     })
 
     it('should emit recording:started event', async () => {
-      const { createConference, startRecording, onConferenceEvent } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const events: any[] = []
 
-      onConferenceEvent((event) => {
+      result.onConferenceEvent((event) => {
         if (event.type === 'recording:started') events.push(event)
       })
 
-      await createConference()
-      await startRecording()
+      await result.createConference()
+      await result.startRecording()
 
       expect(events).toHaveLength(1)
       expect(events[0].type).toBe('recording:started')
+
+      unmount()
     })
   })
 
   describe('stopRecording() method', () => {
     it('should stop recording', async () => {
-      const { createConference, startRecording, stopRecording, isRecording, conference } =
-        useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      await createConference()
-      await startRecording()
-      await stopRecording()
+      await result.createConference()
+      await result.startRecording()
+      await result.stopRecording()
 
-      expect(isRecording.value).toBe(false)
+      expect(result.isRecording.value).toBe(false)
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      expect(mockSipClient.stopConferenceRecording).toHaveBeenCalledWith(conference.value!.id)
+      expect(mockSipClient.stopConferenceRecording).toHaveBeenCalledWith(result.conference.value!.id)
+
+      unmount()
     })
 
     it('should throw error if no active conference', async () => {
-      const { stopRecording } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      await expect(stopRecording()).rejects.toThrow('No active conference')
+      await expect(result.stopRecording()).rejects.toThrow('No active conference')
+
+      unmount()
     })
 
     it('should handle not recording gracefully', async () => {
-      const { createConference, stopRecording } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      await createConference()
+      await result.createConference()
 
-      await stopRecording() // Stop when not recording
+      await result.stopRecording() // Stop when not recording
 
       expect(mockSipClient.stopConferenceRecording).not.toHaveBeenCalled()
+
+      unmount()
     })
 
     it('should emit recording:stopped event', async () => {
-      const { createConference, startRecording, stopRecording, onConferenceEvent } =
-        useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const events: any[] = []
 
-      onConferenceEvent((event) => {
+      result.onConferenceEvent((event) => {
         if (event.type === 'recording:stopped') events.push(event)
       })
 
-      await createConference()
-      await startRecording()
-      await stopRecording()
+      await result.createConference()
+      await result.startRecording()
+      await result.stopRecording()
 
       expect(events).toHaveLength(1)
       expect(events[0].type).toBe('recording:stopped')
+
+      unmount()
     })
   })
 
@@ -798,34 +899,40 @@ describe('useConference', () => {
 
   describe('getParticipant() method', () => {
     it('should get participant by ID', async () => {
-      const { createConference, addParticipant, getParticipant } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      await createConference()
-      const participantId = await addParticipant('sip:alice@example.com', 'Alice')
+      await result.createConference()
+      const participantId = await result.addParticipant('sip:alice@example.com', 'Alice')
 
-      const participant = getParticipant(participantId)
+      const participant = result.getParticipant(participantId)
 
       expect(participant).toBeTruthy()
       expect(participant?.id).toBe(participantId)
       expect(participant?.uri).toBe('sip:alice@example.com')
+
+      unmount()
     })
 
     it('should return null for nonexistent participant', async () => {
-      const { createConference, getParticipant } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      await createConference()
+      await result.createConference()
 
-      const participant = getParticipant('nonexistent')
+      const participant = result.getParticipant('nonexistent')
 
       expect(participant).toBeNull()
+
+      unmount()
     })
 
     it('should return null when no conference', () => {
-      const { getParticipant } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      const participant = getParticipant('any-id')
+      const participant = result.getParticipant('any-id')
 
       expect(participant).toBeNull()
+
+      unmount()
     })
   })
 
@@ -835,64 +942,72 @@ describe('useConference', () => {
 
   describe('onConferenceEvent() method', () => {
     it('should register event listener', async () => {
-      const { createConference, onConferenceEvent } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const events: any[] = []
 
-      onConferenceEvent((event) => events.push(event))
+      result.onConferenceEvent((event) => events.push(event))
 
-      await createConference()
+      await result.createConference()
 
       expect(events.length).toBeGreaterThan(0)
       expect(events[0].type).toBe('created')
+
+      unmount()
     })
 
     it('should return unsubscribe function', async () => {
-      const { createConference, lockConference, onConferenceEvent } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const events: any[] = []
 
-      const unsubscribe = onConferenceEvent((event) => events.push(event))
+      const unsubscribe = result.onConferenceEvent((event) => events.push(event))
 
-      await createConference()
+      await result.createConference()
       const beforeUnsubscribe = events.length
 
       unsubscribe()
 
-      await lockConference()
+      await result.lockConference()
 
       expect(events).toHaveLength(beforeUnsubscribe) // No new events after unsubscribe
+
+      unmount()
     })
 
     it('should handle multiple listeners', async () => {
-      const { createConference, onConferenceEvent } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const events1: any[] = []
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const events2: any[] = []
 
-      onConferenceEvent((event) => events1.push(event))
-      onConferenceEvent((event) => events2.push(event))
+      result.onConferenceEvent((event) => events1.push(event))
+      result.onConferenceEvent((event) => events2.push(event))
 
-      await createConference()
+      await result.createConference()
 
       expect(events1).toHaveLength(events2.length)
       expect(events1[0]).toStrictEqual(events2[0])
+
+      unmount()
     })
 
     it('should handle listener errors gracefully', async () => {
-      const { createConference, onConferenceEvent } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const events: any[] = []
 
-      onConferenceEvent(() => {
+      result.onConferenceEvent(() => {
         throw new Error('Listener error')
       })
-      onConferenceEvent((event) => events.push(event))
+      result.onConferenceEvent((event) => events.push(event))
 
-      await createConference()
+      await result.createConference()
 
       expect(events).toHaveLength(1) // Second listener still works
+
+      unmount()
     })
   })
 
@@ -902,9 +1017,9 @@ describe('useConference', () => {
 
   describe('Audio Level Monitoring', () => {
     it('should start audio level monitoring on conference creation', async () => {
-      const { createConference } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      await createConference()
+      await result.createConference()
 
       // Audio monitoring starts with interval
       expect(mockSipClient.getConferenceAudioLevels).not.toHaveBeenCalled()
@@ -912,34 +1027,38 @@ describe('useConference', () => {
       await vi.advanceTimersByTimeAsync(CONFERENCE_CONSTANTS.AUDIO_LEVEL_INTERVAL)
 
       expect(mockSipClient.getConferenceAudioLevels).toHaveBeenCalled()
+
+      unmount()
     })
 
     it('should update participant audio levels', async () => {
-      const { createConference, addParticipant, participants } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      await createConference()
-      await addParticipant('sip:alice@example.com', 'Alice')
+      await result.createConference()
+      await result.addParticipant('sip:alice@example.com', 'Alice')
 
       const audioLevels = new Map([['sip:alice@example.com', 0.75]])
       mockSipClient.getConferenceAudioLevels.mockReturnValue(audioLevels)
 
       await vi.advanceTimersByTimeAsync(CONFERENCE_CONSTANTS.AUDIO_LEVEL_INTERVAL)
 
-      const alice = participants.value.find((p) => p.uri === 'sip:alice@example.com')
+      const alice = result.participants.value.find((p) => p.uri === 'sip:alice@example.com')
       expect(alice?.audioLevel).toBe(0.75)
+
+      unmount()
     })
 
     it('should emit audio:level events', async () => {
-      const { createConference, addParticipant, onConferenceEvent } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const events: any[] = []
 
-      onConferenceEvent((event) => {
+      result.onConferenceEvent((event) => {
         if (event.type === 'audio:level') events.push(event)
       })
 
-      await createConference()
-      await addParticipant('sip:alice@example.com')
+      await result.createConference()
+      await result.addParticipant('sip:alice@example.com')
 
       const audioLevels = new Map([['sip:alice@example.com', 0.5]])
       mockSipClient.getConferenceAudioLevels.mockReturnValue(audioLevels)
@@ -949,31 +1068,35 @@ describe('useConference', () => {
       expect(events).toHaveLength(1)
       expect(events[0].type).toBe('audio:level')
       expect(events[0].levels).toStrictEqual(audioLevels)
+
+      unmount()
     })
 
     it('should stop audio level monitoring on endConference', async () => {
-      const { createConference, endConference } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      await createConference()
+      await result.createConference()
       await vi.advanceTimersByTimeAsync(CONFERENCE_CONSTANTS.AUDIO_LEVEL_INTERVAL)
 
       expect(mockSipClient.getConferenceAudioLevels).toHaveBeenCalledTimes(1)
 
-      await endConference()
+      await result.endConference()
       mockSipClient.getConferenceAudioLevels.mockClear()
 
       await vi.advanceTimersByTimeAsync(CONFERENCE_CONSTANTS.AUDIO_LEVEL_INTERVAL * 10)
 
       expect(mockSipClient.getConferenceAudioLevels).not.toHaveBeenCalled()
+
+      unmount()
     })
 
     it('should handle missing getConferenceAudioLevels method gracefully', async () => {
       // Remove the method to simulate older SIP client
       delete mockSipClient.getConferenceAudioLevels
 
-      const { createConference, participants } = useConference(ref(mockSipClient))
+      const { result, unmount } = withSetup(() => useConference(ref(mockSipClient)))
 
-      await createConference()
+      await result.createConference()
 
       // Should not throw when advancing time
       await expect(
@@ -981,22 +1104,26 @@ describe('useConference', () => {
       ).resolves.not.toThrow()
 
       // Participants should exist without audio levels
-      expect(participants.value).toHaveLength(1)
+      expect(result.participants.value).toHaveLength(1)
+
+      unmount()
     })
 
     it('should handle null audio levels gracefully', async () => {
       mockSipClient.getConferenceAudioLevels.mockReturnValue(null)
 
-      const { createConference, addParticipant, participants } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      await createConference()
-      await addParticipant('sip:alice@example.com')
+      await result.createConference()
+      await result.addParticipant('sip:alice@example.com')
 
       await vi.advanceTimersByTimeAsync(CONFERENCE_CONSTANTS.AUDIO_LEVEL_INTERVAL)
 
       // Participants should not have audio levels
-      const alice = participants.value.find((p) => p.uri === 'sip:alice@example.com')
+      const alice = result.participants.value.find((p) => p.uri === 'sip:alice@example.com')
       expect(alice?.audioLevel).toBeUndefined()
+
+      unmount()
     })
   })
 
@@ -1006,84 +1133,94 @@ describe('useConference', () => {
 
   describe('Computed Properties', () => {
     it('should compute state correctly', async () => {
-      const { createConference, endConference, state } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      expect(state.value).toBe(ConferenceState.Idle)
+      expect(result.state.value).toBe(ConferenceState.Idle)
 
-      await createConference()
-      expect(state.value).toBe(ConferenceState.Active)
+      await result.createConference()
+      expect(result.state.value).toBe(ConferenceState.Active)
 
-      await endConference()
-      expect(state.value).toBe(ConferenceState.Ended)
+      await result.endConference()
+      expect(result.state.value).toBe(ConferenceState.Ended)
+
+      unmount()
     })
 
     it('should compute participants array from Map', async () => {
-      const { createConference, addParticipant, participants } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      await createConference()
-      expect(participants.value).toHaveLength(1)
+      await result.createConference()
+      expect(result.participants.value).toHaveLength(1)
 
-      await addParticipant('sip:alice@example.com')
-      expect(participants.value).toHaveLength(2)
+      await result.addParticipant('sip:alice@example.com')
+      expect(result.participants.value).toHaveLength(2)
 
-      await addParticipant('sip:bob@example.com')
-      expect(participants.value).toHaveLength(3)
+      await result.addParticipant('sip:bob@example.com')
+      expect(result.participants.value).toHaveLength(3)
+
+      unmount()
     })
 
     it('should compute participantCount correctly', async () => {
-      const { createConference, addParticipant, participantCount } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      expect(participantCount.value).toBe(0)
+      expect(result.participantCount.value).toBe(0)
 
-      await createConference()
-      expect(participantCount.value).toBe(1)
+      await result.createConference()
+      expect(result.participantCount.value).toBe(1)
 
-      await addParticipant('sip:alice@example.com')
-      expect(participantCount.value).toBe(2)
+      await result.addParticipant('sip:alice@example.com')
+      expect(result.participantCount.value).toBe(2)
+
+      unmount()
     })
 
     it('should compute isActive correctly', async () => {
-      const { createConference, endConference, isActive } = useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      expect(isActive.value).toBe(false)
+      expect(result.isActive.value).toBe(false)
 
-      await createConference()
-      expect(isActive.value).toBe(true)
+      await result.createConference()
+      expect(result.isActive.value).toBe(true)
 
-      await endConference()
-      expect(isActive.value).toBe(false)
+      await result.endConference()
+      expect(result.isActive.value).toBe(false)
+
+      unmount()
     })
 
     it('should compute isLocked correctly', async () => {
-      const { createConference, lockConference, unlockConference, isLocked } =
-        useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      expect(isLocked.value).toBe(false)
+      expect(result.isLocked.value).toBe(false)
 
-      await createConference()
-      expect(isLocked.value).toBe(false)
+      await result.createConference()
+      expect(result.isLocked.value).toBe(false)
 
-      await lockConference()
-      expect(isLocked.value).toBe(true)
+      await result.lockConference()
+      expect(result.isLocked.value).toBe(true)
 
-      await unlockConference()
-      expect(isLocked.value).toBe(false)
+      await result.unlockConference()
+      expect(result.isLocked.value).toBe(false)
+
+      unmount()
     })
 
     it('should compute isRecording correctly', async () => {
-      const { createConference, startRecording, stopRecording, isRecording } =
-        useConference(sipClientRef)
+      const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      expect(isRecording.value).toBe(false)
+      expect(result.isRecording.value).toBe(false)
 
-      await createConference()
-      expect(isRecording.value).toBe(false)
+      await result.createConference()
+      expect(result.isRecording.value).toBe(false)
 
-      await startRecording()
-      expect(isRecording.value).toBe(true)
+      await result.startRecording()
+      expect(result.isRecording.value).toBe(true)
 
-      await stopRecording()
-      expect(isRecording.value).toBe(false)
+      await result.stopRecording()
+      expect(result.isRecording.value).toBe(false)
+
+      unmount()
     })
   })
 })

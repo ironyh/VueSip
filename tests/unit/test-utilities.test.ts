@@ -14,6 +14,12 @@ import { detectMemoryLeaks, checkEventBusListeners, waitForEvent } from '../util
 describe('Test Utilities', () => {
   describe('Memory Leak Detection', () => {
     it('should detect memory leaks', async () => {
+      // Skip in Node.js environment where performance.memory is not available
+      if (typeof performance === 'undefined' || !('memory' in performance)) {
+        console.log('Skipping memory leak test - performance.memory not available')
+        return
+      }
+
       const leakyArray: any[] = []
 
       const result = await detectMemoryLeaks(

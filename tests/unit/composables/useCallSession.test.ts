@@ -8,6 +8,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { ref } from 'vue'
 import { useCallSession } from '@/composables/useCallSession'
 import type { SipClient } from '@/core/SipClient'
+import { withSetup } from '../../utils/test-helpers'
 
 // Mock the logger
 vi.mock('@/utils/logger', () => ({
@@ -71,56 +72,62 @@ describe('useCallSession - Phase 6.11 Improvements', () => {
   describe('Input Validation', () => {
     it('should reject empty target URI', async () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { makeCall } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
-      await expect(makeCall('')).rejects.toThrow('Target URI cannot be empty')
+      await expect(result.makeCall('')).rejects.toThrow('Target URI cannot be empty')
       expect(mockSipClient.call).not.toHaveBeenCalled()
+      unmount()
     })
 
     it('should reject whitespace-only target URI', async () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { makeCall } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
-      await expect(makeCall('   ')).rejects.toThrow('Target URI cannot be empty')
+      await expect(result.makeCall('   ')).rejects.toThrow('Target URI cannot be empty')
       expect(mockSipClient.call).not.toHaveBeenCalled()
+      unmount()
     })
 
     it('should reject invalid SIP URI format', async () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { makeCall } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
-      await expect(makeCall('not-a-valid-uri')).rejects.toThrow('Invalid target URI')
+      await expect(result.makeCall('not-a-valid-uri')).rejects.toThrow('Invalid target URI')
       expect(mockSipClient.call).not.toHaveBeenCalled()
+      unmount()
     })
 
     it('should accept valid SIP URI with sip: prefix', async () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { makeCall } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
-      await makeCall('sip:bob@example.com')
+      await result.makeCall('sip:bob@example.com')
       expect(mockSipClient.call).toHaveBeenCalled()
+      unmount()
     })
 
     it('should accept valid SIP URI with @ sign', async () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { makeCall } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
-      await makeCall('alice@example.com')
+      await result.makeCall('alice@example.com')
       expect(mockSipClient.call).toHaveBeenCalled()
+      unmount()
     })
 
     it('should throw if SIP client is not initialized', async () => {
       const sipClientRef = ref<SipClient | null>(null)
-      const { makeCall } = useCallSession(sipClientRef as any)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef as any))
 
-      await expect(makeCall('sip:bob@example.com')).rejects.toThrow('SIP client not initialized')
+      await expect(result.makeCall('sip:bob@example.com')).rejects.toThrow('SIP client not initialized')
+      unmount()
     })
   })
 
   describe('Concurrent Operation Guards', () => {
     it('should prevent concurrent makeCall attempts', async () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { makeCall } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
       // Make call() hang for a bit
       let resolveCall: any
@@ -129,10 +136,10 @@ describe('useCallSession - Phase 6.11 Improvements', () => {
       )
 
       // Start first call (won't complete immediately)
-      const call1 = makeCall('sip:alice@example.com')
+      const call1 = result.makeCall('sip:alice@example.com')
 
       // Try to start second call before first completes
-      const call2 = makeCall('sip:bob@example.com')
+      const call2 = result.makeCall('sip:bob@example.com')
 
       // Second call should be rejected
       await expect(call2).rejects.toThrow('Call operation already in progress')
@@ -143,14 +150,15 @@ describe('useCallSession - Phase 6.11 Improvements', () => {
 
       // Verify only first call was attempted
       expect(mockSipClient.call).toHaveBeenCalledTimes(1)
+      unmount()
     })
 
     it('should prevent concurrent answer attempts', async () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { answer, session } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
       // Set up a session
-      session.value = mockSession
+      result.session.value = mockSession
 
       // Make answer() hang
       let resolveAnswer: any
@@ -159,10 +167,10 @@ describe('useCallSession - Phase 6.11 Improvements', () => {
       )
 
       // Start first answer (won't complete immediately)
-      const answer1 = answer()
+      const answer1 = result.answer()
 
       // Try to answer again
-      const answer2 = answer()
+      const answer2 = result.answer()
 
       // Second answer should be rejected
       await expect(answer2).rejects.toThrow('Call operation already in progress')
@@ -172,14 +180,15 @@ describe('useCallSession - Phase 6.11 Improvements', () => {
       await answer1
 
       expect(mockSession.answer).toHaveBeenCalledTimes(1)
+      unmount()
     })
 
     it('should prevent concurrent hangup attempts', async () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { hangup, session } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
       // Set up a session
-      session.value = mockSession
+      result.session.value = mockSession
 
       // Make hangup() hang
       let resolveHangup: any
@@ -188,10 +197,10 @@ describe('useCallSession - Phase 6.11 Improvements', () => {
       )
 
       // Start first hangup
-      const hangup1 = hangup()
+      const hangup1 = result.hangup()
 
       // Try to hangup again
-      const hangup2 = hangup()
+      const hangup2 = result.hangup()
 
       // Second hangup should be rejected
       await expect(hangup2).rejects.toThrow('Call operation already in progress')
@@ -201,24 +210,26 @@ describe('useCallSession - Phase 6.11 Improvements', () => {
       await hangup1
 
       expect(mockSession.hangup).toHaveBeenCalledTimes(1)
+      unmount()
     })
 
     it('should allow new operation after previous completes', async () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { makeCall } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
       // First call completes normally
-      await makeCall('sip:alice@example.com')
+      await result.makeCall('sip:alice@example.com')
 
       // Second call should succeed
-      await makeCall('sip:bob@example.com')
+      await result.makeCall('sip:bob@example.com')
 
       expect(mockSipClient.call).toHaveBeenCalledTimes(2)
+      unmount()
     })
 
     it('should reset guard even if operation fails', async () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { makeCall } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
       //Track total call attempts
       let callAttempts = 0
@@ -231,32 +242,34 @@ describe('useCallSession - Phase 6.11 Improvements', () => {
       })
 
       // First call fails
-      await expect(makeCall('sip:alice@example.com')).rejects.toThrow('Call failed')
+      await expect(result.makeCall('sip:alice@example.com')).rejects.toThrow('Call failed')
 
       // Second call should succeed (guard was reset)
-      await makeCall('sip:bob@example.com')
+      await result.makeCall('sip:bob@example.com')
 
       expect(callAttempts).toBe(2)
+      unmount()
     })
   })
 
   describe('Duration Timer Error Recovery', () => {
     it('should handle state transitions without errors', async () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { session } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
       // Set up a session and transition states
-      session.value = mockSession
+      result.session.value = mockSession
 
       // Simulate state changes
-      mockSession.state = 'connecting'
+      mockSession.state = 'calling'
       mockSession.state = 'active'
-      mockSession.state = 'ended'
+      mockSession.state = 'terminated'
 
       // Should not throw
       expect(() => {
-        session.value = mockSession
+        result.session.value = mockSession
       }).not.toThrow()
+      unmount()
     })
   })
 
@@ -278,12 +291,14 @@ describe('useCallSession - Phase 6.11 Improvements', () => {
         },
       }
 
-      const { makeCall } = useCallSession(sipClientRef, mockMediaManager as any)
+      const { result, unmount } = withSetup(() =>
+        useCallSession(sipClientRef, mockMediaManager as any)
+      )
 
       // Make call fail after media acquisition
       mockSipClient.call = vi.fn().mockRejectedValue(new Error('Call failed'))
 
-      await expect(makeCall('sip:bob@example.com')).rejects.toThrow('Call failed')
+      await expect(result.makeCall('sip:bob@example.com')).rejects.toThrow('Call failed')
 
       // Verify media was acquired
       expect(mockMediaManager.value.getUserMedia).toHaveBeenCalled()
@@ -291,540 +306,589 @@ describe('useCallSession - Phase 6.11 Improvements', () => {
       // Verify cleanup happened (tracks were stopped)
       expect(mockAudioTrack.stop).toHaveBeenCalled()
       expect(mockVideoTrack.stop).toHaveBeenCalled()
+      unmount()
     })
   })
 
   describe('Error Messages', () => {
     it('should provide clear error for no SIP client', async () => {
       const sipClientRef = ref<SipClient | null>(null)
-      const { makeCall } = useCallSession(sipClientRef as any)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef as any))
 
-      await expect(makeCall('sip:bob@example.com')).rejects.toThrow('SIP client not initialized')
+      await expect(result.makeCall('sip:bob@example.com')).rejects.toThrow(
+        'SIP client not initialized'
+      )
+      unmount()
     })
 
     it('should provide clear error for no active session on answer', async () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { answer } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
-      await expect(answer()).rejects.toThrow('No active session to answer')
+      await expect(result.answer()).rejects.toThrow('No active session to answer')
+      unmount()
     })
 
     it('should provide clear error for concurrent operations', async () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { makeCall } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
       let resolveCall: any
       mockSipClient.call = vi.fn(
         () => new Promise((resolve) => (resolveCall = () => resolve(mockSession)))
       )
 
-      const call1 = makeCall('sip:alice@example.com')
-      const call2 = makeCall('sip:bob@example.com')
+      const call1 = result.makeCall('sip:alice@example.com')
+      const call2 = result.makeCall('sip:bob@example.com')
 
       await expect(call2).rejects.toThrow('Call operation already in progress')
 
       resolveCall()
       await call1
+      unmount()
     })
   })
 
   describe('reject() method', () => {
     it('should reject an incoming call with default status code', async () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { reject, session } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
       mockSession.reject = vi.fn().mockResolvedValue(undefined)
-      session.value = mockSession
+      result.session.value = mockSession
 
-      await reject()
+      await result.reject()
 
       expect(mockSession.reject).toHaveBeenCalledWith(486)
+      unmount()
     })
 
     it('should reject an incoming call with custom status code', async () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { reject, session } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
       mockSession.reject = vi.fn().mockResolvedValue(undefined)
-      session.value = mockSession
+      result.session.value = mockSession
 
-      await reject(603)
+      await result.reject(603)
 
       expect(mockSession.reject).toHaveBeenCalledWith(603)
+      unmount()
     })
 
     it('should throw error if no active session to reject', async () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { reject } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
-      await expect(reject()).rejects.toThrow('No active session to reject')
+      await expect(result.reject()).rejects.toThrow('No active session to reject')
+      unmount()
     })
 
     it('should propagate rejection errors', async () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { reject, session } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
       mockSession.reject = vi.fn().mockRejectedValue(new Error('Reject failed'))
-      session.value = mockSession
+      result.session.value = mockSession
 
-      await expect(reject()).rejects.toThrow('Reject failed')
+      await expect(result.reject()).rejects.toThrow('Reject failed')
+      unmount()
     })
   })
 
   describe('hold/unhold/toggleHold methods', () => {
     it('should put call on hold', async () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { hold, session } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
       mockSession.hold = vi.fn().mockResolvedValue(undefined)
-      session.value = mockSession
+      result.session.value = mockSession
 
-      await hold()
+      await result.hold()
 
       expect(mockSession.hold).toHaveBeenCalled()
+      unmount()
     })
 
     it('should throw error if no active session to hold', async () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { hold } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
-      await expect(hold()).rejects.toThrow('No active session to hold')
+      await expect(result.hold()).rejects.toThrow('No active session to hold')
+      unmount()
     })
 
     it('should resume call from hold', async () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { unhold, session } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
       mockSession.unhold = vi.fn().mockResolvedValue(undefined)
-      session.value = mockSession
+      result.session.value = mockSession
 
-      await unhold()
+      await result.unhold()
 
       expect(mockSession.unhold).toHaveBeenCalled()
+      unmount()
     })
 
     it('should throw error if no active session to unhold', async () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { unhold } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
-      await expect(unhold()).rejects.toThrow('No active session to unhold')
+      await expect(result.unhold()).rejects.toThrow('No active session to unhold')
+      unmount()
     })
 
     it('should toggle hold state - hold when not on hold', async () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { toggleHold, session } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
       mockSession.isOnHold = false
       mockSession.hold = vi.fn().mockResolvedValue(undefined)
-      session.value = mockSession
+      result.session.value = mockSession
 
-      await toggleHold()
+      await result.toggleHold()
 
       expect(mockSession.hold).toHaveBeenCalled()
+      unmount()
     })
 
     it('should toggle hold state - unhold when on hold', async () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { toggleHold, session } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
       mockSession.isOnHold = true
       mockSession.unhold = vi.fn().mockResolvedValue(undefined)
-      session.value = mockSession
+      result.session.value = mockSession
 
-      await toggleHold()
+      await result.toggleHold()
 
       expect(mockSession.unhold).toHaveBeenCalled()
+      unmount()
     })
 
     it('should propagate hold errors', async () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { hold, session } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
       mockSession.hold = vi.fn().mockRejectedValue(new Error('Hold failed'))
-      session.value = mockSession
+      result.session.value = mockSession
 
-      await expect(hold()).rejects.toThrow('Hold failed')
+      await expect(result.hold()).rejects.toThrow('Hold failed')
+      unmount()
     })
 
     it('should propagate unhold errors', async () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { unhold, session } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
       mockSession.unhold = vi.fn().mockRejectedValue(new Error('Unhold failed'))
-      session.value = mockSession
+      result.session.value = mockSession
 
-      await expect(unhold()).rejects.toThrow('Unhold failed')
+      await expect(result.unhold()).rejects.toThrow('Unhold failed')
+      unmount()
     })
   })
 
   describe('mute/unmute/toggleMute methods', () => {
     it('should mute audio', () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { mute, session } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
       mockSession.mute = vi.fn()
-      session.value = mockSession
+      result.session.value = mockSession
 
-      mute()
+      result.mute()
 
       expect(mockSession.mute).toHaveBeenCalled()
+      unmount()
     })
 
     it('should not throw if no session when muting', () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { mute } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
-      expect(() => mute()).not.toThrow()
+      expect(() => result.mute()).not.toThrow()
+      unmount()
     })
 
     it('should unmute audio', () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { unmute, session } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
       mockSession.unmute = vi.fn()
-      session.value = mockSession
+      result.session.value = mockSession
 
-      unmute()
+      result.unmute()
 
       expect(mockSession.unmute).toHaveBeenCalled()
+      unmount()
     })
 
     it('should not throw if no session when unmuting', () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { unmute } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
-      expect(() => unmute()).not.toThrow()
+      expect(() => result.unmute()).not.toThrow()
+      unmount()
     })
 
     it('should toggle mute state - mute when not muted', () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { toggleMute, session } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
       mockSession.isMuted = false
       mockSession.mute = vi.fn()
-      session.value = mockSession
+      result.session.value = mockSession
 
-      toggleMute()
+      result.toggleMute()
 
       expect(mockSession.mute).toHaveBeenCalled()
+      unmount()
     })
 
     it('should toggle mute state - unmute when muted', () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { toggleMute, session } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
       mockSession.isMuted = true
       mockSession.unmute = vi.fn()
-      session.value = mockSession
+      result.session.value = mockSession
 
-      toggleMute()
+      result.toggleMute()
 
       expect(mockSession.unmute).toHaveBeenCalled()
+      unmount()
     })
   })
 
   describe('sendDTMF method', () => {
     it('should send DTMF tone', async () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { sendDTMF, session } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
       mockSession.sendDTMF = vi.fn().mockResolvedValue(undefined)
-      session.value = mockSession
+      result.session.value = mockSession
 
-      await sendDTMF('1')
+      await result.sendDTMF('1')
 
       expect(mockSession.sendDTMF).toHaveBeenCalledWith('1', undefined)
+      unmount()
     })
 
     it('should send DTMF tone with options', async () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { sendDTMF, session } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
       mockSession.sendDTMF = vi.fn().mockResolvedValue(undefined)
-      session.value = mockSession
+      result.session.value = mockSession
 
       const options = { duration: 200, interToneGap: 100 }
-      await sendDTMF('5', options)
+      await result.sendDTMF('5', options)
 
       expect(mockSession.sendDTMF).toHaveBeenCalledWith('5', options)
+      unmount()
     })
 
     it('should throw error if no active session to send DTMF', async () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { sendDTMF } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
-      await expect(sendDTMF('1')).rejects.toThrow('No active session to send DTMF')
+      await expect(result.sendDTMF('1')).rejects.toThrow('No active session to send DTMF')
+      unmount()
     })
 
     it('should propagate DTMF send errors', async () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { sendDTMF, session } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
       mockSession.sendDTMF = vi.fn().mockRejectedValue(new Error('DTMF failed'))
-      session.value = mockSession
+      result.session.value = mockSession
 
-      await expect(sendDTMF('1')).rejects.toThrow('DTMF failed')
+      await expect(result.sendDTMF('1')).rejects.toThrow('DTMF failed')
+      unmount()
     })
   })
 
   describe('getStats and clearSession methods', () => {
     it('should get call statistics', async () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { getStats, session } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
       const mockStats = { bytesReceived: 1000, bytesSent: 500 }
       mockSession.getStats = vi.fn().mockResolvedValue(mockStats)
-      session.value = mockSession
+      result.session.value = mockSession
 
-      const stats = await getStats()
+      const stats = await result.getStats()
 
       expect(mockSession.getStats).toHaveBeenCalled()
       expect(stats).toEqual(mockStats)
+      unmount()
     })
 
     it('should return null if no active session for stats', async () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { getStats } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
-      const stats = await getStats()
+      const stats = await result.getStats()
 
       expect(stats).toBeNull()
+      unmount()
     })
 
     it('should return null if getStats fails', async () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { getStats, session } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
       mockSession.getStats = vi.fn().mockRejectedValue(new Error('Stats failed'))
-      session.value = mockSession
+      result.session.value = mockSession
 
-      const stats = await getStats()
+      const stats = await result.getStats()
 
       expect(stats).toBeNull()
+      unmount()
     })
 
     it('should clear session', async () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { clearSession, session } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
-      session.value = mockSession
+      result.session.value = mockSession
 
-      clearSession()
+      result.clearSession()
 
-      expect(session.value).toBeNull()
+      expect(result.session.value).toBeNull()
+      unmount()
     })
 
     it('should not throw if clearing null session', () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { clearSession } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
-      expect(() => clearSession()).not.toThrow()
+      expect(() => result.clearSession()).not.toThrow()
+      unmount()
     })
   })
 
   describe('Reactive State Properties', () => {
     it('should expose session state', () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { state, session } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
-      expect(state.value).toBe('idle')
+      expect(result.state.value).toBe('idle')
 
       mockSession.state = 'active'
-      session.value = mockSession
+      result.session.value = mockSession
 
-      expect(state.value).toBe('active')
+      expect(result.state.value).toBe('active')
+      unmount()
     })
 
     it('should expose callId', () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { callId, session } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
-      expect(callId.value).toBeNull()
+      expect(result.callId.value).toBeNull()
 
-      session.value = mockSession
+      result.session.value = mockSession
 
-      expect(callId.value).toBe('test-call-id')
+      expect(result.callId.value).toBe('test-call-id')
+      unmount()
     })
 
     it('should expose direction', () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { direction, session } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
-      expect(direction.value).toBeNull()
+      expect(result.direction.value).toBeNull()
 
       mockSession.direction = 'outgoing'
-      session.value = mockSession
+      result.session.value = mockSession
 
-      expect(direction.value).toBe('outgoing')
+      expect(result.direction.value).toBe('outgoing')
+      unmount()
     })
 
     it('should expose localUri', () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { localUri, session } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
-      expect(localUri.value).toBeNull()
+      expect(result.localUri.value).toBeNull()
 
       mockSession.localUri = 'sip:alice@example.com'
-      session.value = mockSession
+      result.session.value = mockSession
 
-      expect(localUri.value).toBe('sip:alice@example.com')
+      expect(result.localUri.value).toBe('sip:alice@example.com')
+      unmount()
     })
 
     it('should expose remoteUri', () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { remoteUri, session } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
-      expect(remoteUri.value).toBeNull()
+      expect(result.remoteUri.value).toBeNull()
 
       mockSession.remoteUri = 'sip:bob@example.com'
-      session.value = mockSession
+      result.session.value = mockSession
 
-      expect(remoteUri.value).toBe('sip:bob@example.com')
+      expect(result.remoteUri.value).toBe('sip:bob@example.com')
+      unmount()
     })
 
     it('should expose remoteDisplayName', () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { remoteDisplayName, session } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
-      expect(remoteDisplayName.value).toBeNull()
+      expect(result.remoteDisplayName.value).toBeNull()
 
       mockSession.remoteDisplayName = 'Bob Smith'
-      session.value = mockSession
+      result.session.value = mockSession
 
-      expect(remoteDisplayName.value).toBe('Bob Smith')
+      expect(result.remoteDisplayName.value).toBe('Bob Smith')
+      unmount()
     })
 
     it('should expose isActive', () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { isActive, session } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
-      expect(isActive.value).toBe(false)
+      expect(result.isActive.value).toBe(false)
 
       mockSession.state = 'active'
-      session.value = mockSession
+      result.session.value = mockSession
 
-      expect(isActive.value).toBe(true)
+      expect(result.isActive.value).toBe(true)
 
       mockSession.state = 'ringing'
-      session.value = { ...mockSession }
+      result.session.value = { ...mockSession }
 
-      expect(isActive.value).toBe(true)
+      expect(result.isActive.value).toBe(true)
 
-      mockSession.state = 'connecting'
-      session.value = { ...mockSession }
+      mockSession.state = 'calling'
+      result.session.value = { ...mockSession }
 
-      expect(isActive.value).toBe(true)
+      expect(result.isActive.value).toBe(true)
 
-      mockSession.state = 'ended'
-      session.value = { ...mockSession }
+      mockSession.state = 'terminated'
+      result.session.value = { ...mockSession }
 
-      expect(isActive.value).toBe(false)
+      expect(result.isActive.value).toBe(false)
+      unmount()
     })
 
     it('should expose isOnHold', () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { isOnHold, session } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
-      expect(isOnHold.value).toBe(false)
+      expect(result.isOnHold.value).toBe(false)
 
       mockSession.isOnHold = true
-      session.value = mockSession
+      result.session.value = mockSession
 
-      expect(isOnHold.value).toBe(true)
+      expect(result.isOnHold.value).toBe(true)
+      unmount()
     })
 
     it('should expose isMuted', () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { isMuted, session } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
-      expect(isMuted.value).toBe(false)
+      expect(result.isMuted.value).toBe(false)
 
       mockSession.isMuted = true
-      session.value = mockSession
+      result.session.value = mockSession
 
-      expect(isMuted.value).toBe(true)
+      expect(result.isMuted.value).toBe(true)
+      unmount()
     })
 
     it('should expose hasRemoteVideo', () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { hasRemoteVideo, session } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
-      expect(hasRemoteVideo.value).toBe(false)
+      expect(result.hasRemoteVideo.value).toBe(false)
 
       mockSession.hasRemoteVideo = true
-      session.value = mockSession
+      result.session.value = mockSession
 
-      expect(hasRemoteVideo.value).toBe(true)
+      expect(result.hasRemoteVideo.value).toBe(true)
+      unmount()
     })
 
     it('should expose hasLocalVideo', () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { hasLocalVideo, session } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
-      expect(hasLocalVideo.value).toBe(false)
+      expect(result.hasLocalVideo.value).toBe(false)
 
       mockSession.hasLocalVideo = true
-      session.value = mockSession
+      result.session.value = mockSession
 
-      expect(hasLocalVideo.value).toBe(true)
+      expect(result.hasLocalVideo.value).toBe(true)
+      unmount()
     })
 
     it('should expose localStream', () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { localStream, session } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
-      expect(localStream.value).toBeNull()
+      expect(result.localStream.value).toBeNull()
 
       const mockStream = { id: 'mock-local-stream' } as any as MediaStream
       mockSession.localStream = mockStream
-      session.value = mockSession
+      result.session.value = mockSession
 
-      expect(localStream.value).toEqual(mockStream)
+      expect(result.localStream.value).toEqual(mockStream)
+      unmount()
     })
 
     it('should expose remoteStream', () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { remoteStream, session } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
-      expect(remoteStream.value).toBeNull()
+      expect(result.remoteStream.value).toBeNull()
 
       const mockStream = { id: 'mock-remote-stream' } as any as MediaStream
       mockSession.remoteStream = mockStream
-      session.value = mockSession
+      result.session.value = mockSession
 
-      expect(remoteStream.value).toEqual(mockStream)
+      expect(result.remoteStream.value).toEqual(mockStream)
+      unmount()
     })
 
     it('should expose timing', () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { timing, session } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
-      expect(timing.value).toEqual({})
+      expect(result.timing.value).toEqual({})
 
       const mockTiming = { startTime: new Date(), answerTime: new Date() }
       mockSession.timing = mockTiming
-      session.value = mockSession
+      result.session.value = mockSession
 
-      expect(timing.value).toEqual(mockTiming)
+      expect(result.timing.value).toEqual(mockTiming)
+      unmount()
     })
 
     it('should expose duration', () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { duration } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
-      expect(duration.value).toBe(0)
+      expect(result.duration.value).toBe(0)
+      unmount()
     })
 
     it('should expose terminationCause', () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { terminationCause, session } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
-      expect(terminationCause.value).toBeUndefined()
+      expect(result.terminationCause.value).toBeUndefined()
 
       mockSession.terminationCause = 'busy'
-      session.value = mockSession
+      result.session.value = mockSession
 
-      expect(terminationCause.value).toBe('busy')
+      expect(result.terminationCause.value).toBe('busy')
+      unmount()
     })
   })
 
@@ -840,90 +904,94 @@ describe('useCallSession - Phase 6.11 Improvements', () => {
 
     it('should start duration tracking when call becomes active', async () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { duration, session, state } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
       mockSession.state = 'active'
       mockSession.timing = { answerTime: new Date() }
-      session.value = mockSession
+      result.session.value = mockSession
 
       // Wait a bit for the watcher to fire
       await vi.advanceTimersByTimeAsync(0)
 
-      expect(duration.value).toBe(0)
+      expect(result.duration.value).toBe(0)
 
       // Advance 3 seconds
       await vi.advanceTimersByTimeAsync(3000)
 
-      expect(duration.value).toBeGreaterThanOrEqual(2)
+      expect(result.duration.value).toBeGreaterThanOrEqual(2)
+      unmount()
     })
 
     it('should stop duration tracking when call ends', async () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { duration, session } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
       mockSession.state = 'active'
       mockSession.timing = { answerTime: new Date() }
-      session.value = mockSession
+      result.session.value = mockSession
 
       await vi.advanceTimersByTimeAsync(0)
       await vi.advanceTimersByTimeAsync(2000)
 
-      const durationWhenActive = duration.value
+      const durationWhenActive = result.duration.value
 
       // End the call
-      mockSession.state = 'ended'
-      session.value = { ...mockSession }
+      mockSession.state = 'terminated'
+      result.session.value = { ...mockSession }
 
       await vi.advanceTimersByTimeAsync(0)
       await vi.advanceTimersByTimeAsync(5000)
 
       // Duration should not have increased after ended
-      expect(duration.value).toBe(durationWhenActive)
+      expect(result.duration.value).toBe(durationWhenActive)
+      unmount()
     })
 
     it('should stop duration tracking when call fails', async () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { duration, session } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
       mockSession.state = 'active'
       mockSession.timing = { answerTime: new Date() }
-      session.value = mockSession
+      result.session.value = mockSession
 
       await vi.advanceTimersByTimeAsync(0)
       await vi.advanceTimersByTimeAsync(2000)
 
-      const durationWhenActive = duration.value
+      const durationWhenActive = result.duration.value
 
       // Fail the call
       mockSession.state = 'failed'
-      session.value = { ...mockSession }
+      result.session.value = { ...mockSession }
 
       await vi.advanceTimersByTimeAsync(0)
       await vi.advanceTimersByTimeAsync(5000)
 
       // Duration should not have increased after failed
-      expect(duration.value).toBe(durationWhenActive)
+      expect(result.duration.value).toBe(durationWhenActive)
+      unmount()
     })
 
     it('should reset duration on new call', async () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { duration, session, makeCall } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
       // First call
       mockSession.state = 'active'
       mockSession.timing = { answerTime: new Date() }
-      session.value = mockSession
+      result.session.value = mockSession
 
       await vi.advanceTimersByTimeAsync(0)
       await vi.advanceTimersByTimeAsync(3000)
 
-      expect(duration.value).toBeGreaterThan(0)
+      expect(result.duration.value).toBeGreaterThan(0)
 
       // Make a new call
-      await makeCall('sip:bob@example.com')
+      await result.makeCall('sip:bob@example.com')
 
       // Duration should be reset
-      expect(duration.value).toBe(0)
+      expect(result.duration.value).toBe(0)
+      unmount()
     })
   })
 
@@ -944,13 +1012,15 @@ describe('useCallSession - Phase 6.11 Improvements', () => {
         },
       }
 
-      const { answer, session } = useCallSession(sipClientRef, mockMediaManager as any)
+      const { result, unmount } = withSetup(() =>
+        useCallSession(sipClientRef, mockMediaManager as any)
+      )
 
       // Set up session
       mockSession.answer = vi.fn().mockRejectedValue(new Error('Answer failed'))
-      session.value = mockSession
+      result.session.value = mockSession
 
-      await expect(answer()).rejects.toThrow('Answer failed')
+      await expect(result.answer()).rejects.toThrow('Answer failed')
 
       // Verify media was acquired
       expect(mockMediaManager.value.getUserMedia).toHaveBeenCalled()
@@ -958,6 +1028,7 @@ describe('useCallSession - Phase 6.11 Improvements', () => {
       // Verify cleanup happened
       expect(mockAudioTrack.stop).toHaveBeenCalled()
       expect(mockVideoTrack.stop).toHaveBeenCalled()
+      unmount()
     })
   })
 
@@ -971,9 +1042,11 @@ describe('useCallSession - Phase 6.11 Improvements', () => {
         },
       }
 
-      const { makeCall } = useCallSession(sipClientRef, mockMediaManager as any)
+      const { result, unmount } = withSetup(() =>
+        useCallSession(sipClientRef, mockMediaManager as any)
+      )
 
-      await makeCall('sip:bob@example.com', { audio: true, video: false })
+      await result.makeCall('sip:bob@example.com', { audio: true, video: false })
 
       expect(mockMediaManager.value.getUserMedia).toHaveBeenCalledWith({
         audio: true,
@@ -985,6 +1058,7 @@ describe('useCallSession - Phase 6.11 Improvements', () => {
           mediaConstraints: { audio: true, video: false },
         })
       )
+      unmount()
     })
 
     it('should make video call', async () => {
@@ -996,9 +1070,11 @@ describe('useCallSession - Phase 6.11 Improvements', () => {
         },
       }
 
-      const { makeCall } = useCallSession(sipClientRef, mockMediaManager as any)
+      const { result, unmount } = withSetup(() =>
+        useCallSession(sipClientRef, mockMediaManager as any)
+      )
 
-      await makeCall('sip:bob@example.com', { audio: true, video: true })
+      await result.makeCall('sip:bob@example.com', { audio: true, video: true })
 
       expect(mockMediaManager.value.getUserMedia).toHaveBeenCalledWith({ audio: true, video: true })
       expect(mockSipClient.call).toHaveBeenCalledWith(
@@ -1007,6 +1083,7 @@ describe('useCallSession - Phase 6.11 Improvements', () => {
           mediaConstraints: { audio: true, video: true },
         })
       )
+      unmount()
     })
 
     it('should answer with audio-only', async () => {
@@ -1018,17 +1095,20 @@ describe('useCallSession - Phase 6.11 Improvements', () => {
         },
       }
 
-      const { answer, session } = useCallSession(sipClientRef, mockMediaManager as any)
+      const { result, unmount } = withSetup(() =>
+        useCallSession(sipClientRef, mockMediaManager as any)
+      )
 
       mockSession.answer = vi.fn().mockResolvedValue(undefined)
-      session.value = mockSession
+      result.session.value = mockSession
 
-      await answer({ audio: true, video: false })
+      await result.answer({ audio: true, video: false })
 
       expect(mockMediaManager.value.getUserMedia).toHaveBeenCalledWith({
         audio: true,
         video: false,
       })
+      unmount()
     })
 
     it('should answer with video', async () => {
@@ -1040,14 +1120,17 @@ describe('useCallSession - Phase 6.11 Improvements', () => {
         },
       }
 
-      const { answer, session } = useCallSession(sipClientRef, mockMediaManager as any)
+      const { result, unmount } = withSetup(() =>
+        useCallSession(sipClientRef, mockMediaManager as any)
+      )
 
       mockSession.answer = vi.fn().mockResolvedValue(undefined)
-      session.value = mockSession
+      result.session.value = mockSession
 
-      await answer({ audio: true, video: true })
+      await result.answer({ audio: true, video: true })
 
       expect(mockMediaManager.value.getUserMedia).toHaveBeenCalledWith({ audio: true, video: true })
+      unmount()
     })
   })
 
@@ -1066,19 +1149,20 @@ describe('useCallSession - Phase 6.11 Improvements', () => {
 
       // We need to test that onUnmounted cleanup works
       // This is tested indirectly through the composable lifecycle
-      const { session, duration } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
       mockSession.state = 'active'
       mockSession.timing = { answerTime: new Date() }
-      session.value = mockSession
+      result.session.value = mockSession
 
       await vi.advanceTimersByTimeAsync(0)
       await vi.advanceTimersByTimeAsync(2000)
 
-      expect(duration.value).toBeGreaterThan(0)
+      expect(result.duration.value).toBeGreaterThan(0)
 
       // The actual onUnmounted hook will be called by Vue
       // We can verify the timer cleanup happens correctly through other tests
+      unmount()
     })
   })
 
@@ -1086,43 +1170,46 @@ describe('useCallSession - Phase 6.11 Improvements', () => {
     it('should add call to store on makeCall', async () => {
       const { callStore } = await import('@/stores/callStore')
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { makeCall } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
-      await makeCall('sip:bob@example.com')
+      await result.makeCall('sip:bob@example.com')
 
       expect(callStore.addActiveCall).toHaveBeenCalledWith(mockSession)
+      unmount()
     })
 
     it('should remove call from store on clearSession', async () => {
       const { callStore } = await import('@/stores/callStore')
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { clearSession, session } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
-      session.value = mockSession
+      result.session.value = mockSession
 
-      clearSession()
+      result.clearSession()
 
       expect(callStore.removeActiveCall).toHaveBeenCalledWith('test-call-id')
+      unmount()
     })
   })
 
   describe('AbortController Integration', () => {
     it('should abort makeCall when AbortSignal is triggered before call', async () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { makeCall } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
       const controller = new AbortController()
       controller.abort() // Abort immediately
 
-      await expect(makeCall('sip:bob@example.com', {}, controller.signal)).rejects.toThrow(
-        'AbortError'
+      await expect(result.makeCall('sip:bob@example.com', {}, controller.signal)).rejects.toThrow(
+        'Operation aborted'
       )
       expect(mockSipClient.call).not.toHaveBeenCalled()
+      unmount()
     })
 
     it('should abort makeCall when AbortSignal is triggered during call setup', async () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { makeCall } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
       const controller = new AbortController()
 
@@ -1132,9 +1219,10 @@ describe('useCallSession - Phase 6.11 Improvements', () => {
         return mockSession
       })
 
-      await expect(makeCall('sip:bob@example.com', {}, controller.signal)).rejects.toThrow(
-        'AbortError'
+      await expect(result.makeCall('sip:bob@example.com', {}, controller.signal)).rejects.toThrow(
+        'Operation aborted'
       )
+      unmount()
     })
 
     it('should cleanup media when makeCall is aborted', async () => {
@@ -1149,7 +1237,9 @@ describe('useCallSession - Phase 6.11 Improvements', () => {
         }),
       }
       const mediaManagerRef = ref(mockMediaManager as any)
-      const { makeCall } = useCallSession(sipClientRef, mediaManagerRef)
+      const { result, unmount } = withSetup(() =>
+        useCallSession(sipClientRef, mediaManagerRef)
+      )
 
       const controller = new AbortController()
 
@@ -1159,37 +1249,40 @@ describe('useCallSession - Phase 6.11 Improvements', () => {
         throw new DOMException('Operation aborted', 'AbortError')
       })
 
-      await expect(makeCall('sip:bob@example.com', {}, controller.signal)).rejects.toThrow(
-        'AbortError'
+      await expect(result.makeCall('sip:bob@example.com', {}, controller.signal)).rejects.toThrow(
+        'Operation aborted'
       )
 
       // Verify media was acquired
       expect(mockMediaManager.getUserMedia).toHaveBeenCalled()
+      unmount()
     })
 
     it('should work without AbortSignal (backward compatibility)', async () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { makeCall } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
       // Call without signal parameter
-      await makeCall('sip:bob@example.com')
+      await result.makeCall('sip:bob@example.com')
 
       expect(mockSipClient.call).toHaveBeenCalled()
+      unmount()
     })
 
     it('should differentiate abort errors from other errors', async () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
-      const { makeCall } = useCallSession(sipClientRef)
+      const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
 
       const controller = new AbortController()
 
       // Simulate a different error
       mockSipClient.call = vi.fn().mockRejectedValue(new Error('Network error'))
 
-      await expect(makeCall('sip:bob@example.com', {}, controller.signal)).rejects.toThrow(
+      await expect(result.makeCall('sip:bob@example.com', {}, controller.signal)).rejects.toThrow(
         'Network error'
       )
       expect(mockSipClient.call).toHaveBeenCalled()
+      unmount()
     })
   })
 })

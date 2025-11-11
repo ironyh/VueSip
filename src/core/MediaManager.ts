@@ -109,6 +109,7 @@ export class MediaManager {
   // Media streams
   private localStream?: MediaStream
   private remoteStream?: MediaStream
+  private isGettingUserMedia = false
 
   // DTMF sender
   private dtmfSender?: RTCDTMFSender
@@ -500,11 +501,40 @@ export class MediaManager {
    * Get user media (local stream)
    */
   async getUserMedia(constraints?: ExtendedMediaStreamConstraints): Promise<MediaStream> {
+    // Prevent concurrent calls
+    if (this.isGettingUserMedia) {
+      throw new Error('getUserMedia operation already in progress')
+    }
+
     logger.info('Getting user media', { constraints })
+
+    this.isGettingUserMedia = true
 
     try {
       // Build constraints
       const finalConstraints = this.buildMediaConstraints(constraints)
+
+      // Clean up old stream BEFORE acquiring new one to prevent device conflicts
+      if (this.localStream) {
+        const oldStreamId = this.localStream.id
+        logger.debug('Cleaning up old local stream before acquiring new one', {
+          oldStreamId,
+        })
+
+        this.localStream.getTracks().forEach((track) => {
+          logger.debug('Stopping old track', { kind: track.kind, id: track.id })
+          track.stop()
+        })
+
+        // Emit removal event for consistency
+        ;(this.eventBus as any).emitSync(EventNames.MEDIA_STREAM_REMOVED, {
+          // eslint-disable-line @typescript-eslint/no-explicit-any
+          stream: this.localStream,
+          direction: 'local',
+        })
+
+        this.localStream = undefined
+      }
 
       // Get media stream
       const stream = await navigator.mediaDevices.getUserMedia(finalConstraints)
@@ -549,6 +579,9 @@ export class MediaManager {
       }
 
       throw error
+    } finally {
+      // Always reset the flag
+      this.isGettingUserMedia = false
     }
   }
 

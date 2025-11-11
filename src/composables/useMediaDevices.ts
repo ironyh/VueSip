@@ -349,6 +349,11 @@ export function useMediaDevices(
       log.info(`Enumerated ${devices.length} devices`)
       return devices
     } catch (error) {
+      // Handle abort errors gracefully - don't set lastError, just rethrow
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        throw error
+      }
+
       const err = error instanceof Error ? error : new Error('Device enumeration failed')
       lastError.value = err
 

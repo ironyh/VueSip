@@ -228,10 +228,10 @@ export async function decrypt<T = unknown>(
   }
 
   try {
-    // Convert base64 strings back to ArrayBuffers
+    // Convert base64 strings back to ArrayBuffers/Uint8Arrays
     const salt = new Uint8Array(base64ToArrayBuffer(encryptedData.salt))
     const iv = new Uint8Array(base64ToArrayBuffer(encryptedData.iv))
-    const data = base64ToArrayBuffer(encryptedData.data)
+    const data = new Uint8Array(base64ToArrayBuffer(encryptedData.data))
 
     // Derive decryption key (using iterations from encrypted data)
     const iterations = encryptedData.iterations || 100000 // fallback for old data

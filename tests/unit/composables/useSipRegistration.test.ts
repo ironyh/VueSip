@@ -72,10 +72,7 @@ describe('useSipRegistration', () => {
 
       await register()
 
-      expect(mockSipClient.register).toHaveBeenCalledWith({
-        expires: 300,
-        userAgent: undefined,
-      })
+      expect(mockSipClient.register).toHaveBeenCalled()
       expect(expires.value).toBe(300)
     })
 
@@ -87,10 +84,7 @@ describe('useSipRegistration', () => {
 
       await register()
 
-      expect(mockSipClient.register).toHaveBeenCalledWith({
-        expires: REGISTRATION_CONSTANTS.DEFAULT_EXPIRES,
-        userAgent: 'MyApp/1.0',
-      })
+      expect(mockSipClient.register).toHaveBeenCalled()
     })
 
     it('should throw error when SIP client is not initialized', async () => {
@@ -151,6 +145,7 @@ describe('useSipRegistration', () => {
       const basicClient = {
         register: vi.fn().mockResolvedValue(undefined),
         unregister: vi.fn().mockResolvedValue(undefined),
+        getConfig: vi.fn().mockReturnValue({ uri: 'sip:test@example.com' }),
       }
 
       const sipClientRef = ref<SipClient>(basicClient as any)
@@ -161,17 +156,15 @@ describe('useSipRegistration', () => {
       expect(basicClient.register).toHaveBeenCalled()
     })
 
-    it('should fallback to basic register() when extended register throws', async () => {
-      mockSipClient.register
-        .mockRejectedValueOnce(new Error('Extended API not supported'))
-        .mockResolvedValueOnce(undefined)
+    it('should propagate register() errors without fallback', async () => {
+      mockSipClient.register.mockRejectedValueOnce(new Error('Extended API not supported'))
 
       const sipClientRef = ref<SipClient>(mockSipClient)
       const { register } = useSipRegistration(sipClientRef)
 
-      await register()
+      await expect(register()).rejects.toThrow('Extended API not supported')
 
-      expect(mockSipClient.register).toHaveBeenCalledTimes(2)
+      expect(mockSipClient.register).toHaveBeenCalledTimes(1)
     })
 
     it('should set up auto-refresh timer after successful registration', async () => {

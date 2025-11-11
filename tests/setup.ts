@@ -5,6 +5,7 @@
  */
 
 import { vi } from 'vitest'
+import { configureLogger } from '../src/utils/logger'
 
 // Mock JsSIP globally
 vi.mock('jssip', () => {
@@ -120,6 +121,20 @@ if (typeof global.fetch === 'undefined') {
   })
 }
 
+// Setup Web Crypto API for encryption tests
+// Use Node.js built-in webcrypto module (Node.js 15.0.0+)
+if (!global.crypto || !global.crypto.subtle) {
+  try {
+    // Try to import Node's webcrypto
+    const cryptoModule = require('crypto')
+    if (cryptoModule.webcrypto) {
+      ;(global as any).crypto = cryptoModule.webcrypto
+    }
+  } catch (error) {
+    console.warn('Web Crypto API not available in test environment')
+  }
+}
+
 // Suppress console output in tests (optional)
 // You can comment these out if you want to see console output during tests
 if (process.env.VITEST_SILENT !== 'false') {
@@ -128,4 +143,12 @@ if (process.env.VITEST_SILENT !== 'false') {
   // Keep warn and error for debugging
   // global.console.warn = vi.fn()
   // global.console.error = vi.fn()
+}
+
+// Configure VueSIP logger for tests
+// Suppress logger output during tests by using a custom no-op handler
+if (process.env.VITEST_SILENT !== 'false') {
+  configureLogger({
+    enabled: false, // Disable all logging during tests
+  })
 }

@@ -5,6 +5,8 @@
  */
 
 import { vi } from 'vitest'
+import { createApp } from 'vue'
+import type { App } from 'vue'
 import type { SipClientConfig } from '../../src/types/config.types'
 import type { EventBus } from '../../src/core/EventBus'
 
@@ -553,7 +555,11 @@ export async function detectMemoryLeaks(
   // Initial GC
   gc()
 
-  const heapBefore = performance.memory?.usedJSHeapSize || 0
+  // Note: performance.memory is only available in Chrome/Chromium browsers
+  // In Node.js or other environments, we can't measure heap size
+  const hasPerformanceMemory = typeof performance !== 'undefined' && 'memory' in performance
+
+  const heapBefore = hasPerformanceMemory ? (performance as any).memory.usedJSHeapSize : 0
 
   // Run function multiple times
   for (let i = 0; i < iterations; i++) {
@@ -566,7 +572,7 @@ export async function detectMemoryLeaks(
   // Final GC
   gc()
 
-  const heapAfter = performance.memory?.usedJSHeapSize || 0
+  const heapAfter = hasPerformanceMemory ? (performance as any).memory.usedJSHeapSize : 0
   const heapDelta = heapAfter - heapBefore
   const heapDeltaMB = heapDelta / (1024 * 1024)
 
@@ -591,9 +597,52 @@ export function checkEventBusListeners(eventBus: EventBus, eventName?: string): 
     return eventBus.listenerCount(eventName)
   }
   // Return total listener count across all events
-  const allEvents = (eventBus as any)._events || {}
-  return Object.keys(allEvents).reduce((total, event) => {
+  const allEventNames = eventBus.eventNames()
+  return allEventNames.reduce((total, event) => {
     return total + eventBus.listenerCount(event)
   }, 0)
+}
+
+/**
+ * Wrapper for testing composables that use lifecycle hooks
+ *
+ * Creates a temporary Vue app instance to provide proper component context
+ * for composables that use Vue lifecycle hooks like onMounted, onUnmounted, etc.
+ *
+ * @param composable - The composable function to test
+ * @returns Object containing the composable result and an unmount function
+ *
+ * @example
+ * ```typescript
+ * const { result, unmount } = withSetup(() => useCallSession(sipClientRef))
+ * // Use result.makeCall, result.state, etc.
+ * // Call unmount() in afterEach to cleanup
+ * unmount()
+ * ```
+ */
+export function withSetup<T>(composable: () => T): { result: T; app: App; unmount: () => void } {
+  let result: T
+
+  const app = createApp({
+    setup() {
+      result = composable()
+      // Return a minimal template to satisfy Vue
+      return () => {}
+    },
+  })
+
+  // Mount to a div (Vue 3 requires mounting to trigger setup)
+  const el = document.createElement('div')
+  app.mount(el)
+
+  // Return the result and an unmount function
+  return {
+    result: result!,
+    app,
+    unmount: () => {
+      app.unmount()
+      el.remove()
+    },
+  }
 }
 

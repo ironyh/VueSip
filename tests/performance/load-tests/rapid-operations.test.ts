@@ -609,7 +609,7 @@ describe('Rapid Operations Performance Tests', () => {
       }
 
       // Manually set stream on call session for testing
-      ;(callSession as any).localStream = mockStream
+      ;(callSession as any)._localStream = mockStream
 
       performanceCollector.takeMemorySnapshot()
 
@@ -694,7 +694,7 @@ describe('Rapid Operations Performance Tests', () => {
         getVideoTracks: vi.fn().mockReturnValue([]),
       }
 
-      ;(callSession as any).localStream = mockStream
+      ;(callSession as any)._localStream = mockStream
 
       for (let i = 0; i < CYCLES; i++) {
         await callSession.mute()

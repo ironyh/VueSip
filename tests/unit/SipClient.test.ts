@@ -9,7 +9,23 @@ import type { EventBus } from '@/core/EventBus'
 import type { SipClientConfig } from '@/types/config.types'
 
 // Mock JsSIP - use vi.hoisted() for variables used in factory
-const { mockUA, mockWebSocketInterface } = vi.hoisted(() => {
+const { mockUA, mockWebSocketInterface, eventHandlers, onceHandlers, triggerEvent } = vi.hoisted(() => {
+  // Event handler storage
+  const eventHandlers: Record<string, Array<(...args: any[]) => void>> = {}
+  const onceHandlers: Record<string, Array<(...args: any[]) => void>> = {}
+
+  // Helper to trigger events
+  const triggerEvent = (event: string, data?: any) => {
+    // Trigger 'on' handlers
+    const handlers = eventHandlers[event] || []
+    handlers.forEach((handler) => handler(data))
+
+    // Trigger and remove 'once' handlers
+    const once = onceHandlers[event] || []
+    once.forEach((handler) => handler(data))
+    onceHandlers[event] = []
+  }
+
   const mockUA = {
     start: vi.fn(),
     stop: vi.fn(),
@@ -18,14 +34,27 @@ const { mockUA, mockWebSocketInterface } = vi.hoisted(() => {
     sendMessage: vi.fn(),
     isConnected: vi.fn().mockReturnValue(false),
     isRegistered: vi.fn().mockReturnValue(false),
-    on: vi.fn(),
-    once: vi.fn(),
-    off: vi.fn(),
+    on: vi.fn((event: string, handler: (...args: any[]) => void) => {
+      if (!eventHandlers[event]) eventHandlers[event] = []
+      eventHandlers[event].push(handler)
+    }),
+    once: vi.fn((event: string, handler: (...args: any[]) => void) => {
+      if (!onceHandlers[event]) onceHandlers[event] = []
+      onceHandlers[event].push(handler)
+    }),
+    off: vi.fn((event: string, handler: (...args: any[]) => void) => {
+      if (eventHandlers[event]) {
+        eventHandlers[event] = eventHandlers[event].filter((h) => h !== handler)
+      }
+      if (onceHandlers[event]) {
+        onceHandlers[event] = onceHandlers[event].filter((h) => h !== handler)
+      }
+    }),
   }
 
   const mockWebSocketInterface = vi.fn()
 
-  return { mockUA, mockWebSocketInterface }
+  return { mockUA, mockWebSocketInterface, eventHandlers, onceHandlers, triggerEvent }
 })
 
 vi.mock('jssip', () => {
@@ -52,10 +81,21 @@ describe('SipClient', () => {
     // Reset mocks
     vi.clearAllMocks()
 
-    // Reset mock implementations to default (no-op)
-    mockUA.on.mockImplementation(() => {})
-    mockUA.once.mockImplementation(() => {})
-    mockUA.off.mockImplementation(() => {})
+    // Clear event handlers
+    Object.keys(eventHandlers).forEach((key) => delete eventHandlers[key])
+    Object.keys(onceHandlers).forEach((key) => delete onceHandlers[key])
+
+    // Restore default mock implementations (vi.clearAllMocks() doesn't restore implementations)
+    mockUA.on.mockImplementation((event: string, handler: (...args: any[]) => void) => {
+      if (!eventHandlers[event]) eventHandlers[event] = []
+      eventHandlers[event].push(handler)
+    })
+    mockUA.once.mockImplementation((event: string, handler: (...args: any[]) => void) => {
+      if (!onceHandlers[event]) onceHandlers[event] = []
+      onceHandlers[event].push(handler)
+    })
+
+    // Reset mock return values
     mockUA.isConnected.mockReturnValue(false)
     mockUA.isRegistered.mockReturnValue(false)
 
@@ -129,7 +169,7 @@ describe('SipClient', () => {
       const result = client.validateConfig()
       expect(result.valid).toBe(false)
       expect(result.errors).toBeDefined()
-      expect(result.errors?.some((e) => e.includes('WebSocket URL'))).toBe(true)
+      expect(result.errors?.some((e) => e.includes('WebSocket'))).toBe(true)
       client.destroy()
     })
 
@@ -154,19 +194,11 @@ describe('SipClient', () => {
 
   describe('start()', () => {
     it('should start the SIP client', async () => {
-      // Mock successful connection
-      mockUA.on.mockImplementation((event: string, handler: (...args: any[]) => void) => {
-        if (event === 'connected') {
-          // Simulate immediate connection
-          setTimeout(() => handler({}), 10)
-        }
-      })
-      mockUA.once.mockImplementation((event: string, handler: (...args: any[]) => void) => {
-        if (event === 'connected') {
-          setTimeout(() => handler({}), 10)
-        }
-      })
-      mockUA.isConnected.mockReturnValue(true)
+      // Simulate connection after start is called
+      setTimeout(() => {
+        mockUA.isConnected.mockReturnValue(true)
+        triggerEvent('connected', {})
+      }, 10)
 
       await sipClient.start()
 
@@ -305,26 +337,19 @@ describe('SipClient', () => {
   describe('register()', () => {
     beforeEach(async () => {
       // Start client before registering
-      mockUA.on.mockImplementation((event: string, handler: (...args: any[]) => void) => {
-        if (event === 'connected') {
-          setTimeout(() => handler({}), 10)
-        }
-      })
-      mockUA.once.mockImplementation((event: string, handler: (...args: any[]) => void) => {
-        if (event === 'connected') {
-          setTimeout(() => handler({}), 10)
-        }
-      })
-      mockUA.isConnected.mockReturnValue(true)
+      setTimeout(() => {
+        mockUA.isConnected.mockReturnValue(true)
+        triggerEvent('connected', {})
+      }, 10)
       await sipClient.start()
     })
 
     it('should register with SIP server', async () => {
-      mockUA.once.mockImplementation((event: string, handler: (...args: any[]) => void) => {
-        if (event === 'registered') {
-          setTimeout(() => handler({}), 10)
-        }
-      })
+      // Simulate successful registration
+      setTimeout(() => {
+        mockUA.isRegistered.mockReturnValue(true)
+        triggerEvent('registered', {})
+      }, 10)
 
       await sipClient.register()
 
@@ -336,31 +361,22 @@ describe('SipClient', () => {
       const registeredHandler = vi.fn()
       eventBus.on('sip:registered', registeredHandler)
 
-      mockUA.on.mockImplementation((event: string, handler: (...args: any[]) => void) => {
-        if (event === 'registered') {
-          setTimeout(() => handler({ response: { getHeader: () => '600' } }), 10)
-        }
-      })
-      mockUA.once.mockImplementation((event: string, handler: (...args: any[]) => void) => {
-        if (event === 'registered') {
-          setTimeout(() => handler({ response: { getHeader: () => '600' } }), 10)
-        }
-      })
+      // Simulate successful registration after a short delay
+      setTimeout(() => {
+        mockUA.isRegistered.mockReturnValue(true)
+        triggerEvent('registered', { response: { getHeader: () => '600' } })
+      }, 10)
 
       await sipClient.register()
-
-      // Wait for async events
-      await new Promise((resolve) => setTimeout(resolve, 50))
 
       expect(registeredHandler).toHaveBeenCalled()
     })
 
     it('should handle registration failure', async () => {
-      mockUA.once.mockImplementation((event: string, handler: (...args: any[]) => void) => {
-        if (event === 'registrationFailed') {
-          setTimeout(() => handler({ cause: 'Authentication failed' }), 10)
-        }
-      })
+      // Simulate registration failure after a short delay
+      setTimeout(() => {
+        triggerEvent('registrationFailed', { cause: 'Authentication failed' })
+      }, 10)
 
       await expect(sipClient.register()).rejects.toThrow('Registration failed')
       expect(sipClient.registrationState).toBe('registration_failed')
@@ -373,11 +389,6 @@ describe('SipClient', () => {
     })
 
     it('should not register if already registered', async () => {
-      mockUA.once.mockImplementation((event: string, handler: (...args: any[]) => void) => {
-        if (event === 'registered') {
-          setTimeout(() => handler({}), 10)
-        }
-      })
       mockUA.isRegistered.mockReturnValue(true)
 
       await sipClient.register()
@@ -389,57 +400,41 @@ describe('SipClient', () => {
     })
 
     it('should handle registration timeout', async () => {
-      // Start the client first
-      mockUA.on.mockImplementation((event: string, handler: (...args: any[]) => void) => {
-        if (event === 'connected') {
-          setTimeout(() => handler({}), 10)
-        }
+      // Mock that never calls the registered event
+      mockUA.once.mockImplementation(() => {
+        // Don't call the handler - let it timeout
       })
-      mockUA.once.mockImplementation((event: string, handler: (...args: any[]) => void) => {
-        if (event === 'connected') {
-          setTimeout(() => handler({}), 10)
-        }
-        // Don't emit 'registered' event to trigger timeout
-      })
-      mockUA.isConnected.mockReturnValue(true)
 
-      await sipClient.start()
+      const registerPromise = sipClient.register()
 
-      // Now attempt to register - should timeout
-      await expect(sipClient.register()).rejects.toThrow('Registration timeout')
-    }, 35000) // Increase test timeout
+      // Should reject with timeout error
+      await expect(registerPromise).rejects.toThrow('Registration timeout')
+    }, 35000)
   })
 
   describe('unregister()', () => {
     beforeEach(async () => {
       // Start and register
-      mockUA.on.mockImplementation((event: string, handler: (...args: any[]) => void) => {
-        if (event === 'connected') {
-          setTimeout(() => handler({}), 10)
-        }
-      })
-      mockUA.once.mockImplementation((event: string, handler: (...args: any[]) => void) => {
-        if (event === 'connected') {
-          setTimeout(() => handler({}), 10)
-        }
-        if (event === 'registered') {
-          setTimeout(() => handler({}), 10)
-        }
-      })
       mockUA.isConnected.mockReturnValue(true)
       mockUA.isRegistered.mockReturnValue(false)
+
+      setTimeout(() => {
+        triggerEvent('connected', {})
+      }, 10)
       await sipClient.start()
 
-      mockUA.isRegistered.mockReturnValue(true)
+      setTimeout(() => {
+        mockUA.isRegistered.mockReturnValue(true)
+        triggerEvent('registered', {})
+      }, 10)
       await sipClient.register()
     })
 
     it('should unregister from SIP server', async () => {
-      mockUA.once.mockImplementation((event: string, handler: (...args: any[]) => void) => {
-        if (event === 'unregistered') {
-          setTimeout(() => handler({}), 10)
-        }
-      })
+      // Simulate successful unregistration
+      setTimeout(() => {
+        triggerEvent('unregistered', {})
+      }, 10)
 
       await sipClient.unregister()
 
@@ -451,40 +446,13 @@ describe('SipClient', () => {
       const unregisteredHandler = vi.fn()
       eventBus.on('sip:unregistered', unregisteredHandler)
 
-      // First start and register the client
-      mockUA.on.mockImplementation((event: string, handler: (...args: any[]) => void) => {
-        if (event === 'connected') {
-          setTimeout(() => handler({}), 10)
-        }
-        if (event === 'registered') {
-          setTimeout(() => handler({}), 10)
-        }
-        if (event === 'unregistered') {
-          setTimeout(() => handler({ cause: 'user' }), 10)
-        }
-      })
-      mockUA.once.mockImplementation((event: string, handler: (...args: any[]) => void) => {
-        if (event === 'connected') {
-          setTimeout(() => handler({}), 10)
-        }
-        if (event === 'registered') {
-          setTimeout(() => handler({}), 10)
-        }
-        if (event === 'unregistered') {
-          setTimeout(() => handler({ cause: 'user' }), 10)
-        }
-      })
-      mockUA.isConnected.mockReturnValue(true)
-      mockUA.isRegistered.mockReturnValue(true)
+      // Simulate successful unregistration after a short delay
+      setTimeout(() => {
+        mockUA.isRegistered.mockReturnValue(false)
+        triggerEvent('unregistered', { cause: 'user' })
+      }, 10)
 
-      await sipClient.start()
-      await sipClient.register()
-
-      // Now unregister
       await sipClient.unregister()
-
-      // Wait for async events
-      await new Promise((resolve) => setTimeout(resolve, 50))
 
       expect(unregisteredHandler).toHaveBeenCalled()
     })

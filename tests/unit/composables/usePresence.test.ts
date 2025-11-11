@@ -835,9 +835,9 @@ describe('usePresence', () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
       const { subscribe } = usePresence(sipClientRef)
 
-      await subscribe('')
+      await expect(subscribe('')).rejects.toThrow('Invalid target URI: SIP URI must be a non-empty string')
 
-      expect(mockSipClient.subscribePresence).toHaveBeenCalledWith('', expect.any(Object))
+      expect(mockSipClient.subscribePresence).not.toHaveBeenCalled()
     })
 
     it('should handle very short expiry times', async () => {
