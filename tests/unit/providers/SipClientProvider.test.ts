@@ -6,7 +6,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
-import { defineComponent, h } from 'vue'
+import { defineComponent, h, nextTick } from 'vue'
 import { SipClientProvider, useSipClientProvider } from '@/providers/SipClientProvider'
 import type { SipClientConfig } from '@/types/config.types'
 
@@ -489,10 +489,13 @@ describe('SipClientProvider - Phase 7.1 Implementation', () => {
 
   describe('Event Handling', () => {
     it('should emit connected event when EventBus receives sip:connected', async () => {
+      let connectedEmitted = false
+      
       const wrapper = mount(SipClientProvider, {
         props: {
           config: mockConfig,
           autoConnect: false,
+          onConnected: () => { connectedEmitted = true }
         },
       })
 
@@ -505,16 +508,19 @@ describe('SipClientProvider - Phase 7.1 Implementation', () => {
 
       // Simulate JsSIP firing connected event
       eventBus?.emitSync('sip:connected')
-      await flushPromises()
+      await nextTick() // Ensure Vue reactivity completes
 
-      expect(wrapper.emitted('connected')).toBeDefined()
+      expect(connectedEmitted).toBe(true)
     })
 
     it('should emit registered event when EventBus receives sip:registered', async () => {
+      let registeredUri = ''
+      
       const wrapper = mount(SipClientProvider, {
         props: {
           config: mockConfig,
           autoConnect: false,
+          onRegistered: (uri: string) => { registeredUri = uri }
         },
       })
 
@@ -526,17 +532,19 @@ describe('SipClientProvider - Phase 7.1 Implementation', () => {
 
       // Simulate JsSIP firing registered event
       eventBus?.emitSync('sip:registered', { uri: 'sip:alice@example.com' })
-      await flushPromises()
+      await nextTick()
 
-      expect(wrapper.emitted('registered')).toBeDefined()
-      expect(wrapper.emitted('registered')?.[0]?.[0]).toBe('sip:alice@example.com')
+      expect(registeredUri).toBe('sip:alice@example.com')
     })
 
     it('should emit ready event when fully initialized', async () => {
+      let readyEmitted = false
+      
       const wrapper = mount(SipClientProvider, {
         props: {
           config: mockConfig,
           autoConnect: false,
+          onReady: () => { readyEmitted = true }
         },
       })
 
@@ -548,16 +556,19 @@ describe('SipClientProvider - Phase 7.1 Implementation', () => {
 
       // Simulate registration completing
       eventBus?.emitSync('sip:registered', { uri: 'sip:alice@example.com' })
-      await flushPromises()
+      await nextTick()
 
-      expect(wrapper.emitted('ready')).toBeDefined()
+      expect(readyEmitted).toBe(true)
     })
 
     it('should emit error event on registration failure', async () => {
+      let errorMessage = ''
+      
       const wrapper = mount(SipClientProvider, {
         props: {
           config: mockConfig,
           autoConnect: false,
+          onError: (err: Error) => { errorMessage = err.message }
         },
       })
 
@@ -569,11 +580,9 @@ describe('SipClientProvider - Phase 7.1 Implementation', () => {
 
       // Simulate registration failure
       eventBus?.emitSync('sip:registration_failed', { cause: 'Authentication failed' })
-      await flushPromises()
+      await nextTick()
 
-      expect(wrapper.emitted('error')).toBeDefined()
-      const errorEvent = wrapper.emitted('error')?.[0]?.[0] as Error
-      expect(errorEvent?.message).toContain('Authentication failed')
+      expect(errorMessage).toContain('Authentication failed')
     })
   })
 
