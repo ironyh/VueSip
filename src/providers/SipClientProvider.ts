@@ -202,8 +202,8 @@ export const SipClientProvider = defineComponent({
   },
 
   setup(props, { emit, slots }) {
-    // Create or use external event bus instance (shared across provider)
-    const eventBus = ref<EventBus>(props.eventBus ?? new EventBus())
+    // Create event bus instance for SipClient communication
+    const eventBus = ref<EventBus>(new EventBus())
 
     // SIP client instance
     const client = ref<SipClient | null>(null)
@@ -216,9 +216,6 @@ export const SipClientProvider = defineComponent({
 
     // Track event listener IDs for cleanup
     const eventListenerIds = ref<string[]>([])
-    // Internal flags for fallback emissions in test environments
-    const busConnectedHandled = ref(false)
-    const busRegisteredHandled = ref(false)
 
     /**
      * Initialize SIP client with configuration
@@ -362,6 +359,10 @@ export const SipClientProvider = defineComponent({
     /**
      * Connect to SIP server
      */
+    /**
+     * Connect to SIP server
+     * Events are emitted via EventBus handlers when JsSIP fires its events
+     */
     const connect = async (): Promise<void> => {
       if (!client.value) {
         const err = new Error('SIP client not initialized')
@@ -374,26 +375,8 @@ export const SipClientProvider = defineComponent({
       try {
         logger.info('Connecting to SIP server')
         await client.value.start()
-        // Proactively emit connection/registration events when start() succeeds
-        connectionState.value = ConnectionState.Connected
-        emit('connected')
-        if (props.autoRegister) {
-          try {
-            await client.value.register()
-            registrationState.value = RegistrationState.Registered
-            isReady.value = true
-            // Emit with config sipUri since register doesn't return it
-            emit('registered', props.config.sipUri)
-            emit('ready')
-          } catch (regErr) {
-            const regError = regErr instanceof Error ? regErr : new Error(String(regErr))
-            error.value = regError
-            emit('error', regError)
-          }
-        } else {
-          isReady.value = true
-          emit('ready')
-        }
+        // Events will be emitted by setupEventListeners handlers
+        // when SipClient emits to EventBus (sip:connected, etc.)
       } catch (err) {
         const errorObj = err instanceof Error ? err : new Error(String(err))
         logger.error('Failed to connect', err)
