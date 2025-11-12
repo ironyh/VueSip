@@ -126,6 +126,41 @@ function setupMockMediaDevices(): void {
   })
 }
 
+// Event handler storage for mock UA
+const eventHandlers = new Map<string, Function[]>()
+const onceHandlers = new Map<string, Function[]>()
+const sessionEventHandlers = new Map<string, Function[]>()
+
+// Mock UA object
+const mockUA = {
+  on: vi.fn(),
+  once: vi.fn(),
+  start: vi.fn(),
+  stop: vi.fn(),
+  register: vi.fn(),
+  unregister: vi.fn(),
+  call: vi.fn(),
+  isConnected: vi.fn(() => false),
+  isRegistered: vi.fn(() => false),
+}
+
+// Mock RTC Session object
+const mockRTCSession = {
+  on: vi.fn(),
+  connection: {
+    addEventListener: vi.fn(),
+    getSenders: vi.fn(() => []),
+    getReceivers: vi.fn(() => []),
+  },
+  sendDTMF: vi.fn(),
+  refer: vi.fn(),
+  hold: vi.fn(),
+  unhold: vi.fn(),
+  terminate: vi.fn(),
+  isEnded: vi.fn(() => false),
+  isEstablished: vi.fn(() => false),
+}
+
 describe('SIP Workflow Integration Tests', () => {
   let eventBus: EventBus
   let sipClient: SipClient
@@ -187,10 +222,10 @@ describe('SIP Workflow Integration Tests', () => {
   })
 
   afterEach(() => {
-    sipClient.destroy()
-    mediaManager.destroy()
-    eventBus.destroy()
-    mockSipServer.destroy()
+    sipClient?.destroy()
+    mediaManager?.destroy()
+    eventBus?.destroy()
+    mockSipServer?.destroy()
     delete (global as any).__mockSipServer
   })
 
