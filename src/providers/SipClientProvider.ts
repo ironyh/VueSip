@@ -202,7 +202,7 @@ export const SipClientProvider = defineComponent({
   },
 
   setup(props, { emit, slots }) {
-    // Create event bus instance (shared across provider)
+    // Create event bus instance for SipClient communication
     const eventBus = ref<EventBus>(new EventBus())
 
     // SIP client instance
@@ -220,6 +220,8 @@ export const SipClientProvider = defineComponent({
     /**
      * Initialize SIP client with configuration
      */
+    const initialized = ref(false)
+
     const initializeClient = (): void => {
       try {
         // Validate configuration
@@ -239,6 +241,7 @@ export const SipClientProvider = defineComponent({
 
         // Create SIP client instance
         client.value = new SipClient(props.config, eventBus.value as EventBus)
+        initialized.value = true
 
         // Setup event listeners
         setupEventListeners()
@@ -356,6 +359,10 @@ export const SipClientProvider = defineComponent({
     /**
      * Connect to SIP server
      */
+    /**
+     * Connect to SIP server
+     * Events are emitted via EventBus handlers when JsSIP fires its events
+     */
     const connect = async (): Promise<void> => {
       if (!client.value) {
         const err = new Error('SIP client not initialized')
@@ -368,6 +375,8 @@ export const SipClientProvider = defineComponent({
       try {
         logger.info('Connecting to SIP server')
         await client.value.start()
+        // Events will be emitted by setupEventListeners handlers
+        // when SipClient emits to EventBus (sip:connected, etc.)
       } catch (err) {
         const errorObj = err instanceof Error ? err : new Error(String(err))
         logger.error('Failed to connect', err)
@@ -475,11 +484,13 @@ export const SipClientProvider = defineComponent({
     }
 
     // Lifecycle hooks
+    // Initialize immediately so listeners are ready and tests' EventBus.on handlers can fire
+    initializeClient()
+
     onMounted(async () => {
       logger.debug('SipClientProvider mounted')
 
-      // Initialize client
-      initializeClient()
+      // Already initialized in setup to register event listeners
 
       // Auto-connect if enabled
       if (props.autoConnect && client.value) {
@@ -487,7 +498,7 @@ export const SipClientProvider = defineComponent({
           await connect()
         } catch (err) {
           logger.error('Auto-connect failed', err)
-          // Error already emitted in connect()
+          // error already emitted in connect()
         }
       }
     })
@@ -521,10 +532,7 @@ export const SipClientProvider = defineComponent({
 
     // Render default slot
     return () => {
-      if (slots.default) {
-        return h('div', { class: 'sip-client-provider' }, slots.default())
-      }
-      return null
+      return h('div', { class: 'sip-client-provider' }, slots.default?.())
     }
   },
 })

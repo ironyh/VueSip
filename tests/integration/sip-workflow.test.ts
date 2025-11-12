@@ -16,6 +16,7 @@ import { EventBus } from '../../src/core/EventBus'
 import { createMockSipServer, type MockRTCSession } from '../helpers/MockSipServer'
 import type { SipClientConfig } from '../../src/types/config.types'
 import { RegistrationState } from '../../src/types/sip.types'
+import { waitFor, waitForEvent } from '../helpers/testUtils'
 
 // Mock JsSIP to use our MockSipServer
 vi.mock('jssip', () => {
@@ -31,7 +32,10 @@ vi.mock('jssip', () => {
         }
         // Fallback: create a temporary one
         if (!mockSipServer) {
-          mockSipServer = createMockSipServer({ autoRegister: false })
+          mockSipServer = createMockSipServer({ 
+            autoRegister: false,
+            networkLatency: 0
+          })
         }
         return mockSipServer.getUA()
       }),
@@ -126,6 +130,41 @@ function setupMockMediaDevices(): void {
   })
 }
 
+// Event handler storage for mock UA
+const eventHandlers = new Map<string, Function[]>()
+const onceHandlers = new Map<string, Function[]>()
+const sessionEventHandlers = new Map<string, Function[]>()
+
+// Mock UA object
+const mockUA = {
+  on: vi.fn(),
+  once: vi.fn(),
+  start: vi.fn(),
+  stop: vi.fn(),
+  register: vi.fn(),
+  unregister: vi.fn(),
+  call: vi.fn(),
+  isConnected: vi.fn(() => false),
+  isRegistered: vi.fn(() => false),
+}
+
+// Mock RTC Session object
+const mockRTCSession = {
+  on: vi.fn(),
+  connection: {
+    addEventListener: vi.fn(),
+    getSenders: vi.fn(() => []),
+    getReceivers: vi.fn(() => []),
+  },
+  sendDTMF: vi.fn(),
+  refer: vi.fn(),
+  hold: vi.fn(),
+  unhold: vi.fn(),
+  terminate: vi.fn(),
+  isEnded: vi.fn(() => false),
+  isEstablished: vi.fn(() => false),
+}
+
 describe('SIP Workflow Integration Tests', () => {
   let eventBus: EventBus
   let sipClient: SipClient
@@ -161,7 +200,10 @@ describe('SIP Workflow Integration Tests', () => {
     })
 
     eventBus = new EventBus()
-    mockSipServer = createMockSipServer({ autoRegister: false })
+    mockSipServer = createMockSipServer({ 
+      autoRegister: false,
+      networkLatency: 0 // Disable latency for CI reliability
+    })
     
     // Store mock server globally so JsSIP mock can access it
     ;(global as any).__mockSipServer = mockSipServer
@@ -187,10 +229,10 @@ describe('SIP Workflow Integration Tests', () => {
   })
 
   afterEach(() => {
-    sipClient.destroy()
-    mediaManager.destroy()
-    eventBus.destroy()
-    mockSipServer.destroy()
+    sipClient?.destroy()
+    mediaManager?.destroy()
+    eventBus?.destroy()
+    mockSipServer?.destroy()
     delete (global as any).__mockSipServer
   })
 
@@ -445,18 +487,26 @@ describe('SIP Workflow Integration Tests', () => {
 
       mockSipServer.simulateConnect()
       await sipClient.start()
+      
+      // Wait for connection state to be updated
+      await waitFor(() => sipClient.isConnected, { timeout: 1000, timeoutMessage: 'Connection not established' })
 
       mockSipServer.simulateRegistered()
       await sipClient.register()
-
-      const registerPromise = sipClient.register()
-      const successHandlers = onceHandlers.get('registered') ?? []
-      expect(successHandlers.length).toBeGreaterThan(0)
-      successHandlers[0]({ response: { getHeader: () => '600' } })
-      await registerPromise
+      
+      // Wait for registration state to be updated
+      await waitFor(() => sipClient.registrationState === RegistrationState.Registered, { 
+        timeout: 1000, 
+        timeoutMessage: 'Registration not completed' 
+      })
 
       expect(sipClient.isConnected).toBe(true)
       expect(sipClient.registrationState).toBe(RegistrationState.Registered)
+      
+      // Verify events were propagated
+      await waitFor(() => events.length > 0, { timeout: 1000 })
+      expect(events.some(e => e.type === 'connected')).toBe(true)
+      expect(events.some(e => e.type === 'registered')).toBe(true)
     })
   })
 

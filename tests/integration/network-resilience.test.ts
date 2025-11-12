@@ -13,6 +13,7 @@ import { SipClient } from '../../src/core/SipClient'
 import { CallSession } from '../../src/core/CallSession'
 import { EventBus } from '../../src/core/EventBus'
 import type { SipClientConfig } from '../../src/types/config.types'
+import { waitFor, waitForEvent } from '../helpers/testUtils'
 
 // Mock JsSIP with proper event handler storage
 const createMockUA = () => {
@@ -114,6 +115,18 @@ vi.mock('jssip', () => {
     },
   }
 })
+
+// Helper function to schedule UA events asynchronously
+function scheduleUAEvent(event: string, data: any, delay: number = 0) {
+  setTimeout(() => {
+    mockUA.triggerEvent(event, data)
+  }, delay)
+}
+
+// Helper to flush all pending microtasks
+function flushMicrotasks(): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, 0))
+}
 
 describe('Network Resilience Integration Tests', () => {
   let eventBus: EventBus
@@ -430,6 +443,12 @@ describe('Network Resilience Integration Tests', () => {
 
       await sipClient.start()
       await flushMicrotasks()
+      
+      // Wait for connection state to update
+      await waitFor(() => sipClient.connectionState === 'connected', { 
+        timeout: 1000,
+        timeoutMessage: 'Connection state did not become connected' 
+      })
       expect(sipClient.connectionState).toBe('connected')
 
       // Wait for handlers to be set up, then trigger connected event
