@@ -220,25 +220,10 @@ describe('RecordingPlugin - Edge Cases', () => {
       }
 
       // Temporarily replace global mock
-      const originalMockMediaRecorder = global.MediaRecorder
+      const originalMediaRecorder = global.MediaRecorder
       global.MediaRecorder = EmptyMockMediaRecorder as any
 
       const onRecordingError = vi.fn()
-
-      // Create a mock MediaRecorder that doesn't provide data
-      class EmptyMockMediaRecorder extends MockMediaRecorder {
-        stop() {
-          this.state = 'inactive'
-          // Don't trigger ondataavailable - simulate empty recording
-          if (this.onstop) {
-            setTimeout(() => this.onstop?.(), 10)
-          }
-        }
-      }
-
-      // Temporarily replace the global MediaRecorder
-      const originalMediaRecorder = global.MediaRecorder
-      global.MediaRecorder = EmptyMockMediaRecorder as any
 
       await plugin.install(context, {
         storeInIndexedDB: false,
