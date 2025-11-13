@@ -10,6 +10,7 @@
 import { ref, computed, onUnmounted, type Ref, type ComputedRef } from 'vue'
 import type { CallSession } from '../types/call.types'
 import type { SipClient } from '../core/SipClient'
+import type { UseSipClientReturn } from './useSipClient'
 import {
   TransferState,
   TransferType,
@@ -110,7 +111,16 @@ export interface UseCallControlsReturn {
  * await completeAttendedTransfer()
  * ```
  */
-export function useCallControls(sipClient: Ref<SipClient | null>): UseCallControlsReturn {
+// Function overloads for better DX
+export function useCallControls(sipClientOrRef: UseSipClientReturn): UseCallControlsReturn
+export function useCallControls(sipClientOrRef: Ref<SipClient | null>): UseCallControlsReturn
+
+// Implementation
+export function useCallControls(
+  sipClientOrRef: UseSipClientReturn | Ref<SipClient | null>
+): UseCallControlsReturn {
+  // Extract ref from composable if needed
+  const sipClient = 'getClient' in sipClientOrRef ? ref(sipClientOrRef.getClient()) : sipClientOrRef
   // ============================================================================
   // Reactive State
   // ============================================================================

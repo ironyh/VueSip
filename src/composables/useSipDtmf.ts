@@ -7,17 +7,11 @@
  * @module composables/useSipDtmf
  */
 import { ref, type Ref } from 'vue'
-import type {
-  SessionDescriptionHandler,
-  RTCRtpSenderWithDTMF,
-} from '@/types/media.types'
+import type { SessionDescriptionHandler, RTCRtpSenderWithDTMF } from '@/types/media.types'
+import type { UseCallSessionReturn } from './useCallSession'
 import { abortableSleep, throwIfAborted } from '@/utils/abortController'
 import { createLogger } from '@/utils/logger'
-import {
-  ErrorSeverity,
-  logErrorWithContext,
-  createOperationTimer,
-} from '@/utils/errorContext'
+import { ErrorSeverity, logErrorWithContext, createOperationTimer } from '@/utils/errorContext'
 
 const log = createLogger('useSipDtmf')
 
@@ -31,8 +25,18 @@ export interface UseSipDtmfReturn {
  * @param currentSession - Reference to the current JsSIP RTCSession (typed as any due to lack of JsSIP types)
  * @returns Object with sendDtmf and sendDtmfSequence methods
  */
+// Function overloads for better DX
+export function useSipDtmf(sessionOrRef: UseCallSessionReturn): UseSipDtmfReturn
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function useSipDtmf(currentSession: Ref<any | null>): UseSipDtmfReturn {
+export function useSipDtmf(sessionOrRef: Ref<any | null>): UseSipDtmfReturn
+
+// Implementation
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function useSipDtmf(sessionOrRef: UseCallSessionReturn | Ref<any | null>): UseSipDtmfReturn {
+  // Extract ref from composable if needed
+
+  const currentSession =
+    'session' in sessionOrRef ? (sessionOrRef.session as Ref<any | null>) : sessionOrRef
   // Concurrent operation guard to prevent overlapping DTMF sequences
   const isOperationInProgress = ref(false)
 

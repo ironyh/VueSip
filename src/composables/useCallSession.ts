@@ -21,14 +21,11 @@ import type {
   CallStatistics,
   TerminationCause,
 } from '../types/call.types'
+import type { UseSipClientReturn } from './useSipClient'
 import { createLogger } from '../utils/logger'
 import { validateSipUri } from '../utils/validators'
 import { throwIfAborted, isAbortError } from '../utils/abortController'
-import {
-  ErrorSeverity,
-  logErrorWithContext,
-  createOperationTimer,
-} from '../utils/errorContext'
+import { ErrorSeverity, logErrorWithContext, createOperationTimer } from '../utils/errorContext'
 
 const log = createLogger('useCallSession')
 
@@ -160,10 +157,23 @@ export interface UseCallSessionReturn {
  * await hangup()
  * ```
  */
+// Function overloads for better DX
 export function useCallSession(
-  sipClient: Ref<SipClient | null>,
+  sipClientOrRef: UseSipClientReturn,
+  mediaManager?: Ref<MediaManager | null>
+): UseCallSessionReturn
+export function useCallSession(
+  sipClientOrRef: Ref<SipClient | null>,
+  mediaManager?: Ref<MediaManager | null>
+): UseCallSessionReturn
+
+// Implementation
+export function useCallSession(
+  sipClientOrRef: UseSipClientReturn | Ref<SipClient | null>,
   mediaManager?: Ref<MediaManager | null>
 ): UseCallSessionReturn {
+  // Extract ref from composable if needed
+  const sipClient = 'getClient' in sipClientOrRef ? ref(sipClientOrRef.getClient()) : sipClientOrRef
   // ============================================================================
   // Reactive State
   // ============================================================================
