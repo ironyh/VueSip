@@ -349,7 +349,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onUnmounted } from 'vue'
+import { ref, computed, watch, onUnmounted } from 'vue'
 import {
   useSipClient,
   useCallSession,
@@ -434,16 +434,26 @@ let selectAudioOutput: any
 let history: any
 
 try {
-  // SIP Client
-  sipClient = useSipClient({
+  // Temporarily disable composables to test if basic app mounts
+  console.log('TestApp: Starting composable initialization...')
+
+  // SIP Client - pass undefined for initialConfig, options as second parameter
+  console.log('TestApp: Initializing useSipClient...')
+  sipClient = useSipClient(undefined, {
     autoConnect: false,
     autoCleanup: true,
   })
+  console.log('TestApp: useSipClient initialized')
   ;({ isConnected, isRegistered, connectionState, lastError, connect, disconnect, updateConfig } =
     sipClient)
 
+  // Create a computed ref for the SipClient instance
+  const sipClientRef = computed(() => sipClient?.getClient() ?? null)
+
   // Call Session
-  callSession = useCallSession(sipClient)
+  console.log('TestApp: Initializing useCallSession...')
+  callSession = useCallSession(sipClientRef)
+  console.log('TestApp: useCallSession initialized')
   ;({
     callState,
     direction,
@@ -462,10 +472,17 @@ try {
   } = callSession)
 
   // DTMF
+  console.log('TestApp: Initializing useDTMF...')
   dtmf = useDTMF(callSession)
+  console.log('TestApp: useDTMF initialized')
 
-  // Media Devices
-  mediaDevices = useMediaDevices()
+  // Media Devices - disable auto-enumerate to prevent browser crashes in E2E tests
+  console.log('TestApp: Initializing useMediaDevices...')
+  mediaDevices = useMediaDevices(undefined, {
+    autoEnumerate: false,
+    autoMonitor: false,
+  })
+  console.log('TestApp: useMediaDevices initialized')
   ;({
     audioInputDevices,
     audioOutputDevices,
@@ -476,11 +493,17 @@ try {
   } = mediaDevices)
 
   // Call History
+  console.log('TestApp: Initializing useCallHistory...')
   callHistory = useCallHistory()
+  console.log('TestApp: useCallHistory initialized')
   ;({ history } = callHistory)
 
   // Call Controls
+  console.log('TestApp: Initializing useCallControls...')
   callControls = useCallControls(callSession)
+  console.log('TestApp: useCallControls initialized')
+
+  console.log('TestApp: All composables initialized successfully')
 } catch (error: any) {
   initializationError.value = `Failed to initialize: ${error.message || 'Unknown error'}`
   console.error('Composable initialization error:', error)
