@@ -121,7 +121,7 @@
             </div>
 
             <!-- DTMF Pad (during call) -->
-            <div v-if="callState !== 'idle'" class="dtmf-section">
+            <div v-if="callState === 'confirmed'" class="dtmf-section">
               <button data-testid="dialpad-toggle" class="btn btn-secondary" @click="toggleDTMF">
                 {{ showDTMF ? 'Hide' : 'Show' }} DTMF Pad
               </button>
