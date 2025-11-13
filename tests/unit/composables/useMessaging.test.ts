@@ -1143,24 +1143,83 @@ describe('useMessaging', () => {
   })
 
   // ==========================================================================
-  // Edge Cases
+  // Content Validation
   // ==========================================================================
 
-  describe('Edge Cases', () => {
-    it('should handle empty message content', async () => {
+  describe('Content Validation', () => {
+    it('should throw error for empty message content', async () => {
       const sipClientRef = ref<SipClient>(mockSipClient)
       const { result, unmount } = withSetup(() => useMessaging(sipClientRef))
 
-      await result.sendMessage('sip:bob@example.com', '')
+      await expect(result.sendMessage('sip:bob@example.com', '')).rejects.toThrow(
+        'Message content cannot be empty'
+      )
+
+      expect(mockSipClient.sendMessage).not.toHaveBeenCalled()
+
+      unmount()
+    })
+
+    it('should throw error for whitespace-only message content', async () => {
+      const sipClientRef = ref<SipClient>(mockSipClient)
+      const { result, unmount } = withSetup(() => useMessaging(sipClientRef))
+
+      await expect(result.sendMessage('sip:bob@example.com', '   ')).rejects.toThrow(
+        'Message content cannot be empty'
+      )
+
+      expect(mockSipClient.sendMessage).not.toHaveBeenCalled()
+
+      unmount()
+    })
+
+    it('should throw error for newline-only message content', async () => {
+      const sipClientRef = ref<SipClient>(mockSipClient)
+      const { result, unmount } = withSetup(() => useMessaging(sipClientRef))
+
+      await expect(result.sendMessage('sip:bob@example.com', '\n\n')).rejects.toThrow(
+        'Message content cannot be empty'
+      )
+
+      expect(mockSipClient.sendMessage).not.toHaveBeenCalled()
+
+      unmount()
+    })
+
+    it('should throw error for tab-only message content', async () => {
+      const sipClientRef = ref<SipClient>(mockSipClient)
+      const { result, unmount } = withSetup(() => useMessaging(sipClientRef))
+
+      await expect(result.sendMessage('sip:bob@example.com', '\t\t')).rejects.toThrow(
+        'Message content cannot be empty'
+      )
+
+      expect(mockSipClient.sendMessage).not.toHaveBeenCalled()
+
+      unmount()
+    })
+
+    it('should allow message with leading/trailing whitespace but valid content', async () => {
+      const sipClientRef = ref<SipClient>(mockSipClient)
+      const { result, unmount } = withSetup(() => useMessaging(sipClientRef))
+
+      await result.sendMessage('sip:bob@example.com', '  Hello  ')
 
       expect(mockSipClient.sendMessage).toHaveBeenCalledWith(
         'sip:bob@example.com',
-        '',
+        '  Hello  ',
         expect.any(Object)
       )
 
       unmount()
     })
+  })
+
+  // ==========================================================================
+  // Edge Cases
+  // ==========================================================================
+
+  describe('Edge Cases', () => {
 
     it('should handle very long message content', async () => {
       const sipClientRef = ref<SipClient>(mockSipClient)

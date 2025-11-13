@@ -443,7 +443,7 @@ try {
     sipClient)
 
   // Call Session
-  callSession = useCallSession(sipClient)
+  callSession = useCallSession(sipClient.getClient())
   ;({
     callState,
     direction,
@@ -462,7 +462,7 @@ try {
   } = callSession)
 
   // DTMF
-  dtmf = useDTMF(callSession)
+  dtmf = useDTMF(callSession.getCurrentSession())
 
   // Media Devices
   mediaDevices = useMediaDevices()
@@ -480,7 +480,7 @@ try {
   ;({ history } = callHistory)
 
   // Call Controls
-  callControls = useCallControls(callSession)
+  callControls = useCallControls(sipClient.getClient())
 } catch (error: any) {
   initializationError.value = `Failed to initialize: ${error.message || 'Unknown error'}`
   console.error('Composable initialization error:', error)

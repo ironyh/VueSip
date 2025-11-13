@@ -354,9 +354,13 @@ export function useConference(sipClient: Ref<SipClient | null>): UseConferenceRe
 
   const conference = ref<ConferenceStateInterface | null>(null)
   const conferenceEventListeners = ref<Array<(event: ConferenceEvent) => void>>([])
+  const isOperationInProgress = ref(false)
 
   // Audio level monitoring
   let audioLevelInterval: number | null = null
+
+  // State transition timer for cleanup
+  let stateTransitionTimer: number | null = null
 
   // ============================================================================
   // Computed Values
@@ -494,10 +498,21 @@ export function useConference(sipClient: Ref<SipClient | null>): UseConferenceRe
       throw new Error('A conference is already active')
     }
 
+    if (isOperationInProgress.value) {
+      throw new Error('Another conference operation is already in progress')
+    }
+
+    // Validate maxParticipants range
+    const maxParticipants = options.maxParticipants || CONFERENCE_CONSTANTS.DEFAULT_MAX_PARTICIPANTS
+    if (maxParticipants < 2 || maxParticipants > 1000) {
+      throw new Error('maxParticipants must be between 2 and 1000')
+    }
+
     try {
+      isOperationInProgress.value = true
       log.info('Creating conference')
 
-      const conferenceId = `conf-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      const conferenceId = `conf-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`
 
       // Initialize conference state
       conference.value = {
@@ -506,7 +521,7 @@ export function useConference(sipClient: Ref<SipClient | null>): UseConferenceRe
         participants: new Map(),
         isLocked: options.locked || false,
         isRecording: false,
-        maxParticipants: options.maxParticipants || CONFERENCE_CONSTANTS.DEFAULT_MAX_PARTICIPANTS,
+        maxParticipants,
         metadata: options.metadata,
       }
 
@@ -555,6 +570,8 @@ export function useConference(sipClient: Ref<SipClient | null>): UseConferenceRe
       }
 
       throw error
+    } finally {
+      isOperationInProgress.value = false
     }
   }
 
@@ -611,6 +628,10 @@ export function useConference(sipClient: Ref<SipClient | null>): UseConferenceRe
       throw new Error('SIP client not initialized')
     }
 
+    if (isOperationInProgress.value) {
+      throw new Error('Another conference operation is already in progress')
+    }
+
     // Validate conference URI
     const uriValidation = validateSipUri(conferenceUri)
     if (!uriValidation.valid) {
@@ -619,10 +640,17 @@ export function useConference(sipClient: Ref<SipClient | null>): UseConferenceRe
       throw new Error(error)
     }
 
+    // Validate maxParticipants range
+    const maxParticipants = options.maxParticipants || CONFERENCE_CONSTANTS.DEFAULT_MAX_PARTICIPANTS
+    if (maxParticipants < 2 || maxParticipants > 1000) {
+      throw new Error('maxParticipants must be between 2 and 1000')
+    }
+
     try {
+      isOperationInProgress.value = true
       log.info(`Joining conference: ${conferenceUri}`)
 
-      const conferenceId = `conf-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      const conferenceId = `conf-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`
 
       conference.value = {
         id: conferenceId,
@@ -631,7 +659,7 @@ export function useConference(sipClient: Ref<SipClient | null>): UseConferenceRe
         participants: new Map(),
         isLocked: false,
         isRecording: false,
-        maxParticipants: options.maxParticipants || CONFERENCE_CONSTANTS.DEFAULT_MAX_PARTICIPANTS,
+        maxParticipants,
       }
 
       // Join conference via SIP client
@@ -653,6 +681,8 @@ export function useConference(sipClient: Ref<SipClient | null>): UseConferenceRe
       }
 
       throw error
+    } finally {
+      isOperationInProgress.value = false
     }
   }
 
@@ -710,6 +740,10 @@ export function useConference(sipClient: Ref<SipClient | null>): UseConferenceRe
       throw new Error('No active conference')
     }
 
+    if (isOperationInProgress.value) {
+      throw new Error('Another conference operation is already in progress')
+    }
+
     if (isLocked.value) {
       throw new Error('Conference is locked')
     }
@@ -730,9 +764,10 @@ export function useConference(sipClient: Ref<SipClient | null>): UseConferenceRe
     }
 
     try {
+      isOperationInProgress.value = true
       log.info(`Adding participant: ${uri}`)
 
-      const participantId = `part-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      const participantId = `part-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`
 
       const participant: Participant = {
         id: participantId,
@@ -770,6 +805,8 @@ export function useConference(sipClient: Ref<SipClient | null>): UseConferenceRe
       const errorMessage = error instanceof Error ? error.message : 'Failed to add participant'
       log.error('Failed to add participant:', errorMessage)
       throw error
+    } finally {
+      isOperationInProgress.value = false
     }
   }
 
@@ -819,6 +856,10 @@ export function useConference(sipClient: Ref<SipClient | null>): UseConferenceRe
       throw new Error('No active conference')
     }
 
+    if (isOperationInProgress.value) {
+      throw new Error('Another conference operation is already in progress')
+    }
+
     const participant = conference.value.participants.get(participantId)
     if (!participant) {
       throw new Error(`Participant ${participantId} not found`)
@@ -829,6 +870,7 @@ export function useConference(sipClient: Ref<SipClient | null>): UseConferenceRe
     }
 
     try {
+      isOperationInProgress.value = true
       log.info(`Removing participant: ${participantId}`)
 
       participant.state = ParticipantState.Disconnected
@@ -855,6 +897,8 @@ export function useConference(sipClient: Ref<SipClient | null>): UseConferenceRe
       const errorMessage = error instanceof Error ? error.message : 'Failed to remove participant'
       log.error('Failed to remove participant:', errorMessage)
       throw error
+    } finally {
+      isOperationInProgress.value = false
     }
   }
 
@@ -1074,7 +1118,12 @@ export function useConference(sipClient: Ref<SipClient | null>): UseConferenceRe
       throw new Error('No active conference')
     }
 
+    if (isOperationInProgress.value) {
+      throw new Error('Another conference operation is already in progress')
+    }
+
     try {
+      isOperationInProgress.value = true
       log.info('Ending conference')
 
       updateConferenceState(ConferenceState.Ending)
@@ -1089,9 +1138,15 @@ export function useConference(sipClient: Ref<SipClient | null>): UseConferenceRe
 
       updateConferenceState(ConferenceState.Ended)
 
+      // Clear existing timer before setting new one
+      if (stateTransitionTimer !== null) {
+        clearTimeout(stateTransitionTimer)
+      }
+
       // Clear conference after a delay
-      setTimeout(() => {
+      stateTransitionTimer = window.setTimeout(() => {
         conference.value = null
+        stateTransitionTimer = null
       }, CONFERENCE_CONSTANTS.STATE_TRANSITION_DELAY)
 
       log.info('Conference ended')
@@ -1099,6 +1154,8 @@ export function useConference(sipClient: Ref<SipClient | null>): UseConferenceRe
       const errorMessage = error instanceof Error ? error.message : 'Failed to end conference'
       log.error('Failed to end conference:', errorMessage)
       throw error
+    } finally {
+      isOperationInProgress.value = false
     }
   }
 
@@ -1522,6 +1579,12 @@ export function useConference(sipClient: Ref<SipClient | null>): UseConferenceRe
 
     // Stop audio monitoring
     stopAudioLevelMonitoring()
+
+    // Clear state transition timer
+    if (stateTransitionTimer !== null) {
+      clearTimeout(stateTransitionTimer)
+      stateTransitionTimer = null
+    }
 
     // End conference if active
     if (conference.value && isActive.value) {

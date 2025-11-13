@@ -17,7 +17,7 @@ export function createAbortError(message = 'Operation aborted'): DOMException {
  * @param error - Error to check
  * @returns True if error is an AbortError
  */
-export function isAbortError(error: unknown): boolean {
+export function isAbortError(error: unknown): error is DOMException {
   return error instanceof DOMException && error.name === 'AbortError'
 }
 
@@ -26,6 +26,17 @@ export function isAbortError(error: unknown): boolean {
  * @param ms - Milliseconds to sleep
  * @param signal - Optional abort signal
  * @returns Promise that resolves after the duration or rejects if aborted
+ * @example
+ * ```typescript
+ * const controller = new AbortController()
+ * try {
+ *   await abortableSleep(1000, controller.signal)
+ * } catch (error) {
+ *   if (isAbortError(error)) {
+ *     console.log('Sleep was aborted')
+ *   }
+ * }
+ * ```
  */
 export function abortableSleep(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -34,12 +45,16 @@ export function abortableSleep(ms: number, signal?: AbortSignal): Promise<void> 
       return
     }
 
-    const timeoutId = setTimeout(resolve, ms)
-
     const abortHandler = () => {
       clearTimeout(timeoutId)
       reject(createAbortError())
     }
+
+    const timeoutId = setTimeout(() => {
+      // Clean up event listener when timeout completes successfully
+      signal?.removeEventListener('abort', abortHandler)
+      resolve()
+    }, ms)
 
     signal?.addEventListener('abort', abortHandler, { once: true })
   })

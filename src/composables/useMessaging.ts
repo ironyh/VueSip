@@ -203,7 +203,7 @@ export function useMessaging(sipClient: Ref<SipClient | null>): UseMessagingRetu
     log.info(`Received message from ${from}`)
 
     const message: Message = {
-      id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
       direction: MessageDirection.Incoming,
       from,
       to: sipClient.value?.getConfig().uri || '',
@@ -292,6 +292,11 @@ export function useMessaging(sipClient: Ref<SipClient | null>): UseMessagingRetu
       throw new Error('SIP client not initialized')
     }
 
+    // Validate content is not empty
+    if (!content || !content.trim()) {
+      throw new Error('Message content cannot be empty')
+    }
+
     // Validate recipient URI
     const uriValidation = validateSipUri(to)
     if (!uriValidation.valid) {
@@ -307,7 +312,7 @@ export function useMessaging(sipClient: Ref<SipClient | null>): UseMessagingRetu
       requestReadNotification,
     } = options
 
-    const messageId = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    const messageId = `msg-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`
 
     try {
       log.info(`Sending message to ${to}`)
