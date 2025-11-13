@@ -260,7 +260,9 @@ describe('useConference', () => {
     it('should throw error if no active conference', async () => {
       const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      await expect(result.addParticipant('sip:alice@example.com')).rejects.toThrow('No active conference')
+      await expect(result.addParticipant('sip:alice@example.com')).rejects.toThrow(
+        'No active conference'
+      )
 
       unmount()
     })
@@ -270,7 +272,9 @@ describe('useConference', () => {
 
       await result.createConference({ locked: true })
 
-      await expect(result.addParticipant('sip:alice@example.com')).rejects.toThrow('Conference is locked')
+      await expect(result.addParticipant('sip:alice@example.com')).rejects.toThrow(
+        'Conference is locked'
+      )
 
       unmount()
     })
@@ -278,9 +282,12 @@ describe('useConference', () => {
     it('should throw error if conference is full', async () => {
       const { result, unmount } = withSetup(() => useConference(sipClientRef))
 
-      await result.createConference({ maxParticipants: 1 }) // Only local participant
+      await result.createConference({ maxParticipants: 2 }) // Local participant + 1 slot
+      await result.addParticipant('sip:alice@example.com') // Fill the remaining slot
 
-      await expect(result.addParticipant('sip:alice@example.com')).rejects.toThrow('Conference is full')
+      await expect(result.addParticipant('sip:bob@example.com')).rejects.toThrow(
+        'Conference is full'
+      )
 
       unmount()
     })
@@ -311,7 +318,6 @@ describe('useConference', () => {
       await result.createConference()
       await result.addParticipant('sip:alice@example.com')
 
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       expect(mockSipClient.inviteToConference).toHaveBeenCalledWith(
         result.conference.value!.id,
         'sip:alice@example.com'
@@ -329,7 +335,9 @@ describe('useConference', () => {
 
       expect(firstId).not.toBe(secondId)
       expect(result.participantCount.value).toBe(3) // Local + Alice + Alice
-      expect(result.participants.value.filter((p) => p.uri === 'sip:alice@example.com')).toHaveLength(2)
+      expect(
+        result.participants.value.filter((p) => p.uri === 'sip:alice@example.com')
+      ).toHaveLength(2)
 
       unmount()
     })
@@ -432,7 +440,6 @@ describe('useConference', () => {
       const participantId = await result.addParticipant('sip:alice@example.com')
       await result.removeParticipant(participantId)
 
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       expect(mockSipClient.removeFromConference).toHaveBeenCalledWith(
         result.conference.value!.id,
         'sip:alice@example.com'
@@ -646,7 +653,9 @@ describe('useConference', () => {
       const afterTime = new Date()
 
       expect(result.conference.value?.startedAt).toBeInstanceOf(Date)
-      expect(result.conference.value!.startedAt!.getTime()).toBeGreaterThanOrEqual(beforeTime.getTime())
+      expect(result.conference.value!.startedAt!.getTime()).toBeGreaterThanOrEqual(
+        beforeTime.getTime()
+      )
       expect(result.conference.value!.startedAt!.getTime()).toBeLessThanOrEqual(afterTime.getTime())
 
       unmount()
@@ -663,7 +672,9 @@ describe('useConference', () => {
       const afterEnd = new Date()
 
       expect(result.conference.value?.endedAt).toBeInstanceOf(Date)
-      expect(result.conference.value!.endedAt!.getTime()).toBeGreaterThanOrEqual(beforeEnd.getTime())
+      expect(result.conference.value!.endedAt!.getTime()).toBeGreaterThanOrEqual(
+        beforeEnd.getTime()
+      )
       expect(result.conference.value!.endedAt!.getTime()).toBeLessThanOrEqual(afterEnd.getTime())
 
       unmount()
@@ -791,7 +802,9 @@ describe('useConference', () => {
 
       expect(result.isRecording.value).toBe(true)
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      expect(mockSipClient.startConferenceRecording).toHaveBeenCalledWith(result.conference.value!.id)
+      expect(mockSipClient.startConferenceRecording).toHaveBeenCalledWith(
+        result.conference.value!.id
+      )
 
       unmount()
     })
@@ -848,7 +861,9 @@ describe('useConference', () => {
 
       expect(result.isRecording.value).toBe(false)
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      expect(mockSipClient.stopConferenceRecording).toHaveBeenCalledWith(result.conference.value!.id)
+      expect(mockSipClient.stopConferenceRecording).toHaveBeenCalledWith(
+        result.conference.value!.id
+      )
 
       unmount()
     })
