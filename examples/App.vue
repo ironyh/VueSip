@@ -1,5 +1,5 @@
 <template>
-  <div id="app">
+  <div id="app" data-testid="sip-client">
     <div class="container">
       <h1>VueSip - SIP Interface</h1>
 
