@@ -543,14 +543,14 @@ const saveSettings = () => {
 
   // Validate WebSocket URI format
   const uriValidation = validateWebSocketUrl(tempConfig.value.uri)
-  if (!uriValidation.isValid) {
+  if (!uriValidation.valid) {
     validationError.value = `Invalid Server URI: ${uriValidation.error}`
     return
   }
 
   // Validate SIP URI format
   const sipUriValidation = validateSipUri(tempConfig.value.sipUri)
-  if (!sipUriValidation.isValid) {
+  if (!sipUriValidation.valid) {
     validationError.value = `Invalid SIP URI: ${sipUriValidation.error}`
     return
   }
