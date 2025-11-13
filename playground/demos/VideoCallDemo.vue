@@ -221,7 +221,8 @@ watch(localStream, (stream) => {
   if (localVideoEl.value && stream) {
     localVideoEl.value.srcObject = stream
   }
-})</code></pre>
+})
+</code></pre>
     </div>
   </div>
 </template>
