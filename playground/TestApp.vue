@@ -488,10 +488,11 @@ try {
   dtmf = useDTMF(callSession)
   console.log('TestApp: useDTMF initialized')
 
-  // Media Devices - disable auto-enumerate to prevent browser crashes in E2E tests
+  // Media Devices - enable auto-enumerate in E2E tests (we have mocks)
   console.log('TestApp: Initializing useMediaDevices...')
+  const isE2E = window.location.search.includes('test=true')
   mediaDevices = useMediaDevices(undefined, {
-    autoEnumerate: false,
+    autoEnumerate: isE2E, // Enable for E2E tests with mocked devices
     autoMonitor: false,
   })
   console.log('TestApp: useMediaDevices initialized')
