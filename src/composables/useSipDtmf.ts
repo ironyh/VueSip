@@ -6,12 +6,13 @@
  *
  * @module composables/useSipDtmf
  */
-import type { Ref } from 'vue'
-import type {
-  SessionDescriptionHandler,
-  RTCRtpSenderWithDTMF,
-} from '@/types/media.types'
+import { ref, type Ref } from 'vue'
+import type { SessionDescriptionHandler, RTCRtpSenderWithDTMF } from '@/types/media.types'
 import { abortableSleep, throwIfAborted } from '@/utils/abortController'
+import { createLogger } from '@/utils/logger'
+import { ErrorSeverity, logErrorWithContext, createOperationTimer } from '@/utils/errorContext'
+
+const log = createLogger('useSipDtmf')
 
 export interface UseSipDtmfReturn {
   sendDtmf: (digit: string) => Promise<void>
@@ -25,6 +26,9 @@ export interface UseSipDtmfReturn {
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function useSipDtmf(currentSession: Ref<any | null>): UseSipDtmfReturn {
+  // Concurrent operation guard to prevent overlapping DTMF sequences
+  const isOperationInProgress = ref(false)
+
   const sendDtmf = async (digit: string) => {
     if (!currentSession.value) {
       throw new Error('No active session')
@@ -34,6 +38,8 @@ export function useSipDtmf(currentSession: Ref<any | null>): UseSipDtmfReturn {
     if (!/^[0-9*#A-D]$/.test(digit)) {
       throw new Error('Invalid DTMF digit')
     }
+
+    const timer = createOperationTimer()
 
     try {
       // Send DTMF via RTP if available
@@ -51,6 +57,24 @@ export function useSipDtmf(currentSession: Ref<any | null>): UseSipDtmfReturn {
         }
       }
     } catch (err) {
+      logErrorWithContext(
+        log,
+        'Failed to send DTMF tone',
+        err,
+        'sendDtmf',
+        'useSipDtmf',
+        ErrorSeverity.LOW,
+        {
+          context: {
+            digit,
+          },
+          state: {
+            hasSession: !!currentSession.value,
+            sessionState: currentSession.value?.state,
+          },
+          duration: timer.elapsed(),
+        }
+      )
       throw new Error(`Failed to send DTMF: ${err}`)
     }
   }
@@ -84,17 +108,60 @@ export function useSipDtmf(currentSession: Ref<any | null>): UseSipDtmfReturn {
     // Check if already aborted before starting
     throwIfAborted(signal)
 
-    for (let i = 0; i < digits.length; i++) {
-      const digit = digits[i]
-      if (!digit) continue // Skip undefined/empty
+    // Check for concurrent operations
+    if (isOperationInProgress.value) {
+      throw new Error('DTMF sequence already in progress - concurrent operations not allowed')
+    }
 
-      // Send the tone
-      await sendDtmf(digit)
+    // Upfront validation: validate entire sequence before processing
+    if (!/^[0-9*#A-D]+$/.test(digits)) {
+      throw new Error(`Invalid DTMF sequence: "${digits}" - only 0-9, A-D, *, and # are allowed`)
+    }
 
-      // Wait between tones (except after the last one)
-      if (i < digits.length - 1) {
-        await abortableSleep(interval, signal)
+    const timer = createOperationTimer()
+
+    try {
+      // Set operation in progress flag
+      isOperationInProgress.value = true
+
+      for (let i = 0; i < digits.length; i++) {
+        const digit = digits[i]
+        if (!digit) continue // Skip undefined/empty
+
+        // Send the tone
+        await sendDtmf(digit)
+
+        // Wait between tones (except after the last one)
+        if (i < digits.length - 1) {
+          await abortableSleep(interval, signal)
+        }
       }
+    } catch (err) {
+      logErrorWithContext(
+        log,
+        'Failed to send DTMF sequence',
+        err,
+        'sendDtmfSequence',
+        'useSipDtmf',
+        ErrorSeverity.LOW,
+        {
+          context: {
+            digits,
+            interval,
+            digitsLength: digits.length,
+          },
+          state: {
+            hasSession: !!currentSession.value,
+            sessionState: currentSession.value?.state,
+            isOperationInProgress: isOperationInProgress.value,
+          },
+          duration: timer.elapsed(),
+        }
+      )
+      throw err
+    } finally {
+      // Always clear the operation flag
+      isOperationInProgress.value = false
     }
   }
 

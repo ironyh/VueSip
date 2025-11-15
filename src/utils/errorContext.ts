@@ -18,6 +18,20 @@ export enum ErrorSeverity {
 }
 
 /**
+ * Sensitive keys that should be redacted in logs
+ */
+const SENSITIVE_KEYS = [
+  'password',
+  'token',
+  'apiKey',
+  'secret',
+  'authorization',
+  'auth',
+  'key',
+  'credentials',
+] as const
+
+/**
  * Error context structure
  */
 export interface ErrorContext {
@@ -145,10 +159,13 @@ export function formatError(
  * ```
  */
 export function createOperationTimer(): { elapsed: () => number } {
-  const startTime = Date.now()
+  const startTime = typeof performance !== 'undefined' ? performance.now() : Date.now()
 
   return {
-    elapsed: () => Date.now() - startTime,
+    elapsed: () => {
+      const now = typeof performance !== 'undefined' ? performance.now() : Date.now()
+      return Math.round(now - startTime)
+    },
   }
 }
 
@@ -156,8 +173,10 @@ export function createOperationTimer(): { elapsed: () => number } {
  * Sanitize sensitive data from context
  *
  * Removes or masks sensitive fields like passwords, tokens, etc.
+ * Handles circular references and nested arrays.
  *
  * @param data - Data to sanitize
+ * @param seen - WeakSet to track visited objects (for circular reference detection)
  * @returns Sanitized data
  *
  * @example
@@ -165,33 +184,49 @@ export function createOperationTimer(): { elapsed: () => number } {
  * const sanitized = sanitizeContext({
  *   username: 'alice',
  *   password: 'secret123',
- *   apiKey: 'key-12345'
+ *   apiKey: 'key-12345',
+ *   users: [{ name: 'bob', password: 'secret456' }]
  * })
- * // { username: 'alice', password: '[REDACTED]', apiKey: '[REDACTED]' }
+ * // { username: 'alice', password: '[REDACTED]', apiKey: '[REDACTED]', users: [{ name: 'bob', password: '[REDACTED]' }] }
  * ```
  */
-export function sanitizeContext(data: Record<string, unknown>): Record<string, unknown> {
-  const sensitiveKeys = [
-    'password',
-    'token',
-    'apiKey',
-    'secret',
-    'authorization',
-    'auth',
-    'key',
-    'credentials',
-  ]
+export function sanitizeContext(
+  data: Record<string, unknown>,
+  seen = new WeakSet<object>()
+): Record<string, unknown> {
+  // Check for circular reference
+  if (seen.has(data)) {
+    return { '[Circular]': true }
+  }
+  seen.add(data)
 
   const sanitized: Record<string, unknown> = {}
 
   for (const [key, value] of Object.entries(data)) {
     const lowerKey = key.toLowerCase()
-    const isSensitive = sensitiveKeys.some((sensitiveKey) => lowerKey.includes(sensitiveKey))
+
+    // Check if key contains sensitive information (exact match or with common separators)
+    const isSensitive = SENSITIVE_KEYS.some((sensitiveKey) => {
+      return (
+        lowerKey === sensitiveKey ||
+        lowerKey.startsWith(sensitiveKey + '_') ||
+        lowerKey.endsWith('_' + sensitiveKey) ||
+        lowerKey.includes('_' + sensitiveKey + '_')
+      )
+    })
 
     if (isSensitive) {
       sanitized[key] = '[REDACTED]'
-    } else if (value && typeof value === 'object' && !Array.isArray(value)) {
-      sanitized[key] = sanitizeContext(value as Record<string, unknown>)
+    } else if (Array.isArray(value)) {
+      // Sanitize arrays
+      sanitized[key] = value.map((item) => {
+        if (item && typeof item === 'object' && !Array.isArray(item)) {
+          return sanitizeContext(item as Record<string, unknown>, seen)
+        }
+        return item
+      })
+    } else if (value && typeof value === 'object') {
+      sanitized[key] = sanitizeContext(value as Record<string, unknown>, seen)
     } else {
       sanitized[key] = value
     }
@@ -209,7 +244,7 @@ export function sanitizeContext(data: Record<string, unknown>): Record<string, u
  * @example
  * ```typescript
  * const info = extractErrorInfo(error)
- * // { name: 'TypeError', message: 'Cannot read...', code: undefined }
+ * // { name: 'TypeError', message: 'Cannot read...', code: undefined, stack: '...' }
  * ```
  */
 export function extractErrorInfo(error: unknown): {
@@ -231,6 +266,8 @@ export function extractErrorInfo(error: unknown): {
       name: error.name,
       message: error.message,
       code: error.code,
+      // DOMException may have stack in some environments
+      stack: (error as any).stack,
     }
   }
 
@@ -240,6 +277,7 @@ export function extractErrorInfo(error: unknown): {
       name: String(err.name || 'UnknownError'),
       message: String(err.message || 'Unknown error'),
       code: err.code as string | number | undefined,
+      stack: typeof err.stack === 'string' ? err.stack : undefined,
     }
   }
 

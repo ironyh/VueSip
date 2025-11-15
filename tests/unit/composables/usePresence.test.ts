@@ -827,6 +827,122 @@ describe('usePresence', () => {
   })
 
   // ==========================================================================
+  // Validation
+  // ==========================================================================
+
+  describe('Validation', () => {
+    it('should reject invalid PresenceState enum value', async () => {
+      const sipClientRef = ref<SipClient>(mockSipClient)
+      const { setStatus } = usePresence(sipClientRef)
+
+      await expect(setStatus('InvalidState' as any)).rejects.toThrow(
+        'Invalid presence state'
+      )
+
+      expect(mockSipClient.publishPresence).not.toHaveBeenCalled()
+    })
+
+    it('should reject null PresenceState', async () => {
+      const sipClientRef = ref<SipClient>(mockSipClient)
+      const { setStatus } = usePresence(sipClientRef)
+
+      await expect(setStatus(null as any)).rejects.toThrow('Invalid presence state')
+
+      expect(mockSipClient.publishPresence).not.toHaveBeenCalled()
+    })
+
+    it('should reject undefined PresenceState', async () => {
+      const sipClientRef = ref<SipClient>(mockSipClient)
+      const { setStatus } = usePresence(sipClientRef)
+
+      await expect(setStatus(undefined as any)).rejects.toThrow('Invalid presence state')
+
+      expect(mockSipClient.publishPresence).not.toHaveBeenCalled()
+    })
+
+    it('should reject expires value less than minimum', async () => {
+      const sipClientRef = ref<SipClient>(mockSipClient)
+      const { setStatus } = usePresence(sipClientRef)
+
+      await expect(
+        setStatus(PresenceState.Available, { expires: 0 })
+      ).rejects.toThrow('Expires must be between')
+
+      expect(mockSipClient.publishPresence).not.toHaveBeenCalled()
+    })
+
+    it('should reject negative expires value', async () => {
+      const sipClientRef = ref<SipClient>(mockSipClient)
+      const { setStatus } = usePresence(sipClientRef)
+
+      await expect(
+        setStatus(PresenceState.Available, { expires: -100 })
+      ).rejects.toThrow('Expires must be between')
+
+      expect(mockSipClient.publishPresence).not.toHaveBeenCalled()
+    })
+
+    it('should reject expires value greater than maximum', async () => {
+      const sipClientRef = ref<SipClient>(mockSipClient)
+      const { setStatus } = usePresence(sipClientRef)
+
+      await expect(
+        setStatus(PresenceState.Available, { expires: 100000 })
+      ).rejects.toThrow('Expires must be between')
+
+      expect(mockSipClient.publishPresence).not.toHaveBeenCalled()
+    })
+
+    it('should accept minimum valid expires value', async () => {
+      const sipClientRef = ref<SipClient>(mockSipClient)
+      const { setStatus } = usePresence(sipClientRef)
+
+      // Minimum valid value (usually 60 seconds)
+      await setStatus(PresenceState.Available, { expires: 60 })
+
+      expect(mockSipClient.publishPresence).toHaveBeenCalledWith({
+        state: PresenceState.Available,
+        expires: 60,
+      })
+    })
+
+    it('should accept maximum valid expires value', async () => {
+      const sipClientRef = ref<SipClient>(mockSipClient)
+      const { setStatus } = usePresence(sipClientRef)
+
+      // Maximum valid value (usually 86400 seconds = 24 hours)
+      await setStatus(PresenceState.Available, { expires: 86400 })
+
+      expect(mockSipClient.publishPresence).toHaveBeenCalledWith({
+        state: PresenceState.Available,
+        expires: 86400,
+      })
+    })
+
+    it('should reject expires for subscription less than minimum', async () => {
+      const sipClientRef = ref<SipClient>(mockSipClient)
+      const { subscribe } = usePresence(sipClientRef)
+
+      await expect(
+        subscribe('sip:user@example.com', { expires: 0 })
+      ).rejects.toThrow('Expires must be between')
+
+      expect(mockSipClient.subscribePresence).not.toHaveBeenCalled()
+    })
+
+    it('should reject expires for subscription greater than maximum', async () => {
+      const sipClientRef = ref<SipClient>(mockSipClient)
+      const { subscribe } = usePresence(sipClientRef)
+
+      await expect(
+        subscribe('sip:user@example.com', { expires: 100000 })
+      ).rejects.toThrow('Expires must be between')
+
+      expect(mockSipClient.subscribePresence).not.toHaveBeenCalled()
+    })
+  })
+
+  // ==========================================================================
   // Edge Cases
   // ==========================================================================
 

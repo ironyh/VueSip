@@ -170,10 +170,20 @@ export function usePresence(sipClient: Ref<SipClient | null>): UsePresenceReturn
       throw new Error('SIP client not initialized')
     }
 
+    // Validate state is a valid PresenceState enum value
+    if (!Object.values(PresenceState).includes(state)) {
+      throw new Error(`Invalid presence state: ${state}`)
+    }
+
     try {
       log.info(`Setting presence status to ${state}`)
 
       const { statusMessage, expires = PRESENCE_CONSTANTS.DEFAULT_EXPIRES, extraHeaders } = options
+
+      // Validate expires parameter
+      if (expires < 60 || expires > 86400) {
+        throw new Error('Expires must be between 60 and 86400 seconds')
+      }
 
       // Publish presence via SIP client
       await sipClient.value.publishPresence({
@@ -242,7 +252,7 @@ export function usePresence(sipClient: Ref<SipClient | null>): UsePresenceReturn
       const { expires = PRESENCE_CONSTANTS.DEFAULT_EXPIRES, extraHeaders } = options
 
       // Create subscription ID
-      const subscriptionId = `sub-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      const subscriptionId = `sub-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`
 
       // Create subscription record
       const subscription: PresenceSubscription = {
@@ -316,6 +326,11 @@ export function usePresence(sipClient: Ref<SipClient | null>): UsePresenceReturn
       try {
         // Unsubscribe and re-subscribe
         await unsubscribe(uri)
+        // Check if subscription still exists after unsubscribe (component may have unmounted)
+        if (!subscriptions.value.has(uri)) {
+          log.debug(`Subscription to ${uri} no longer exists, skipping refresh`)
+          return
+        }
         await subscribe(uri, { expires })
       } catch (error) {
         log.error(`Failed to refresh subscription to ${uri}:`, error)

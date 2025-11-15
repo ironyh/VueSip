@@ -163,6 +163,128 @@ describe('useSipDtmf - AbortController Integration', () => {
       )
       expect(mockDtmfSender.insertDTMF).not.toHaveBeenCalled()
     })
+
+    it('should prevent concurrent sendDtmfSequence calls', async () => {
+      const sessionRef = ref(mockSession)
+      const { sendDtmfSequence } = useSipDtmf(sessionRef)
+
+      // Start first sequence
+      const promise1 = sendDtmfSequence('123', 160)
+
+      // Try to start second sequence before first completes
+      const promise2 = sendDtmfSequence('456', 160)
+
+      // Second call should be rejected
+      await expect(promise2).rejects.toThrow('DTMF operation already in progress')
+
+      // Complete first sequence
+      await vi.advanceTimersByTimeAsync(0)
+      await vi.advanceTimersByTimeAsync(160)
+      await vi.advanceTimersByTimeAsync(160)
+
+      await promise1
+
+      // First sequence should have sent all digits
+      expect(mockDtmfSender.insertDTMF).toHaveBeenCalledTimes(3)
+    })
+
+    it('should allow new sequence after previous completes', async () => {
+      const sessionRef = ref(mockSession)
+      const { sendDtmfSequence } = useSipDtmf(sessionRef)
+
+      // First sequence
+      const promise1 = sendDtmfSequence('12', 160)
+      await vi.advanceTimersByTimeAsync(0)
+      await vi.advanceTimersByTimeAsync(160)
+      await promise1
+
+      expect(mockDtmfSender.insertDTMF).toHaveBeenCalledTimes(2)
+
+      mockDtmfSender.insertDTMF.mockClear()
+
+      // Second sequence should succeed
+      const promise2 = sendDtmfSequence('34', 160)
+      await vi.advanceTimersByTimeAsync(0)
+      await vi.advanceTimersByTimeAsync(160)
+      await promise2
+
+      expect(mockDtmfSender.insertDTMF).toHaveBeenCalledTimes(2)
+    })
+
+    it('should reset guard even if sequence fails', async () => {
+      const sessionRef = ref(mockSession)
+      const { sendDtmfSequence } = useSipDtmf(sessionRef)
+
+      // First sequence fails
+      mockDtmfSender.insertDTMF = vi.fn().mockImplementation(() => {
+        throw new Error('DTMF send failed')
+      })
+
+      await expect(sendDtmfSequence('1', 160)).rejects.toThrow('DTMF send failed')
+
+      // Reset mock to succeed
+      mockDtmfSender.insertDTMF = vi.fn()
+
+      // Second sequence should succeed (guard was reset)
+      const promise2 = sendDtmfSequence('2', 160)
+      await vi.advanceTimersByTimeAsync(0)
+      await promise2
+
+      expect(mockDtmfSender.insertDTMF).toHaveBeenCalled()
+    })
+  })
+
+  describe('Upfront Validation', () => {
+    it('should validate entire sequence before sending any digits', async () => {
+      const sessionRef = ref(mockSession)
+      const { sendDtmfSequence } = useSipDtmf(sessionRef)
+
+      // Sequence with invalid digit at the end
+      await expect(sendDtmfSequence('12X', 160)).rejects.toThrow('Invalid DTMF digit')
+
+      // Should not have sent any digits
+      expect(mockDtmfSender.insertDTMF).not.toHaveBeenCalled()
+    })
+
+    it('should validate each digit in sequence upfront', async () => {
+      const sessionRef = ref(mockSession)
+      const { sendDtmfSequence } = useSipDtmf(sessionRef)
+
+      // Various invalid sequences
+      await expect(sendDtmfSequence('1Z3', 160)).rejects.toThrow('Invalid DTMF digit')
+      await expect(sendDtmfSequence('$123', 160)).rejects.toThrow('Invalid DTMF digit')
+      await expect(sendDtmfSequence('12!', 160)).rejects.toThrow('Invalid DTMF digit')
+
+      // Should not have sent any digits for any of these
+      expect(mockDtmfSender.insertDTMF).not.toHaveBeenCalled()
+    })
+
+    it('should accept all valid DTMF digits in sequence', async () => {
+      const sessionRef = ref(mockSession)
+      const { sendDtmfSequence } = useSipDtmf(sessionRef)
+
+      const validSequence = '0123456789*#ABCD'
+
+      const promise = sendDtmfSequence(validSequence, 160)
+
+      // Advance through all digits
+      for (let i = 0; i < validSequence.length; i++) {
+        await vi.advanceTimersByTimeAsync(i === 0 ? 0 : 160)
+      }
+
+      await promise
+
+      expect(mockDtmfSender.insertDTMF).toHaveBeenCalledTimes(validSequence.length)
+    })
+
+    it('should throw immediately for empty sequence', async () => {
+      const sessionRef = ref(mockSession)
+      const { sendDtmfSequence } = useSipDtmf(sessionRef)
+
+      await expect(sendDtmfSequence('', 160)).rejects.toThrow()
+
+      expect(mockDtmfSender.insertDTMF).not.toHaveBeenCalled()
+    })
   })
 
   describe('sendDtmf (single tone)', () => {

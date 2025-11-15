@@ -900,6 +900,41 @@ describe('useMediaDevices - Comprehensive Tests', () => {
   })
 
   describe('Concurrent Operation Protection', () => {
+    it('should return same pending promise for concurrent enumerateDevices calls', async () => {
+      let resolveEnumerate: (value: any[]) => void
+      const enumeratePromise = new Promise<any[]>((resolve) => {
+        resolveEnumerate = resolve
+      })
+      mockEnumerateDevices.mockReturnValue(enumeratePromise)
+
+      const { enumerateDevices, isEnumerating } = useMediaDevices(ref(null), {
+        autoEnumerate: false,
+      })
+
+      // Start first enumeration
+      const promise1 = enumerateDevices()
+      expect(isEnumerating.value).toBe(true)
+
+      // Try second concurrent enumeration - should return the same pending promise
+      const promise2 = enumerateDevices()
+
+      // Both promises should be the same
+      expect(promise1).toBe(promise2)
+
+      // Complete enumeration
+      resolveEnumerate!([{ deviceId: 'audio-in-1', kind: 'audioinput', label: 'Mic', groupId: 'group-1' }])
+
+      const result1 = await promise1
+      const result2 = await promise2
+
+      // Both should resolve to same result
+      expect(result1).toEqual(result2)
+      expect(result1.length).toBe(1)
+
+      // Only one actual enumeration should occur
+      expect(mockEnumerateDevices).toHaveBeenCalledTimes(1)
+    })
+
     it('should prevent concurrent enumerateDevices calls', async () => {
       mockEnumerateDevices.mockResolvedValue([
         { deviceId: 'audio-in-1', kind: 'audioinput', label: 'Mic', groupId: 'group-1' },

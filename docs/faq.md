@@ -88,10 +88,10 @@ import { useSipClient } from 'vuesip'
 const { connect } = useSipClient()
 
 await connect({
-  uri: 'sip:1000@example.com',        // Your SIP address
-  password: 'your-password',           // SIP password
+  uri: 'sip:1000@example.com', // Your SIP address
+  password: 'your-password', // SIP password
   server: 'wss://sip.example.com:7443', // WebSocket server URL
-  displayName: 'Your Name'             // Optional display name
+  displayName: 'Your Name', // Optional display name
 })
 ```
 
@@ -135,9 +135,10 @@ For production, use a backend authentication service instead of storing credenti
 ### How do I make a call?
 
 ```typescript
-import { useCallSession } from 'vuesip'
+import { useSipClient, useCallSession } from 'vuesip'
 
-const { makeCall } = useCallSession()
+const sipClient = useSipClient()
+const { makeCall } = useCallSession(sipClient.getClient())
 
 // Simple audio call
 await makeCall('sip:2000@example.com')
@@ -146,8 +147,8 @@ await makeCall('sip:2000@example.com')
 await makeCall('sip:2000@example.com', {
   mediaConstraints: {
     audio: true,
-    video: true
-  }
+    video: true,
+  },
 })
 ```
 
@@ -157,9 +158,10 @@ See [Making Calls Guide](/guide/making-calls) for more details.
 
 ```vue
 <script setup>
-import { useCallSession } from 'vuesip'
+import { useSipClient, useCallSession } from 'vuesip'
 
-const { currentCall, answer, reject } = useCallSession()
+const sipClient = useSipClient()
+const { currentCall, answer, reject } = useCallSession(sipClient.getClient())
 
 // Watch for incoming calls
 watch(currentCall, (call) => {
@@ -189,16 +191,19 @@ For multiple calls, you'll need to manage multiple call sessions and implement c
 ### How do I add video to a call?
 
 ```typescript
-const { makeCall } = useCallSession()
+import { useSipClient, useCallSession } from 'vuesip'
+
+const sipClient = useSipClient()
+const { makeCall } = useCallSession(sipClient.getClient())
 
 await makeCall('sip:2000@example.com', {
   mediaConstraints: {
     audio: true,
     video: {
       width: { ideal: 1280 },
-      height: { ideal: 720 }
-    }
-  }
+      height: { ideal: 720 },
+    },
+  },
 })
 ```
 
@@ -207,9 +212,11 @@ See [Video Calling Guide](/guide/video-calling) for complete video calling docum
 ### How do I send DTMF tones?
 
 ```typescript
-import { useDTMF } from 'vuesip'
+import { useSipClient, useCallSession, useDTMF } from 'vuesip'
 
-const { sendDTMF, sendDTMFSequence } = useDTMF()
+const sipClient = useSipClient()
+const callSession = useCallSession(sipClient.getClient())
+const { sendDTMF, sendDTMFSequence } = useDTMF(callSession.getCurrentSession())
 
 // Send single digit
 await sendDTMF('1')
@@ -223,9 +230,10 @@ See [Call Controls Guide](/guide/call-controls#dtmf-tones) for more details.
 ### How do I transfer a call?
 
 ```typescript
-import { useCallControls } from 'vuesip'
+import { useSipClient, useCallControls } from 'vuesip'
 
-const { transfer, attendedTransfer } = useCallControls()
+const sipClient = useSipClient()
+const { transfer, attendedTransfer } = useCallControls(sipClient.getClient())
 
 // Blind transfer
 await transfer('sip:3000@example.com')
@@ -269,7 +277,7 @@ const {
   videoInputDevices,
   selectAudioInput,
   selectAudioOutput,
-  selectVideoInput
+  selectVideoInput,
 } = useMediaDevices()
 
 // Enumerate devices
@@ -338,11 +346,14 @@ See [Video Calling Guide](/guide/video-calling#screen-sharing) for more details.
    - Check server logs
 
 **Debug steps:**
+
 ```typescript
 const { connect, error } = useSipClient()
 
 try {
-  await connect({ /* config */ })
+  await connect({
+    /* config */
+  })
 } catch (err) {
   console.error('Connection failed:', err)
   console.error('Error details:', error.value)
@@ -370,6 +381,7 @@ try {
    - Verify STUN/TURN server configuration
 
 **Debug steps:**
+
 ```typescript
 // Check if local stream has audio
 const { getLocalStream } = useMediaDevices()
@@ -400,6 +412,7 @@ console.log('Track enabled:', audioTracks[0]?.enabled)
    - Check `srcObject` is set to stream
 
 **Debug steps:**
+
 ```typescript
 const { getLocalStream } = useMediaDevices()
 const stream = getLocalStream()
@@ -429,9 +442,11 @@ console.log('Track settings:', videoTracks[0]?.getSettings())
    - Verify account permissions
 
 **Debug steps:**
+
 ```typescript
-const { makeCall } = useCallSession()
-const { isRegistered } = useSipClient()
+const sipClient = useSipClient()
+const { makeCall } = useCallSession(sipClient.getClient())
+const { isRegistered } = sipClient
 
 if (!isRegistered.value) {
   console.error('Not registered!')
@@ -459,6 +474,7 @@ try {
    - View connection details
 
 **Enable VueSip logging:**
+
 ```typescript
 import { enableDebugLogging } from 'vuesip'
 
@@ -466,6 +482,7 @@ enableDebugLogging(true)
 ```
 
 **Check console for errors:**
+
 - Look for SIP errors (4xx, 5xx responses)
 - Check for WebRTC errors (ICE failures)
 - Monitor media errors
@@ -487,16 +504,22 @@ enableDebugLogging(true)
    - Use TURN server for better routing
 
 **Optimize quality:**
+
 ```typescript
+import { useSipClient, useCallSession } from 'vuesip'
+
+const sipClient = useSipClient()
+const { makeCall } = useCallSession(sipClient.getClient())
+
 // Reduce video quality for better performance
 await makeCall('sip:2000@example.com', {
   mediaConstraints: {
     video: {
       width: { ideal: 640 },
       height: { ideal: 480 },
-      frameRate: { ideal: 15 }
-    }
-  }
+      frameRate: { ideal: 15 },
+    },
+  },
 })
 ```
 
@@ -555,15 +578,10 @@ See [Presence & Messaging Guide](/guide/presence-messaging) for complete documen
 ```typescript
 import { useCallHistory } from 'vuesip'
 
-const {
-  history,
-  addToHistory,
-  clearHistory,
-  exportHistory
-} = useCallHistory({
+const { history, addToHistory, clearHistory, exportHistory } = useCallHistory({
   storageType: 'localStorage', // or 'sessionStorage' or 'indexedDB'
   maxEntries: 1000,
-  encrypted: true
+  encrypted: true,
 })
 
 // History is automatically tracked
@@ -633,10 +651,7 @@ onDisconnected(() => {
 const { makeCall } = useCallSession()
 
 await makeCall('sip:2000@example.com', {
-  customHeaders: [
-    'X-Custom-Header: Value',
-    'X-Another-Header: Another Value'
-  ]
+  customHeaders: ['X-Custom-Header: Value', 'X-Another-Header: Another Value'],
 })
 ```
 
@@ -674,9 +689,10 @@ See [Security Guide](/guide/security) and [Error Handling Guide](/guide/error-ha
 ### How do I monitor call quality?
 
 ```typescript
-import { useCallSession } from 'vuesip'
+import { useSipClient, useCallSession } from 'vuesip'
 
-const { session, getStats } = useCallSession()
+const sipClient = useSipClient()
+const { session, getStats } = useCallSession(sipClient.getClient())
 
 // Get WebRTC statistics
 const stats = await getStats()
