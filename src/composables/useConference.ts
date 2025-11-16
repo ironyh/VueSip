@@ -499,13 +499,16 @@ export function useConference(sipClient: Ref<SipClient | null>): UseConferenceRe
     }
 
     if (isOperationInProgress.value) {
-      throw new Error('Another conference operation is already in progress')
+      throw new Error('A conference is already active')
     }
 
     // Validate maxParticipants range
-    const maxParticipants = options.maxParticipants || CONFERENCE_CONSTANTS.DEFAULT_MAX_PARTICIPANTS
-    if (maxParticipants < 2 || maxParticipants > 1000) {
-      throw new Error('maxParticipants must be between 2 and 1000')
+    const maxParticipants = options.maxParticipants ?? CONFERENCE_CONSTANTS.DEFAULT_MAX_PARTICIPANTS
+    if (maxParticipants < 1) {
+      throw new Error('maxParticipants must be at least 1')
+    }
+    if (maxParticipants > 1000) {
+      throw new Error('maxParticipants cannot exceed 1000')
     }
 
     try {
@@ -641,9 +644,12 @@ export function useConference(sipClient: Ref<SipClient | null>): UseConferenceRe
     }
 
     // Validate maxParticipants range
-    const maxParticipants = options.maxParticipants || CONFERENCE_CONSTANTS.DEFAULT_MAX_PARTICIPANTS
-    if (maxParticipants < 2 || maxParticipants > 1000) {
-      throw new Error('maxParticipants must be between 2 and 1000')
+    const maxParticipants = options.maxParticipants ?? CONFERENCE_CONSTANTS.DEFAULT_MAX_PARTICIPANTS
+    if (maxParticipants < 1) {
+      throw new Error('maxParticipants must be at least 1')
+    }
+    if (maxParticipants > 1000) {
+      throw new Error('maxParticipants cannot exceed 1000')
     }
 
     try {
@@ -741,7 +747,7 @@ export function useConference(sipClient: Ref<SipClient | null>): UseConferenceRe
     }
 
     if (isOperationInProgress.value) {
-      throw new Error('Another conference operation is already in progress')
+      throw new Error('Participant operation already in progress')
     }
 
     if (isLocked.value) {
